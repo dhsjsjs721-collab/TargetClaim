@@ -1,0 +1,15 @@
+name: SwampSky
+version: 1.0.0
+main: dev.swampsky.SwampSkyPlugin
+api-version: '26.3'
+author: SwampSky
+description: Flying tameable pigs, giant swamp frogs and custom frog gear
+commands:
+  swampsky:
+    aliases: [wildlife, ss]
+    description: Spawns creatures and gives swamp equipment
+    usage: /swampsky help
+permissions:
+  swampsky.admin:
+    default: op
+    description: Admin commands for SwampSky

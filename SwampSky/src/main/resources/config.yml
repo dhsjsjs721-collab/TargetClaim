@@ -1,0 +1,11 @@
+# Probability to make naturally spawning pigs fly (0-1)
+flying-chance: 0.17
+# Probability that a naturally spawning frog in a swamp will be a giant frog
+giant-chance: 0.24
+frog-health: 60.0
+frog-scale: 2.8
+frog-damage: 7.0
+# Riding speed, slopes and snow aversion
+pig-speed: 0.43
+slope-multiplier: 1.45
+snow-multiplier: 0.35
