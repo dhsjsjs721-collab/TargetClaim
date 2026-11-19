@@ -158,6 +158,23 @@ def build():
             if not info.is_dir() and info.filename not in ("pack.mcmeta",):
                 merged[info.filename]=z.read(info.filename)
     merged.update(standalone)
+    # Restore four TalismanForge grappling-hook assets present in the previous
+    # combined pack but absent from the base v2.0.0 pack. Never overwrite an
+    # asset if a newer TalismanForge resource already supplies it.
+    for name in ("grappling_chain_link","grappling_hook","grappling_hook_cast","grappling_hook_tip"):
+        texture_name=f"assets/talismanforge/textures/item/{name}.png"
+        if texture_name not in merged:
+            encoded=(ROOT/"assets"/(name+".png.b64")).read_text(encoding="ascii").strip()
+            merged[texture_name]=base64.b64decode(encoded,validate=True)
+        merged.setdefault(
+            f"assets/talismanforge/items/{name}.json",
+            json.dumps({"model":{"type":"minecraft:model","model":f"talismanforge:item/{name}"}}).encode("utf-8")
+        )
+        merged.setdefault(
+            f"assets/talismanforge/models/item/{name}.json",
+            json.dumps({"parent":"minecraft:item/generated" if name=="grappling_chain_link" else "minecraft:item/handheld",
+                        "textures":{"layer0":f"talismanforge:item/{name}"}}).encode("utf-8")
+        )
     write_zip(BUILD/"TalismanForge-SwampSky-Combined.zip",merged)
     # Save reference previews for visual inspection but do not add unneeded mob textures.
     for name in ("frog_boots","frog_leggings","frog_wings","frog_hide","pig_wing"):
