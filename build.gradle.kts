@@ -2,7 +2,7 @@ plugins {
     java
 }
 group = "dev.targetclaim"
-version = "1.4.0"
+version = "1.4.1"
 repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
 }
@@ -16,5 +16,5 @@ tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
 }
 tasks.jar {
-    archiveFileName.set("TargetClaim-1.4.0.jar")
+    archiveFileName.set("TargetClaim-1.4.1.jar")
 }
