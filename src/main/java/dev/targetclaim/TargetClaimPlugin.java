@@ -763,13 +763,13 @@ event.setCancelled(true);
 if(!(event.getWhoClicked() instanceof Player player))return;
 int slot=event.getRawSlot();
 if(slot<0||slot>=inv.getSize())return;
-if(slot==26){Bukkit.getScheduler().runTask(this,player::closeInventory);return;}
+if(slot==26){Bukkit.getScheduler().runTask(this,()->player.closeInventory());return;}
 Claim claim=menu.claimId==null?null:claims.get(menu.claimId);
 if(menu.claimId!=null&&(claim==null||(!claim.owner.equals(player.getUniqueId())&&!allies(claim.owner,player.getUniqueId())))){
-Bukkit.getScheduler().runTask(this,player::closeInventory);return;
+Bukkit.getScheduler().runTask(this,()->player.closeInventory());return;
 }
 if(menu.page.equals("team")){
-if(slot==18){if(claim!=null)changePage(player,claim,"main");else Bukkit.getScheduler().runTask(this,player::closeInventory);}
+if(slot==18){if(claim!=null)changePage(player,claim,"main");else Bukkit.getScheduler().runTask(this,()->player.closeInventory());}
 if(slot==15){
 Group group=groupOf(player.getUniqueId());
 if(group==null)Bukkit.getScheduler().runTask(this,()->{teamCommand(player,new String[]{"accept"});fillTeamMenu(inv,player);});
