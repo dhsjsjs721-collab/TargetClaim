@@ -21,7 +21,7 @@ import org.bukkit.event.*;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.hanging.*;
-import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.inventory.*;
 import org.bukkit.event.player.*;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.*;
@@ -604,70 +604,21 @@ player.showDialog(d);
 private Claim viewedClaim(Player p){UUID id=openedClaim.get(p.getUniqueId());return id==null?claims.get(p.getUniqueId()):claims.get(id);}
 private void showClaimDialog(Player player,Claim c){
 if(!owner(player,c)&&!allies(player.getUniqueId(),c.owner)){tell(player,"§cЧужой приват.");return;}
-openedClaim.put(player.getUniqueId(),c.owner);
-boolean isOwner=player.getUniqueId().equals(c.owner);
-Viewer v=viewer(player);
-List<DialogBody> body=new ArrayList<>();
-body.add(stat("УРОВЕНЬ  "+c.level+"/4",dimension(c.level),NamedTextColor.RED));
-body.add(message("Владелец: "+c.ownerName+"  •  PvP включено"));
-List<ActionButton> buttons=new ArrayList<>();
-if(isOwner&&c.level<4)buttons.add(action("Улучшить","Стоимость и размер","claim_upgrade_menu",NamedTextColor.GREEN));
-buttons.add(action("Границы: "+on(v.borders),"Красный контур","claim_border",NamedTextColor.RED));
-if(isOwner)buttons.add(action("Доступ: "+(c.teamBuild?"Команда":"Только я"),"Кто может строить","claim_build",NamedTextColor.YELLOW));
-buttons.add(action("Команда","Игроки и PvP","team_open",NamedTextColor.LIGHT_PURPLE));
-if(isOwner){
-if(pendingDeletion.containsKey(c.owner))buttons.add(action("Отменить удаление","Сохранить приват","claim_delete_cancel",NamedTextColor.GREEN));
-else buttons.add(action("Удалить","Подтверждение, 10 сек.","claim_remove",NamedTextColor.RED));
-}
-dialog(player,"TARGETCLAIM",body,buttons);
+openClaimMenu(player,c,"main");
 }
 private void showUpgradeDialog(Player player,Claim c){
-if(!player.getUniqueId().equals(c.owner))return;
-openedClaim.put(player.getUniqueId(),c.owner);
-List<DialogBody> body=new ArrayList<>();
-body.add(stat("СЕЙЧАС",dimension(c.level),NamedTextColor.RED));
-if(c.level<4){
-body.add(stat("ДАЛЬШЕ",dimension(c.level+1),NamedTextColor.AQUA));
-body.add(stat("НУЖНО",AMOUNT[c.level]+" × "+russian(COST[c.level]),NamedTextColor.YELLOW));
-boolean ready=enoughInHand(player,c);
-body.add(message(ready?(validLevel(c,c.level+1)?"Ресурсы есть • голубые границы":"Расширение невозможно • оранжевые границы"):"Держи ресурсы в основной руке"));
-}else body.add(message("Максимальный уровень."));
-body.add(stat("МАКСИМУМ",dimension(4),NamedTextColor.GOLD));
-List<ActionButton> buttons=new ArrayList<>();
-if(c.level<4)buttons.add(action("Улучшить","Потратить ресурсы","claim_upgrade",NamedTextColor.GREEN));
-buttons.add(action("Назад","Основное меню","claim_open",NamedTextColor.GRAY));
-dialog(player,"УЛУЧШЕНИЕ",body,buttons);
+if(player.getUniqueId().equals(c.owner))openClaimMenu(player,c,"upgrade");
 }
 private String on(boolean value){return value?"ВКЛ":"ВЫКЛ";}
 private void showRemoveDialog(Player player,Claim c){
 if(!player.getUniqueId().equals(c.owner)){tell(player,"§cТолько владелец может удалить приват.");return;}
-if(pendingDeletion.containsKey(c.owner)){showPendingDeletionDialog(player);return;}
-dialog(player,"УДАЛИТЬ ПРИВАТ?",List.of(message("Через 10 сек. выпадут только 3 бумаги."),message("Отмена: кнопка или /p cancel")),List.of(action("Удалить","Запустить отсчёт","claim_delete_confirm",NamedTextColor.RED),action("Назад","Не удалять","claim_open",NamedTextColor.GRAY)));
+openClaimMenu(player,c,pendingDeletion.containsKey(c.owner)?"pending":"delete");
 }
 private void showPendingDeletionDialog(Player player){
-dialog(player,"УДАЛЕНИЕ ЗАПУЩЕНО",List.of(message("10 секунд на отмену • /p cancel")),List.of(action("Отменить","Сохранить приват","claim_delete_cancel",NamedTextColor.GREEN),action("Закрыть","Продолжить отсчёт","claim_close",NamedTextColor.GRAY)));
+Claim claim=claims.get(player.getUniqueId());
+if(claim!=null)openClaimMenu(player,claim,"pending");
 }
-private void showTeamDialog(Player player){
-Group g=groupOf(player.getUniqueId());
-List<DialogBody> body=new ArrayList<>();
-List<ActionButton> actions=new ArrayList<>();
-if(g==null){
-body.add(message("Нет команды • максимум 3 игрока"));
-body.add(message("Создать: /team create название"));
-actions.add(action("Принять","Приглашение в команду","team_accept",NamedTextColor.GREEN));
-}else{
-body.add(stat("КОМАНДА",g.name+"  •  "+g.members.size()+"/3",NamedTextColor.LIGHT_PURPLE));
-for(UUID id:g.members){
-String nick=Bukkit.getOfflinePlayer(id).getName();
-body.add(message((id.equals(g.leader)?"Лидер: ":"Игрок: ")+(nick==null?id:nick)+"  ·  PvP "+on(g.pvpOn.contains(id))));
-}
-actions.add(action("PvP: "+on(g.pvpOn.contains(player.getUniqueId())),"Оба игрока должны включить","team_pvp",NamedTextColor.RED));
-actions.add(action("Выйти","Покинуть команду","team_leave",NamedTextColor.YELLOW));
-if(g.leader.equals(player.getUniqueId()))body.add(message("Пригласить: /team invite ник"));
-}
-actions.add(action("Назад","К привату","claim_open",NamedTextColor.GRAY));
-dialog(player,"КОМАНДА",body,actions);
-}
+private void showTeamDialog(Player player){openClaimMenu(player,claims.get(player.getUniqueId()),"team");}
 @EventHandler public void dialogAction(PlayerCustomClickEvent e){
 if(!e.getIdentifier().namespace().equals("targetclaim"))return;
 if(!(e.getCommonConnection() instanceof PlayerGameConnection game))return;
@@ -697,4 +648,173 @@ default->{return;}
 }
 saveAll();showClaimDialog(p,c);
 }
+private final class ClaimMenu implements InventoryHolder {
+final UUID claimId;
+final String page;
+final Inventory inventory;
+ClaimMenu(Claim claim,String page){
+this.claimId=claim==null?null:claim.owner;
+this.page=page;
+String title=switch(page){
+case "upgrade"->"Улучшение";case "team"->"Команда";case "delete"->"Удаление";case "pending"->"Удаление";default->"TargetClaim";
+};
+this.inventory=Bukkit.createInventory(this,27,"§8"+title);
+}
+@Override public Inventory getInventory(){return inventory;}
+}
+private ItemStack guiItem(Material material,String title,String... lore){
+ItemStack stack=new ItemStack(material);
+ItemMeta meta=stack.getItemMeta();
+if(meta!=null){meta.setDisplayName(title);meta.setLore(Arrays.asList(lore));stack.setItemMeta(meta);}
+return stack;
+}
+private void guiBase(Inventory inv){
+ItemStack black=guiItem(Material.BLACK_STAINED_GLASS_PANE," ");
+for(int i=0;i<27;i++)inv.setItem(i,black);
+inv.setItem(26,guiItem(Material.BARRIER,"§7Закрыть"));
+}
+private void openClaimMenu(Player player,Claim claim,String page){
+ClaimMenu menu=new ClaimMenu(claim,page);
+guiBase(menu.inventory);
+switch(page){
+case "main"->fillMainMenu(menu.inventory,player,claim);
+case "upgrade"->fillUpgradeMenu(menu.inventory,player,claim);
+case "team"->fillTeamMenu(menu.inventory,player);
+case "delete"->{
+menu.inventory.setItem(4,guiItem(Material.TARGET,"§cУдалить приват?","§7Улучшения не возвращаются"));
+menu.inventory.setItem(13,guiItem(Material.RED_DYE,"§cПодтвердить","§710 секунд на отмену","§7После удаления выпадут 3 бумаги"));
+menu.inventory.setItem(18,guiItem(Material.ARROW,"§7Назад"));
+}
+case "pending"->{
+menu.inventory.setItem(4,guiItem(Material.CLOCK,"§eУдаление запущено","§710 секунд после подтверждения"));
+menu.inventory.setItem(13,guiItem(Material.LIME_DYE,"§aОтменить удаление","§7Также можно: /p cancel"));
+}
+}
+player.openInventory(menu.inventory);
+}
+private ItemStack borderTile(Player player){
+boolean on=viewer(player).borders;
+return guiItem(on?Material.REDSTONE:Material.GRAY_DYE,"§fГраницы: "+(on?"§aВКЛ":"§cВЫКЛ"),"§7Красные частицы");
+}
+private ItemStack buildTile(Claim claim){
+return guiItem(Material.IRON_DOOR,"§fСтроительство","§7"+(claim.teamBuild?"§aВладелец + команда":"§fТолько владелец"));
+}
+private void fillMainMenu(Inventory inv,Player player,Claim claim){
+boolean own=claim.owner.equals(player.getUniqueId());
+inv.setItem(4,guiItem(Material.TARGET,"§f§lПриват §7"+claim.level+"/4","§7Владелец: §f"+claim.ownerName,"§7Размер: §f"+dimension(claim.level)));
+if(own&&claim.level<4)inv.setItem(11,guiItem(Material.AMETHYST_SHARD,"§aУлучшить","§7Стоимость и предпросмотр"));
+inv.setItem(12,borderTile(player));
+if(own)inv.setItem(13,buildTile(claim));
+inv.setItem(14,guiItem(Material.NAME_TAG,"§dКоманда","§7Участники и PvP"));
+if(own)inv.setItem(15,guiItem(Material.RED_DYE,"§cУдалить","§710 секунд на отмену"));
+}
+private void fillUpgradeMenu(Inventory inv,Player player,Claim claim){
+inv.setItem(4,guiItem(Material.TARGET,"§fПриват §7"+claim.level+"/4"));
+inv.setItem(10,guiItem(Material.PAPER,"§fТекущий размер","§7"+dimension(claim.level)));
+inv.setItem(16,guiItem(Material.GOLD_INGOT,"§6Максимум","§7"+dimension(4)));
+if(claim.level<4){
+inv.setItem(12,guiItem(Material.CYAN_DYE,"§bСледующий размер","§7"+dimension(claim.level+1)));
+inv.setItem(14,guiItem(COST[claim.level],"§eЦена","§7"+AMOUNT[claim.level]+" × "+russian(COST[claim.level])));
+boolean has=enoughInHand(player,claim),free=validLevel(claim,claim.level+1);
+inv.setItem(22,guiItem(!free?Material.ORANGE_DYE:has?Material.LIME_DYE:Material.GRAY_DYE,has&&free?"§aУлучшить":"§7Улучшить",!free?"§cНельзя расширить":has?"§7Ресурсы готовы":"§7Держи ресурсы в руке"));
+}else{
+inv.setItem(12,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
+inv.setItem(14,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
+inv.setItem(22,guiItem(Material.NETHER_STAR,"§6Максимальный уровень"));
+}
+inv.setItem(18,guiItem(Material.ARROW,"§7Назад"));
+}
+private void fillTeamMenu(Inventory inv,Player player){
+Group group=groupOf(player.getUniqueId());
+inv.setItem(4,guiItem(Material.NAME_TAG,"§dКоманда",group==null?"§7Нет команды":"§7"+group.name+" • "+group.members.size()+"/3"));
+for(int slot=10;slot<=12;slot++)inv.setItem(slot,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
+inv.setItem(15,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
+inv.setItem(20,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
+inv.setItem(22,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
+if(group==null){
+inv.setItem(13,guiItem(Material.BOOK,"§fСоздать команду","§7/team create Название"));
+inv.setItem(15,guiItem(Material.LIME_DYE,"§aПринять приглашение","§7/team accept"));
+}else{
+inv.setItem(13,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
+int index=10;
+for(UUID member:group.members){
+if(index>12)break;
+String nick=Bukkit.getOfflinePlayer(member).getName();
+inv.setItem(index++,guiItem(Material.PLAYER_HEAD,"§f"+(nick==null?member:nick),member.equals(group.leader)?"§6Лидер":"§7Участник","§7PvP: "+(group.pvpOn.contains(member)?"§aВКЛ":"§cВЫКЛ")));
+}
+inv.setItem(15,guiItem(group.pvpOn.contains(player.getUniqueId())?Material.LIME_DYE:Material.RED_DYE,"§fМой PvP: "+(group.pvpOn.contains(player.getUniqueId())?"§aВКЛ":"§cВЫКЛ"),"§7Урон только при взаимном согласии"));
+inv.setItem(20,guiItem(Material.BOOK,"§fУправление командой","§7/team invite Ник","§7/team kick Ник","§7/team disband"));
+inv.setItem(22,guiItem(Material.BARRIER,"§cВыйти из команды"));
+}
+inv.setItem(18,guiItem(Material.ARROW,"§7Назад"));
+}
+private void changePage(Player player,Claim claim,String page){
+Bukkit.getScheduler().runTask(this,()->{
+if(!player.isOnline())return;
+if(claim!=null&&claims.get(claim.owner)!=claim){player.closeInventory();return;}
+openClaimMenu(player,claim,page);
+});
+}
+@EventHandler(priority=EventPriority.HIGHEST)
+public void guiClick(InventoryClickEvent event){
+Inventory inv=event.getView().getTopInventory();
+if(!(inv.getHolder() instanceof ClaimMenu menu))return;
+event.setCancelled(true);
+if(!(event.getWhoClicked() instanceof Player player))return;
+int slot=event.getRawSlot();
+if(slot<0||slot>=inv.getSize())return;
+if(slot==26){Bukkit.getScheduler().runTask(this,player::closeInventory);return;}
+Claim claim=menu.claimId==null?null:claims.get(menu.claimId);
+if(menu.claimId!=null&&(claim==null||(!claim.owner.equals(player.getUniqueId())&&!allies(claim.owner,player.getUniqueId())))){
+Bukkit.getScheduler().runTask(this,player::closeInventory);return;
+}
+if(menu.page.equals("team")){
+if(slot==18){if(claim!=null)changePage(player,claim,"main");else Bukkit.getScheduler().runTask(this,player::closeInventory);}
+if(slot==15){
+Group group=groupOf(player.getUniqueId());
+if(group==null)Bukkit.getScheduler().runTask(this,()->{teamCommand(player,new String[]{"accept"});fillTeamMenu(inv,player);});
+else{teamCommand(player,new String[]{"pvp"});fillTeamMenu(inv,player);}
+}
+if(slot==22){
+Group group=groupOf(player.getUniqueId());
+if(group!=null){leave(player.getUniqueId(),group);fillTeamMenu(inv,player);}
+}
+return;
+}
+if(claim==null)return;
+boolean isOwner=claim.owner.equals(player.getUniqueId());
+switch(menu.page){
+case "main"->{
+switch(slot){
+case 11->{if(isOwner&&claim.level<4)changePage(player,claim,"upgrade");}
+case 12->{
+Viewer viewer=viewer(player);viewer.borders=!viewer.borders;saveAll();
+inv.setItem(12,borderTile(player));
+}
+case 13->{if(isOwner){claim.teamBuild=!claim.teamBuild;saveAll();inv.setItem(13,buildTile(claim));}}
+case 14->changePage(player,claim,"team");
+case 15->{if(isOwner)changePage(player,claim,pendingDeletion.containsKey(claim.owner)?"pending":"delete");}
+}
+}
+case "upgrade"->{
+if(slot==18)changePage(player,claim,"main");
+else if(slot==22&&isOwner&&claim.level<4){upgrade(player,claim);fillUpgradeMenu(inv,player,claim);}
+}
+case "delete"->{
+if(slot==18)changePage(player,claim,"main");
+else if(slot==13&&isOwner)Bukkit.getScheduler().runTask(this,()->startDeletion(player,claim));
+}
+case "pending"->{
+if(slot==13&&isOwner)Bukkit.getScheduler().runTask(this,()->cancelDeletion(player,claim));
+}
+default->{}
+}
+}
+@EventHandler(priority=EventPriority.HIGHEST)
+public void guiDrag(InventoryDragEvent event){
+Inventory inv=event.getView().getTopInventory();
+if(!(inv.getHolder() instanceof ClaimMenu))return;
+for(int raw:event.getRawSlots())if(raw<inv.getSize()){event.setCancelled(true);return;}
+}
+
 }
