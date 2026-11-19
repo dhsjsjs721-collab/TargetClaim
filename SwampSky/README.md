@@ -4,7 +4,7 @@ Independent server-side plugin: flying pigs, steerable tamed pigs, giant swamp f
 
 ## Creatures
 
-Flying pigs: 17% of naturally spawning pigs transform into flying pigs. Wings are two moving ItemDisplay models and require the optional texture pack. Flying pigs and regular pigs follow players holding pumpkins or pumpkin pie (winged ones fly toward the food; ground pigs walk). Both remain normal Pig entities. Neither pigs nor frogs are reskinned; only special pig wings are added. Use right click with either pumpkin (52% taming chance) or pumpkin pie (78% chance) to tame **any pig**. The food is consumed even if taming fails. Other players cannot mount your pig. After taming, right click with an empty hand to ride, **no saddle item or carrot-on-a-stick**. Controls: WASD movement, space jump / climb in flight, look downward while holding W to descend, Shift dismount. Mounted pigs use Paper PlayerInputEvent; velocity requires pig AI enabled and awareness disabled while mounted. Mounting is deferred to the next server tick to prevent cancelled interaction from blocking it. No chat hints or permanent creature nametags. On hills pigs have 1.45x speed; on snow 0.35x, and flying pigs rise to avoid it. Tamed pigs can be healed with food.
+Flying pigs: 17% of naturally spawning pigs transform into flying pigs. Wings are two small moving ItemDisplay models and require the resource pack. Version 1.2.1 replaces the oversized dark wings with compact ivory/cream feathers on a single transparent PNG, using improved display orientation and subtle animated flapping. Flying pigs and regular pigs follow players holding pumpkins or pumpkin pie (winged ones fly toward the food; ground pigs walk). Both remain normal Pig entities. Neither pigs nor frogs are reskinned; only special pig wings are added. Use right click with either pumpkin (52% taming chance) or pumpkin pie (78% chance) to tame **any pig**. The food is consumed even if taming fails. Other players cannot mount your pig. After taming, right click with an empty hand to ride, **no saddle item or carrot-on-a-stick**. Controls: WASD movement, space jump / climb in flight, look downward while holding W to descend, Shift dismount. Mounted pigs use Paper PlayerInputEvent; velocity requires pig AI enabled and awareness disabled while mounted. Mounting is deferred to the next server tick to prevent cancelled interaction from blocking it. No chat hints or permanent creature nametags. On hills pigs have 1.45x speed; on snow 0.35x, and flying pigs rise to avoid it. Tamed pigs can be healed with food.
 
 Flying pigs additionally drop 1–2 phantom membranes on death; ordinary pigs retain ordinary drops. The two sides reuse one cream-white wing texture, mirrored on the left.
 
@@ -47,7 +47,7 @@ Aliases: /wildlife and /ss.
 
 ## Installation
 
-1. Copy SwampSky-1.2.0.jar to the Paper 26.3 server plugins folder; reboot server.
+1. Copy SwampSky-1.2.1.jar to the Paper 26.3 server plugins folder; reboot server.
 2. For custom textures, enable the combined resourcepacks/TalismanForge-SwampSky-Complete.zip on Minecraft Java 26.3 clients; this single pack also includes the pre-existing TalismanForge textures. Standalone SwampSky-ResourcePack.zip is available. Armor/elytra textures use the original vanilla Minecraft UV templates, recolored in a swamp theme, so boots/leggings appear on worn 3D armor meshes and frog wings render on the Elytra model.
 3. Edit plugins/SwampSky/config.yml to tune spawn frequency, health, speed, and damage.
 
@@ -58,6 +58,6 @@ Build with Java 25, Gradle 9.2.1:
     gradle -p SwampSky build --no-daemon
     python3 SwampSky/tools/build_pack.py
 
-Artifacts: SwampSky/build/libs/SwampSky-1.2.0.jar and SwampSky/build/SwampSky-ResourcePack.zip.
+Artifacts: SwampSky/build/libs/SwampSky-1.2.1.jar and SwampSky/build/SwampSky-ResourcePack.zip.
 
 This is a **Paper plugin**, not a Fabric/NeoForge mod. Creatures reuse vanilla Pig and Frog entities, and wings are attached visual displays; this avoids requiring a new client entity renderer. Client resource-pack format: 97.1. In-game tests are still recommended, particularly with anti-cheat plugins that monitor fast mounts.

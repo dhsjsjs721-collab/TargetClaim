@@ -382,26 +382,42 @@ for(int j=0;j<2;j++){
 ItemDisplay d=pig.getWorld().spawn(pig.getLocation(),ItemDisplay.class,entity->{
 entity.setPersistent(false);
 entity.setBillboard(Display.Billboard.FIXED);
-entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+// NONE avoids the default item-frame angle that made the wings look like sails.
+entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
 entity.setItemStack(item("pig_wing",1));
-entity.setTransformation(new Transformation(new Vector3f(),new Quaternionf(),new Vector3f(1.6f,1.6f,1.6f),new Quaternionf()));
+entity.setViewRange(1.6f);
+entity.setTeleportDuration(3);
 mark(entity,displayKey);
 });
-// The two displays share a single wing PNG. Mirror the left wing, no duplicate artwork.
-d.setTransformation(new Transformation(new Vector3f(),new Quaternionf(),new Vector3f(j==0?-1.6f:1.6f,1.6f,1.6f),new Quaternionf()));
 list.add(d.getUniqueId());
 }
 displays.put(pig.getUniqueId(),list);
 }
 Location at=pig.getLocation();
 double yaw=Math.toRadians(at.getYaw());
+double flap=Math.sin(tick*.10)*.10;
 for(int j=0;j<2;j++){
 Entity e=Bukkit.getEntity(list.get(j));
 if(!(e instanceof ItemDisplay d))continue;
-double side=j==0?-1:1;
-Location loc=at.clone().add(Math.cos(yaw)*side*.65,.72+Math.sin(tick*.18)*.13*side,Math.sin(yaw)*side*.65);
-loc.setYaw(at.getYaw()+(float)(90*side));
+float side=j==0?-1f:1f;
+// Place each wing close to the back/shoulder; left side mirrors the same image.
+// Both wings use one source texture, not two separate PNG assets.
+Location loc=at.clone().add(
+Math.cos(yaw)*side*.47+Math.sin(yaw)*.10,
+.84+Math.sin(tick*.10)*.035,
+Math.sin(yaw)*side*.47-Math.cos(yaw)*.10
+);
+loc.setYaw(at.getYaw()+side*22f);
+loc.setPitch(0f);
 d.teleport(loc);
+float pitch=(float)(-.12+flap*side);
+Quaternionf angle=new Quaternionf().rotationXYZ(.20f*side,0f,pitch);
+d.setTransformation(new Transformation(
+new Vector3f(0f,0f,0f),
+angle,
+new Vector3f(side*.78f,.70f,.78f),
+new Quaternionf()
+));
 }
 }
 @EventHandler public void playerInput(PlayerInputEvent e){inputCache.put(e.getPlayer().getUniqueId(),e.getInput());}

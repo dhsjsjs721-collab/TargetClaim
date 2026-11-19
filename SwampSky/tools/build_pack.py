@@ -134,7 +134,7 @@ def textures():
     return files
 
 def mcmeta():
-    return json.dumps({"pack":{"description":"TalismanForge + SwampSky 1.2 | 26.3 frog armor and single pig wing",
+    return json.dumps({"pack":{"description":"TalismanForge + SwampSky 1.2.1 | compact ivory pig wings",
                                 "min_format":[97,1],"max_format":[97,1]}}).encode("utf-8")
 
 def write_zip(path,entries):
