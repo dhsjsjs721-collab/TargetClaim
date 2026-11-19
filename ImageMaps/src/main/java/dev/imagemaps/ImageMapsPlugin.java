@@ -223,14 +223,16 @@ private boolean isPublic(InetAddress a){
 if(a.isAnyLocalAddress()||a.isLoopbackAddress()||a.isLinkLocalAddress()||a.isSiteLocalAddress()||a.isMulticastAddress())return false;
 byte[] ip=a.getAddress();
 if(a instanceof Inet4Address){
-int p=ip[0]&255,q=ip[1]&255;
-return p!=0&&p!=10&&p!=127&&p!=169&&p!=192&&p!=224&&p!=255
-&&!(p==100&&q>=64&&q<=127)&&!(p==172&&q>=16&&q<=31)
-&&!(p==198&&(q==18||q==19))&&!(p>=224)&&!(p==203&&q==0);
+int p=ip[0]&255,q=ip[1]&255,r=ip[2]&255;
+return p>=1&&p<224&&p!=10&&p!=127
+&&!(p==100&&q>=64&&q<=127)&&!(p==169&&q==254)
+&&!(p==172&&q>=16&&q<=31)&&!(p==192&&(q==168||q==0))
+&&!(p==198&&(q==18||q==19||(q==51&&r==100)))
+&&!(p==203&&q==0&&r==113);
 }
 if(a instanceof Inet6Address){
 int top=ip[0]&255;
-return (top&0xfe)!=0xfc&&top!=0xfe&&top!=0xff&&top!=0&&top!=0x20;
+return (top&0xe0)==0x20&&!(top==0x20&&(ip[1]&255)==0x02);
 }
 return false;
 }
