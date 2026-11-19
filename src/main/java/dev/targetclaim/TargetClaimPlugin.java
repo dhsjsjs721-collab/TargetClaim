@@ -629,7 +629,7 @@ return DialogBody.plainMessage(Component.text(title+"   ",color).decorate(net.ky
 }
 private String dimension(int level){return SIZE[level]+" × "+HEIGHT[level]+" × "+SIZE[level];}
 private void dialog(Player player,String heading,List<DialogBody> body,List<ActionButton> buttons){
-Dialog d=Dialog.create(b->b.empty().base(DialogBase.builder(Component.text(heading,NamedTextColor.LIGHT_PURPLE).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD)).body(body).canCloseWithEscape(true).build()).type(DialogType.multiAction(buttons,null,2).build()));
+Dialog d=Dialog.create(b->b.empty().base(DialogBase.builder(Component.text(heading,NamedTextColor.LIGHT_PURPLE).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD)).body(body).canCloseWithEscape(true).build()).type(DialogType.multiAction(buttons,null,2)));
 player.showDialog(d);
 }
 private Claim viewedClaim(Player p){UUID id=openedClaim.get(p.getUniqueId());return id==null?claims.get(p.getUniqueId()):claims.get(id);}
