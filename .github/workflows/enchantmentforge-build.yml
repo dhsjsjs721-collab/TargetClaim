@@ -1,0 +1,31 @@
+name: Build EnchantmentForge JAR
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, feature/enchantmentforge-soulbound-triple-shot]
+    paths:
+      - "EnchantmentForge/**"
+      - ".github/workflows/enchantmentforge-build.yml"
+  pull_request:
+    paths:
+      - "EnchantmentForge/**"
+      - ".github/workflows/enchantmentforge-build.yml"
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+      - run: gradle -p EnchantmentForge build --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EnchantmentForge-JAR
+          path: EnchantmentForge/build/libs/*.jar

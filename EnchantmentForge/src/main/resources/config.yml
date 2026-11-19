@@ -1,0 +1,5 @@
+# Levels required in an anvil to apply the special book
+soulbound-anvil-cost: 8
+triple-shot-anvil-cost: 6
+# Horizontal spread on either side of the central arrow, degrees (0-35)
+triple-shot-spread-degrees: 10.0
