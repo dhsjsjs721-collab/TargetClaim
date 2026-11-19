@@ -125,7 +125,7 @@ p.setCustomName(null);p.setCustomNameVisible(false);
 }else{
 ground.add(p.getUniqueId());p.setAI(true);
 if(owner(p)!=null && p.getCustomName()!=null && (p.getCustomName().contains("свинья")||p.getCustomName().contains("Свинья")))p.setCustomName(null);
-if(owner(p)!=null)p.setCustomNameVisible(false);
+if(owner(p)!=null){p.setCustomNameVisible(false);p.setSaddle(false);}
 }
 }
 if(e instanceof Frog f && marked(f,giantKey)){
@@ -180,8 +180,10 @@ leap.remove(id);hit.remove(id);tongue.remove(id);
 public void interact(PlayerInteractEntityEvent e){
 if(e.getHand()!=EquipmentSlot.HAND||!(e.getRightClicked() instanceof Pig pig))return;
 Player player=e.getPlayer();
-ItemStack held=player.getInventory().getItemInMainHand();
-if(held.getType()==Material.LEAD||player.getInventory().getItemInOffHand().getType()==Material.LEAD)return;
+ItemStack main=player.getInventory().getItemInMainHand();
+ItemStack off=player.getInventory().getItemInOffHand();
+if(main.getType()==Material.LEAD||off.getType()==Material.LEAD)return;
+ItemStack held=food(main)?main:(food(off)?off:main);
 boolean hasFood=food(held);
 String owner=owner(pig);
 if(owner==null){
@@ -468,7 +470,12 @@ return snow(location)||below==Material.ICE||below==Material.PACKED_ICE||below==M
 private boolean frightening(Entity e){
 return switch(e.getType()){
 case STRAY,SNOW_GOLEM,POLAR_BEAR,HUSK,CAMEL->true;
-default->false;
+default->{
+if(!(e instanceof org.bukkit.entity.Mob) || e instanceof Spider)yield false;
+String biome=e.getLocation().getBlock().getBiome().name();
+yield biome.contains("SNOW")||biome.contains("FROZEN")||biome.contains("ICE")
+||biome.contains("DESERT")||biome.contains("BADLANDS");
+}
 };
 }
 private Player onlineOwner(Pig pig){
