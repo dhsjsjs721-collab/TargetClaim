@@ -76,7 +76,7 @@ Bukkit.getScheduler().runTaskTimer(this,this::upgradeOnlineEquipment,40L,100L);
 }
 @Override public void onDisable(){
 for(UUID id:new ArrayList<>(displays.keySet()))pigClear(id);
-aggro.clear();aggroUntil.clear();attackCooldown.clear();hitWindow.clear();hitCount.clear();flightVectors.clear();dismountFall.clear();
+aggro.clear();aggroUntil.clear();attackCooldown.clear();hitWindow.clear();hitCount.clear();flightVectors.clear();dismountFall.clear();knockbackUntil.clear();
 for(UUID id:ground){Entity e=Bukkit.getEntity(id);if(e instanceof Pig p){p.setAI(true);p.setAware(true);}}
 for(UUID id:wings){
 Entity e=Bukkit.getEntity(id);
@@ -98,6 +98,9 @@ if(marked(p,flyingKey))return;
 mark(p,flyingKey);ground.remove(p.getUniqueId());p.setGravity(false);p.setAI(true);p.setAware(false);
 p.setCustomName(null);p.setCustomNameVisible(false);
 p.setRemoveWhenFarAway(false);wings.add(p.getUniqueId());
+AttributeInstance max=p.getAttribute(Attribute.MAX_HEALTH);
+if(max!=null){max.setBaseValue(Math.max(26,max.getBaseValue()));p.setHealth(Math.min(max.getValue(),Math.max(p.getHealth(),20)));}
+
 p.getWorld().spawnParticle(Particle.CLOUD,p.getLocation(),22,.6,.5,.6,.02);
 }
 private void giantFrog(Frog f){
@@ -190,7 +193,8 @@ consume(player,held);
 if(random.nextDouble()<chance){
 pig.getPersistentDataContainer().set(ownerKey,PersistentDataType.STRING,player.getUniqueId().toString());
 pig.setSaddle(false);
-if(!marked(pig,flyingKey))ground.add(pig.getUniqueId());
+// A successfully tamed pig becomes a winged companion that circles its owner.
+if(!marked(pig,flyingKey))flyingPig(pig);
 pig.setCustomName(null);pig.setCustomNameVisible(false);
 pig.getWorld().spawnParticle(Particle.HEART,pig.getLocation().add(0,1,0),8,.32,.3,.32,.03);
 }else pig.getWorld().spawnParticle(Particle.SMOKE,pig.getLocation().add(0,.8,0),3,.3,.2,.3,.01);
@@ -219,6 +223,33 @@ pig.setAI(true);pig.setAware(false);
 pig.setSaddle(false);
 pig.addPassenger(player);
 });
+}
+private void breedWingedPigs(){
+// Winged pigs are not controlled by vanilla pathfinding. Match willing parents
+// explicitly to ensure pumpkin breeding works while they fly.
+Set<UUID> paired=new HashSet<>();
+for(UUID id:new ArrayList<>(wings)){
+Entity e=Bukkit.getEntity(id);
+if(!(e instanceof Pig first)||!first.isValid()||!first.isAdult()||first.getLoveModeTicks()<=0||!first.canBreed()||paired.contains(id))continue;
+String firstOwner=owner(first);
+if(firstOwner==null)continue;
+for(Entity other:first.getNearbyEntities(5,4,5)){
+if(!(other instanceof Pig second)||!second.isValid()||second==first||!second.isAdult()
+||second.getLoveModeTicks()<=0||!second.canBreed()||paired.contains(second.getUniqueId()))continue;
+if(!firstOwner.equals(owner(second)))continue;
+if(first.getLocation().distanceSquared(second.getLocation())>4.5*4.5)continue;
+paired.add(first.getUniqueId());paired.add(second.getUniqueId());
+first.setLoveModeTicks(0);second.setLoveModeTicks(0);
+first.setBreed(false);second.setBreed(false);
+Location at=first.getLocation().clone().add(second.getLocation()).multiply(.5);
+Pig baby=first.getWorld().spawn(at,Pig.class);
+baby.setBaby();
+baby.getPersistentDataContainer().set(ownerKey,PersistentDataType.STRING,firstOwner);
+flyingPig(baby);
+first.getWorld().spawnParticle(Particle.HEART,at,12,.7,.5,.7,.03);
+break;
+}
+}
 }
 private void consume(Player player,ItemStack item){
 if(player.getGameMode()!=GameMode.CREATIVE)item.setAmount(item.getAmount()-1);
@@ -280,6 +311,7 @@ if(!(e instanceof Pig pig)||!pig.isValid()){ground.remove(id);continue;}
 movePig(pig,false);
 }
 if(tick%21==0)for(Player p:Bukkit.getOnlinePlayers())armor(p);
+if(tick%30==0)breedWingedPigs();
 for(UUID id:new ArrayList<>(frogs)){
 Entity e=Bukkit.getEntity(id);
 if(!(e instanceof Frog frog)||!frog.isValid()){frogs.remove(id);continue;}
@@ -379,7 +411,10 @@ speed=.34;
 if(target==null)return;
 Vector delta=target.toVector().subtract(pig.getLocation().toVector());
 if(delta.lengthSquared()<.04)delta=new Vector(0,0,0);
-else delta.normalize().multiply(Math.min(speed,.13+delta.length()*.13));
+else{
+double distance=delta.length();
+delta.normalize().multiply(Math.min(speed,.14+distance*.12));
+}
 if(aggressive && attackTarget!=null){
 double dist=pig.getLocation().distanceSquared(attackTarget.getLocation());
 if(dist<2.7*2.7 && tick-attackCooldown.getOrDefault(id,-99999L)>28){
