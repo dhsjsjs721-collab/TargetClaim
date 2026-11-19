@@ -1,0 +1,14 @@
+name: TalismanForge
+version: 1.0.0
+main: dev.talismanforge.TalismanForgePlugin
+api-version: '26.3'
+author: TalismanForge
+commands:
+  talismanforge:
+    description: TalismanForge commands
+    aliases: [tf, talismans]
+    usage: /tf give <player> <type>
+permissions:
+  talismanforge.admin:
+    default: op
+    description: Gives magic talismans and altar chests
