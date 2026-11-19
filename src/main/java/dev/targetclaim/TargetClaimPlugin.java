@@ -79,7 +79,7 @@ Group(UUID id,UUID leader,String name,ChatColor color){this.id=id;this.leader=le
 }
 private record Invite(UUID group,long expires) {}
 private static final class Viewer {
-boolean borders=true,beam=true;
+boolean borders=true;
 }
 
 @Override public void onEnable(){
@@ -145,7 +145,7 @@ groups.put(gid,g);
 ConfigurationSection viewSection=y.getConfigurationSection("viewers");
 if(viewSection!=null)for(String id:viewSection.getKeys(false))try{
 UUID uid=UUID.fromString(id);String root="viewers."+id+".";Viewer v=new Viewer();
-v.borders=y.getBoolean(root+"borders",true);v.beam=y.getBoolean(root+"beam",true);viewers.put(uid,v);
+v.borders=y.getBoolean(root+"borders",true);viewers.put(uid,v);
 }catch(Exception ignored){}
 }
 private void saveAll(){
@@ -157,7 +157,7 @@ for(Group g:groups.values()){
 String r="teams."+g.id+".";y.set(r+"name",g.name);y.set(r+"leader",g.leader.toString());y.set(r+"color",g.color.name());y.set(r+"members",g.members.stream().map(UUID::toString).toList());y.set(r+"pvpOn",g.pvpOn.stream().map(UUID::toString).toList());
 }
 for(Map.Entry<UUID,Viewer> entry:viewers.entrySet()){
-String r="viewers."+entry.getKey()+".";Viewer v=entry.getValue();y.set(r+"borders",v.borders);y.set(r+"beam",v.beam);
+String r="viewers."+entry.getKey()+".";Viewer v=entry.getValue();y.set(r+"borders",v.borders);
 }
 try{y.save(dataFile);}catch(IOException ex){getLogger().severe("Cannot save data.yml: "+ex.getMessage());}
 }
@@ -520,8 +520,6 @@ private static final Particle.DustOptions BORDER_RED=new Particle.DustOptions(Co
 private static final Particle.DustOptions PREVIEW_CYAN=new Particle.DustOptions(Color.fromRGB(35,231,255),1.55f);
 private static final Particle.DustOptions MAX_GOLD=new Particle.DustOptions(Color.fromRGB(255,193,55),1.35f);
 private static final Particle.DustOptions BLOCKED_ORANGE=new Particle.DustOptions(Color.fromRGB(255,117,35),1.5f);
-private static final Particle.DustOptions BEAM_CORE=new Particle.DustOptions(Color.fromRGB(225,248,255),1.5f);
-private static final Particle.DustOptions BEAM_HALO=new Particle.DustOptions(Color.fromRGB(65,204,250),1.9f);
 private static final class ParticleBudget {
 int remaining;
 ParticleBudget(int max){remaining=max;}
@@ -533,50 +531,21 @@ return held.getType()==COST[c.level]&&held.getAmount()>=AMOUNT[c.level];
 }
 private Viewer viewer(Player p){return viewers.computeIfAbsent(p.getUniqueId(),id->new Viewer());}
 private void visualTick(){
-for(Player player:Bukkit.getOnlinePlayers()){
-Viewer settings=viewer(player);
-Claim own=claims.get(player.getUniqueId());
-boolean preview=own!=null&&enoughInHand(player,own);
-if(!settings.borders&&!settings.beam&&!preview)continue;
-Location pos=player.getLocation();
-ParticleBudget edgeBudget=new ParticleBudget(190);
-ParticleBudget previewBudget=new ParticleBudget(120);
-ParticleBudget goldBudget=new ParticleBudget(65);
-ParticleBudget beamBudget=new ParticleBudget(100);
-Set<Claim> nearby=regionClaims(player.getWorld().getUID(),pos.getBlockX()-72,pos.getBlockX()+72,pos.getBlockZ()-72,pos.getBlockZ()+72);
-for(Claim c:nearby){
-boolean self=c.owner.equals(player.getUniqueId());
-boolean ally=c.teamBuild&&allies(player.getUniqueId(),c.owner);
+for(Player p:Bukkit.getOnlinePlayers()){
+Viewer v=viewer(p);Claim mine=claims.get(p.getUniqueId());boolean preview=mine!=null&&enoughInHand(p,mine);
+if(!v.borders&&!preview)continue;
+Location pos=p.getLocation();
+ParticleBudget red=new ParticleBudget(190),cyan=new ParticleBudget(120),gold=new ParticleBudget(65);
+for(Claim c:regionClaims(p.getWorld().getUID(),pos.getBlockX()-72,pos.getBlockX()+72,pos.getBlockZ()-72,pos.getBlockZ()+72)){
+boolean self=c.owner.equals(p.getUniqueId());
+if(!self&&!(c.teamBuild&&allies(p.getUniqueId(),c.owner)))continue;
 double dx=c.x+.5-pos.getX(),dz=c.z+.5-pos.getZ();
-if(settings.beam&&dx*dx+dz*dz<72*72&&beamBudget.remaining>0)drawLightBeam(player,c,beamBudget);
-if(!self&&!ally)continue;
 if(Math.abs(dx)>SIZE[c.level]/2.+72||Math.abs(dz)>SIZE[c.level]/2.+72||Math.abs(pos.getY()-(c.y+.5))>HEIGHT[c.level]/2.+75)continue;
-if(settings.borders&&edgeBudget.remaining>0)drawBorder(player,c,c.level,BORDER_RED,3.0,65,edgeBudget,false);
+if(v.borders&&red.remaining>0)drawBorder(p,c,c.level,BORDER_RED,3.0,65,red,false);
 if(self&&preview){
-drawBorder(player,c,c.level+1,validLevel(c,c.level+1)?PREVIEW_CYAN:BLOCKED_ORANGE,4.0,75,previewBudget,false);
-if(c.level+1<4)drawBorder(player,c,4,MAX_GOLD,9.0,80,goldBudget,false);
+drawBorder(p,c,c.level+1,validLevel(c,c.level+1)?PREVIEW_CYAN:BLOCKED_ORANGE,4.0,75,cyan,false);
+if(c.level+1<4)drawBorder(p,c,4,MAX_GOLD,9.0,80,gold,false);
 }
-}
-}
-}
-private void drawLightBeam(Player player,Claim claim,ParticleBudget budget){
-World w=player.getWorld();
-if(!w.isChunkLoaded(claim.x>>4,claim.z>>4))return;
-if(w.getBlockAt(claim.x,claim.y,claim.z).getType()!=Material.TARGET)return;
-double from=claim.y+1.0;
-double to=Math.min(w.getMaxHeight()-1,from+192);
-double viewerY=player.getLocation().getY();
-double low=Math.max(from,viewerY-34);
-double high=Math.min(to,viewerY+74);
-if(low>high)return;
-double x=claim.x+.5,z=claim.z+.5;
-int i=0;
-for(double y=low;y<=high&&budget.remaining>0;y+=1.55,i++){
-player.spawnParticle(Particle.DUST,x,y,z,1,0,0,0,0,i%3==0?BEAM_CORE:BEAM_HALO);
-budget.remaining--;
-if(i%5==0&&budget.remaining>0){
-player.spawnParticle(Particle.DUST,x+.13,y,z+.13,1,0,0,0,0,BEAM_HALO);
-budget.remaining--;
 }
 }
 }
@@ -644,7 +613,6 @@ body.add(message("Владелец: "+c.ownerName+"  •  PvP включено")
 List<ActionButton> buttons=new ArrayList<>();
 if(isOwner&&c.level<4)buttons.add(action("Улучшить","Стоимость и размер","claim_upgrade_menu",NamedTextColor.GREEN));
 buttons.add(action("Границы: "+on(v.borders),"Красный контур","claim_border",NamedTextColor.RED));
-buttons.add(action("Луч: "+on(v.beam),"Без блока маяка","claim_beam",NamedTextColor.AQUA));
 if(isOwner)buttons.add(action("Доступ: "+(c.teamBuild?"Команда":"Только я"),"Кто может строить","claim_build",NamedTextColor.YELLOW));
 buttons.add(action("Команда","Игроки и PvP","team_open",NamedTextColor.LIGHT_PURPLE));
 if(isOwner){
@@ -717,7 +685,6 @@ if(!p.getUniqueId().equals(c.owner)&&!allies(p.getUniqueId(),c.owner)){tell(p,"�
 if(a.equals("claim_open")){showClaimDialog(p,c);return;}
 if(a.equals("claim_close")){p.closeDialog();return;}
 if(a.equals("claim_border")){Viewer v=viewer(p);v.borders=!v.borders;saveAll();showClaimDialog(p,c);return;}
-if(a.equals("claim_beam")){Viewer v=viewer(p);v.beam=!v.beam;saveAll();showClaimDialog(p,c);return;}
 if(!p.getUniqueId().equals(c.owner)){tell(p,"§cТолько владелец изменяет настройки.");return;}
 switch(a){
 case "claim_upgrade_menu"->{showUpgradeDialog(p,c);return;}
