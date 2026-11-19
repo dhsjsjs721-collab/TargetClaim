@@ -479,7 +479,7 @@ return ActionButton.create(Component.text(caption,color),Component.text(descript
 }
 private DialogBody message(String s){return DialogBody.plainMessage(Component.text(s));}
 private void dialog(Player player,String heading,List<DialogBody> body,List<ActionButton> buttons){
-Dialog d=Dialog.create(b->b.empty().base(DialogBase.builder(Component.text(heading,NamedTextColor.LIGHT_PURPLE)).body(body).canCloseWithEscape(true).build()).type(DialogType.multiAction(buttons)));
+Dialog d=Dialog.create(b->b.empty().base(DialogBase.builder(Component.text(heading,NamedTextColor.LIGHT_PURPLE)).body(body).canCloseWithEscape(true).build()).type(DialogType.multiAction(buttons).build()));
 player.showDialog(d);
 }
 private Claim viewedClaim(Player p){UUID id=openedClaim.get(p.getUniqueId());return id==null?claims.get(p.getUniqueId()):claims.get(id);}
