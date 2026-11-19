@@ -46,7 +46,7 @@ private final Set<UUID> wings=new HashSet<>(), frogs=new HashSet<>(), ground=new
 private final Map<UUID,List<UUID>> displays=new HashMap<>();
 private final Map<UUID,Input> inputCache=new HashMap<>();
 private final Map<UUID,UUID> aggro=new HashMap<>();
-private final Map<UUID,Long> aggroUntil=new HashMap<>(),attackCooldown=new HashMap<>(),hitWindow=new HashMap<>(),dismountFall=new HashMap<>();
+private final Map<UUID,Long> aggroUntil=new HashMap<>(),attackCooldown=new HashMap<>(),hitWindow=new HashMap<>(),dismountFall=new HashMap<>(),knockbackUntil=new HashMap<>();
 private final Map<UUID,Integer> hitCount=new HashMap<>();
 private final Map<UUID,Vector> flightVectors=new HashMap<>();
 private final Set<UUID> airborne=new HashSet<>(), bounceLocked=new HashSet<>();
@@ -163,7 +163,7 @@ UUID id=entity.getUniqueId();
 if(entity instanceof Pig){
 if(marked(entity,flyingKey))e.getDrops().add(new ItemStack(Material.PHANTOM_MEMBRANE,1+random.nextInt(2)));
 wings.remove(id);ground.remove(id);pigClear(id);
-aggro.remove(id);aggroUntil.remove(id);attackCooldown.remove(id);hitWindow.remove(id);hitCount.remove(id);flightVectors.remove(id);
+aggro.remove(id);aggroUntil.remove(id);attackCooldown.remove(id);hitWindow.remove(id);hitCount.remove(id);flightVectors.remove(id);knockbackUntil.remove(id);
 }
 if(entity instanceof Frog && marked(entity,giantKey)){
 frogs.remove(id);
@@ -257,6 +257,8 @@ Bukkit.getScheduler().runTask(this,()->{if(pig.isValid()&&pig.getPassengers().is
 long prev=hitWindow.getOrDefault(id,-99999L);
 int strikes=tick-prev<=getConfig().getInt("pig-retaliation-hit-window-ticks",240)?hitCount.getOrDefault(id,0)+1:1;
 hitWindow.put(id,tick);hitCount.put(id,strikes);
+knockbackUntil.put(id,tick+12);
+flightVectors.put(id,push.clone());
 if(strikes>=getConfig().getInt("pig-retaliation-hits",3)){
 aggro.put(id,player.getUniqueId());
 aggroUntil.put(id,tick+getConfig().getInt("pig-retaliation-duration-ticks",400));
@@ -289,44 +291,171 @@ Player rider=null;
 for(Entity passenger:pig.getPassengers())if(passenger instanceof Player p){rider=p;break;}
 if(rider!=null&&owned(pig,rider)){ride(pig,rider,fly);return;}
 pig.setAI(true);pig.setGravity(!fly);
-Player lure=null;double best=14*14;
+if(!fly){moveGroundPig(pig);return;}
+pig.setAware(false);
+UUID id=pig.getUniqueId();
+if(tick<knockbackUntil.getOrDefault(id,-1L))return;
+Player own=onlineOwner(pig);
+if(own!=null&&own.getWorld()!=pig.getWorld())own=null;
+Player lure=null;double lureDistance=23*23;
+for(Player player:pig.getWorld().getPlayers()){
+if(player.isDead()||player.getGameMode()==GameMode.SPECTATOR)continue;
+if(!food(player.getInventory().getItemInMainHand())&&!food(player.getInventory().getItemInOffHand()))continue;
+double dist=player.getLocation().distanceSquared(pig.getLocation());
+if(dist<lureDistance){lure=player;lureDistance=dist;}
+}
+LivingEntity fear=null;double fearDistance=11*11;
+Spider spider=null;double spiderDistance=14*14;
+for(Entity entity:pig.getNearbyEntities(15,12,15)){
+if(!(entity instanceof LivingEntity target)||entity==pig||target.isDead())continue;
+double dist=pig.getLocation().distanceSquared(entity.getLocation());
+if(frightening(entity)&&dist<fearDistance){fear=target;fearDistance=dist;}
+if(entity instanceof Spider s&&dist<spiderDistance){spider=s;spiderDistance=dist;}
+}
+Player attacker=null;
+if(tick<aggroUntil.getOrDefault(id,0L)){
+UUID attackerId=aggro.get(id);
+if(attackerId!=null){
+attacker=Bukkit.getPlayer(attackerId);
+if(attacker==null||attacker.isDead()||attacker.getWorld()!=pig.getWorld()
+||attacker.getGameMode()==GameMode.CREATIVE||attacker.getGameMode()==GameMode.SPECTATOR
+||attacker.getLocation().distanceSquared(pig.getLocation())>35*35)attacker=null;
+}
+}else{aggro.remove(id);aggroUntil.remove(id);}
+Location target=null;
+double speed=getConfig().getDouble("flying-pig-speed",.48);
+boolean aggressive=false;
+LivingEntity attackTarget=null;
+if(fear!=null){
+// Snow and desert creatures scare pigs; fleeing always overrides attacking.
+Vector away=pig.getLocation().toVector().subtract(fear.getLocation().toVector());
+away.setY(0);
+if(away.lengthSquared()<.01)away=new Vector(1,0,0);
+away.normalize().multiply(9);
+target=pig.getLocation().clone().add(away).add(0,3.8,0);
+speed=.74;
+}else if(attacker!=null){
+attackTarget=attacker;aggressive=true;speed=.72;
+target=swoopTarget(pig,attacker);
+}else if(spider!=null){
+attackTarget=spider;aggressive=true;speed=.65;
+target=swoopTarget(pig,spider);
+}else if(pig.isLeashed()){
+Entity holder=null;
+try{holder=pig.getLeashHolder();}catch(IllegalStateException ignored){}
+if(holder!=null && holder.getWorld()==pig.getWorld()){
+target=holder.getLocation().add(0,1.3,0);
+speed=.53;
+}
+}
+if(target==null && !aggressive && fear==null){
+if(lure!=null){
+target=lure.getLocation().clone().add(0,1.4,0);
+speed=.65;
+// A fast graceful swoop toward pumpkin, not slow hovering in place.
+}else if(own!=null){
+// Tamed winged pigs circle high above their owner forever while online.
+// Different pigs use different orbit phases and smoothly vary altitude.
+double phase=tick*.047+(id.hashCode()%97);
+double radius=3.4+Math.sin(phase*.33)*1.15;
+target=own.getLocation().clone().add(Math.cos(phase)*radius,4.1+Math.sin(phase*1.6)*1.25,Math.sin(phase)*radius);
+speed=.50;
+if(pig.getLocation().distanceSquared(own.getLocation())>38*38 && !pig.isLeashed()){
+Location destination=own.getLocation().clone().add(0,3.4,0);
+if(destination.getBlock().isPassable()&&destination.clone().add(0,1,0).getBlock().isPassable()){
+pig.teleport(destination);
+flightVectors.remove(id);
+return;
+}
+}
+}else{
+// Free-flying pigs wheel and circle like birds rather than hovering motionless.
+double phase=tick*.08+(id.hashCode()%157);
+double radius=6.5+Math.sin(phase*.15)*2.3;
+target=pig.getLocation().clone().add(Math.cos(phase)*radius,.70+Math.sin(phase*2.6)*2.5,Math.sin(phase)*radius);
+speed=.34;
+}
+}
+if(target==null)return;
+Vector delta=target.toVector().subtract(pig.getLocation().toVector());
+if(delta.lengthSquared()<.04)delta=new Vector(0,0,0);
+else delta.normalize().multiply(Math.min(speed,.13+delta.length()*.13));
+if(aggressive && attackTarget!=null){
+double dist=pig.getLocation().distanceSquared(attackTarget.getLocation());
+if(dist<2.7*2.7 && tick-attackCooldown.getOrDefault(id,-99999L)>28){
+attackCooldown.put(id,tick);
+attackTarget.damage(attackTarget instanceof Player?3.0:4.5,pig);
+Vector recoil=pig.getLocation().toVector().subtract(attackTarget.getLocation().toVector());
+if(recoil.lengthSquared()>.01){recoil.normalize().multiply(.48);recoil.setY(.36);delta.add(recoil);}
+pig.getWorld().playSound(pig.getLocation(),Sound.ENTITY_PHANTOM_SWOOP,.7f,1.3f);
+}
+}
+if(onSnowOrIce(pig.getLocation()))delta.setY(Math.max(delta.getY(),.29));
+// Keep the pig away from blocks in front and underneath it, including
+// during rapid dives, without forcing an instant head-first collision.
+Vector ahead=delta.lengthSquared()>.01?delta.clone().normalize().multiply(1.7):new Vector();
+if(!pig.getLocation().clone().add(ahead).getBlock().isPassable()
+||!pig.getLocation().clone().add(ahead).add(0,1,0).getBlock().isPassable()){
+delta.setY(Math.max(.30,delta.getY()));
+}
+int ground=0;
+for(int y=1;y<=6;y++)if(!pig.getLocation().clone().subtract(0,y,0).getBlock().isPassable()){ground=y;break;}
+if(ground>0&&ground<3)delta.setY(Math.max(.16,delta.getY()));
+Vector previous=flightVectors.getOrDefault(id,pig.getVelocity());
+Vector smooth=previous.multiply(.34).add(delta.multiply(.66));
+if(smooth.lengthSquared()>speed*speed)smooth.normalize().multiply(speed);
+flightVectors.put(id,smooth.clone());
+pig.setVelocity(smooth);
+faceVector(pig,smooth);
+}
+private void moveGroundPig(Pig pig){
+Player lure=null;double best=12*12;
 for(Player p:pig.getWorld().getPlayers()){
 if(!food(p.getInventory().getItemInMainHand())&&!food(p.getInventory().getItemInOffHand()))continue;
 double d=p.getLocation().distanceSquared(pig.getLocation());
 if(d<best){best=d;lure=p;}
 }
-Vector v;
-if(lure==null&&!fly){
-pig.setAware(true);
-return;
-}
+if(lure==null){pig.setAware(true);return;}
 pig.setAware(false);
-if(lure!=null){
-Vector delta=lure.getLocation().clone().add(0,fly?1.4:0,0).toVector().subtract(pig.getLocation().toVector());
-if(!fly)delta.setY(0);
-double speed=fly?.28:.23;
-if(snow(pig.getLocation()))speed*=.35;
-v=delta.lengthSquared()>3.5?delta.normalize().multiply(speed):new Vector();
-if(!fly)v.setY(pig.getVelocity().getY());
-}else{
-double a=tick/35.0+(pig.getUniqueId().hashCode()%150);
-v=new Vector(Math.sin(a)*.09,Math.sin(tick/22.0)*.04,Math.cos(a)*.09);
-int ground=0;
-for(int i=1;i<7;i++)if(!pig.getLocation().clone().subtract(0,i,0).getBlock().isPassable()){ground=i;break;}
-if(ground>0&&ground<3)v.setY(.14);
-if(ground==0)v.setY(-.06);
+Vector movement=lure.getLocation().toVector().subtract(pig.getLocation().toVector()).setY(0);
+if(movement.lengthSquared()<2){pig.setVelocity(new Vector(0,pig.getVelocity().getY(),0));return;}
+movement.normalize().multiply(.29);
+Location front=pig.getLocation().add(movement.clone().multiply(2));
+if(!front.getBlock().isPassable()&&front.clone().add(0,1,0).getBlock().isPassable()&&pig.isOnGround())movement.setY(.47);
+else movement.setY(pig.getVelocity().getY());
+pig.setVelocity(movement);
+faceVector(pig,movement);
 }
-if(fly){
-Location ahead=pig.getLocation().clone().add(v.clone().multiply(3));
-if(!ahead.getBlock().isPassable()||!ahead.clone().add(0,1,0).getBlock().isPassable())v.setY(.28);
-if(snow(pig.getLocation()))v.setY(.22);
-}else if(v.lengthSquared()>.04){
-Location ahead=pig.getLocation().clone().add(v.clone().setY(0).normalize());
-if(!ahead.getBlock().isPassable()&&ahead.clone().add(0,1,0).getBlock().isPassable()&&pig.isOnGround())v.setY(.44);
+private boolean onSnowOrIce(Location location){
+Material below=location.clone().subtract(0,1,0).getBlock().getType();
+return snow(location)||below==Material.ICE||below==Material.PACKED_ICE||below==Material.BLUE_ICE;
 }
-pig.setVelocity(v);
-faceVector(pig,v);
+private boolean frightening(Entity e){
+return switch(e.getType()){
+case STRAY,SNOW_GOLEM,POLAR_BEAR,HUSK,CAMEL->true;
+default->false;
+};
 }
+private Player onlineOwner(Pig pig){
+String id=owner(pig);
+if(id==null)return null;
+try{
+Player p=Bukkit.getPlayer(UUID.fromString(id));
+return p!=null&&p.isOnline()?p:null;
+}catch(IllegalArgumentException ignored){return null;}
+}
+private Location swoopTarget(Pig pig,LivingEntity target){
+double phase=(tick+(pig.getUniqueId().hashCode()&255))%90;
+double angle=(tick*.058)+(pig.getUniqueId().hashCode()%61);
+if(phase<52){
+return target.getLocation().clone().add(Math.cos(angle)*4.6,4.5+Math.sin(angle*1.3),Math.sin(angle)*4.6);
+}
+if(phase<77){
+return target.getLocation().clone().add(0,1.25,0);
+}
+return target.getLocation().clone().add(Math.cos(angle+1.4)*3.5,3.2,Math.sin(angle+1.4)*3.5);
+}
+
 private void ride(Pig pig,Player p,boolean fly){
 pig.setAI(true);pig.setAware(false);pig.setGravity(!fly);
 Input in=inputCache.getOrDefault(p.getUniqueId(),p.getCurrentInput());
