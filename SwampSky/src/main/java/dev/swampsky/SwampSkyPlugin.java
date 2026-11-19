@@ -16,12 +16,20 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.*;
 import org.bukkit.util.*;
-import org.joml.*;
-import java.util.*;
+import org.joml.Vector3f;
+import org.joml.Quaternionf;
+import java.util.UUID;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Random;
 
 public final class SwampSkyPlugin extends JavaPlugin implements Listener, CommandExecutor, TabCompleter {
 private NamespacedKey flyingKey, ownerKey, giantKey, itemKey, displayKey;
-private final Set<UUID> wings=new HashSet<>(), frogs=new HashSet<>();
+private final Set<UUID> wings=new HashSet<>(), frogs=new HashSet<>(), ground=new HashSet<>();
 private final Map<UUID,List<UUID>> displays=new HashMap<>();
 private final Map<UUID,Long> leap=new HashMap<>(),hit=new HashMap<>(),tongue=new HashMap<>(),bounce=new HashMap<>();
 private final Random random=new Random();
@@ -42,7 +50,8 @@ for(World w:Bukkit.getWorlds())for(Chunk ch:w.getLoadedChunks())scan(ch);
 Bukkit.getScheduler().runTaskTimer(this,this::step,5L,3L);
 }
 @Override public void onDisable(){
-for(UUID id:new ArrayList<>(displays.keySet()))clear(id);
+for(UUID id:new ArrayList<>(displays.keySet()))pigClear(id);
+for(UUID id:ground){Entity e=Bukkit.getEntity(id);if(e instanceof Pig p)p.setAI(true);}
 for(UUID id:wings){
 Entity e=Bukkit.getEntity(id);
 if(e instanceof Pig p){p.setAI(true);p.setGravity(true);}
@@ -80,6 +89,7 @@ frogs.add(f.getUniqueId());
 private void scan(Chunk chunk){
 for(Entity e:chunk.getEntities()){
 if(e instanceof Pig p && marked(p,flyingKey)){wings.add(p.getUniqueId());p.setGravity(false);p.setAI(false);}
+if(e instanceof Pig p && !marked(p,flyingKey) && owner(p)!=null){ground.add(p.getUniqueId());if(p.getPassengers().isEmpty())p.setAI(true);}
 if(e instanceof Frog f && marked(f,giantKey))frogs.add(f.getUniqueId());
 if(e instanceof ItemDisplay && marked(e,displayKey))e.remove();
 }
@@ -104,7 +114,7 @@ for(Entity entity:e.getChunk().getEntities())if(entity instanceof Pig)pigClear(e
 @EventHandler public void dead(EntityDeathEvent e){
 Entity entity=e.getEntity();
 UUID id=entity.getUniqueId();
-if(entity instanceof Pig){wings.remove(id);pigClear(id);}
+if(entity instanceof Pig){wings.remove(id);ground.remove(id);pigClear(id);}
 if(entity instanceof Frog && marked(entity,giantKey)){
 frogs.remove(id);
 e.getDrops().add(item("hide",1+random.nextInt(3)));
@@ -131,6 +141,7 @@ p.getWorld().spawnParticle(Particle.HEART,p.getLocation().add(0,1,0),5,.3,.3,.3,
 if(random.nextDouble()<chance){
 p.getPersistentDataContainer().set(ownerKey,PersistentDataType.STRING,player.getUniqueId().toString());
 p.setSaddle(true);
+if(!marked(p,flyingKey))ground.add(p.getUniqueId());
 p.setCustomName(marked(p,flyingKey)?"§aВаша летающая свинья":"§aВаша свинья");
 p.setCustomNameVisible(true);
 player.sendMessage("§aСвинья приручена! §7ПКМ — сесть, WASD — ехать, Space — прыгать или взлетать.");
@@ -155,10 +166,15 @@ Entity e=Bukkit.getEntity(id);
 if(!(e instanceof Pig p)||!p.isValid()){wings.remove(id);pigClear(id);continue;}
 movePig(p,true);drawWings(p);
 }
-for(Player p:Bukkit.getOnlinePlayers()){
-if(p.getVehicle() instanceof Pig pig && !marked(pig,flyingKey)&&owned(pig,p))movePig(pig,false);
-if(tick%21==0)armor(p);
+for(UUID id:new ArrayList<>(ground)){
+Entity e=Bukkit.getEntity(id);
+if(!(e instanceof Pig pig)||!pig.isValid()){ground.remove(id);continue;}
+Player rider=null;
+for(Entity passenger:pig.getPassengers())if(passenger instanceof Player p){rider=p;break;}
+if(rider!=null && owned(pig,rider))movePig(pig,false);
+else if(!pig.hasAI())pig.setAI(true);
 }
+if(tick%21==0)for(Player p:Bukkit.getOnlinePlayers())armor(p);
 for(UUID id:new ArrayList<>(frogs)){
 Entity e=Bukkit.getEntity(id);
 if(!(e instanceof Frog frog)||!frog.isValid()){frogs.remove(id);continue;}
