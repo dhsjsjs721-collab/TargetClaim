@@ -2,6 +2,12 @@ package dev.swampsky;
 
 import org.bukkit.*;
 import org.bukkit.attribute.*;
+import com.destroystokyo.paper.event.player.PlayerElytraBoostEvent;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.event.inventory.PrepareAnvilEvent;
+import org.bukkit.event.inventory.PrepareGrindstoneEvent;
+import org.bukkit.event.player.PlayerItemMendEvent;
+import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.command.*;
@@ -36,8 +42,8 @@ private NamespacedKey flyingKey, ownerKey, giantKey, itemKey, displayKey;
 private final Set<UUID> wings=new HashSet<>(), frogs=new HashSet<>(), ground=new HashSet<>();
 private final Map<UUID,List<UUID>> displays=new HashMap<>();
 private final Map<UUID,Input> inputCache=new HashMap<>();
-private final Set<UUID> airborne=new HashSet<>();
-private final Map<UUID,Double> fallSpeed=new HashMap<>(),bounceEnergy=new HashMap<>();
+private final Set<UUID> airborne=new HashSet<>(), bounceLocked=new HashSet<>();
+private final Map<UUID,Double> fallSpeed=new HashMap<>();
 private final Map<UUID,Integer> groundedTicks=new HashMap<>();
 private final Map<UUID,Long> leap=new HashMap<>(),hit=new HashMap<>(),tongue=new HashMap<>(),bounce=new HashMap<>();
 private final Random random=new Random();
@@ -57,6 +63,7 @@ recipes();
 for(World w:Bukkit.getWorlds())for(Chunk ch:w.getLoadedChunks())scan(ch);
 Bukkit.getScheduler().runTaskTimer(this,this::step,5L,3L);
 Bukkit.getScheduler().runTaskTimer(this,this::bounceStep,1L,1L);
+Bukkit.getScheduler().runTaskTimer(this,this::frogWingsMotion,1L,1L);
 Bukkit.getScheduler().runTaskTimer(this,this::populateNearby,120L,160L);
 Bukkit.getScheduler().runTaskTimer(this,this::upgradeOnlineEquipment,40L,100L);
 }
@@ -344,9 +351,9 @@ m.getPersistentDataContainer().set(itemKey,PersistentDataType.STRING,kind);
 m.setItemModel(new NamespacedKey("swampsky",kind.equals("pig_wing")?"pig_wing":"frog_"+kind));
 m.setLore(switch(kind){
 case "hide"->List.of("§7Добыча с гигантской жабы");
-case "boots"->List.of("§aПрыгучесть I","§7Мягкий отскок при падении");
+case "boots"->List.of("§aПрыгучесть I","§7Один отскок при приземлении","§7Shift — без отскока");
 case "leggings"->List.of("§aСкорость I","§7Слизистый след");
-case "wings"->List.of("§aПланирование как на элитрах");
+case "wings"->List.of("§aЗащита: как железный нагрудник","§7Прочность: 4096","§7Дождь: подъём, вода: ускорение","§7Обычный полёт медленнее элитр","§8Не чинится, фейерверки бесполезны");
 default->List.of();
 });
 if(m instanceof LeatherArmorMeta leather)leather.setColor(Color.fromRGB(75,171,80));
@@ -358,7 +365,9 @@ equip.setModel(new NamespacedKey("swampsky",kind.equals("wings")?"frog_wings":"f
 m.setEquippable(equip);
 }
 }
-it.setItemMeta(m);return it;
+it.setItemMeta(m);
+if(kind.equals("wings"))fixEquipment(it,kind);
+return it;
 }
 private boolean is(ItemStack it,String id){
 return it!=null&&it.hasItemMeta()&&id.equals(it.getItemMeta().getPersistentDataContainer().get(itemKey,PersistentDataType.STRING));
@@ -418,13 +427,39 @@ if(stack==null||!stack.hasItemMeta())return false;
 ItemMeta meta=stack.getItemMeta();
 EquippableComponent equip=meta.getEquippable();
 if(equip==null)return false;
+boolean changed=false;
 EquipmentSlot slot=kind.equals("wings")?EquipmentSlot.CHEST:kind.equals("leggings")?EquipmentSlot.LEGS:EquipmentSlot.FEET;
 NamespacedKey model=new NamespacedKey("swampsky",kind.equals("wings")?"frog_wings":"frog_armor");
-if(equip.getSlot()==slot&&model.equals(equip.getModel()))return false;
-equip.setSlot(slot);equip.setModel(model);
+if(equip.getSlot()!=slot||!model.equals(equip.getModel())){
+equip.setSlot(slot);
+equip.setModel(model);
 meta.setEquippable(equip);
-stack.setItemMeta(meta);
-return true;
+changed=true;
+}
+if(kind.equals("wings")){
+// Iron chestplate: 6 armor points. Applies only in the CHEST slot.
+NamespacedKey modifierKey=new NamespacedKey(this,"frog_wings_armor");
+boolean found=false;
+var modifiers=meta.getAttributeModifiers(Attribute.ARMOR);
+if(modifiers!=null)for(AttributeModifier mod:modifiers){
+if(modifierKey.equals(mod.getKey())){found=true;break;}
+}
+if(!found){
+meta.addAttributeModifier(Attribute.ARMOR,
+new AttributeModifier(modifierKey,6.0,AttributeModifier.Operation.ADD_NUMBER,EquipmentSlotGroup.CHEST));
+changed=true;
+}
+if(meta instanceof Damageable damageable && damageable.getMaxDamage()<4096){
+damageable.setMaxDamage(4096);
+changed=true;
+}
+if(meta.hasEnchant(Enchantment.MENDING)){
+meta.removeEnchant(Enchantment.MENDING);
+changed=true;
+}
+}
+if(changed)stack.setItemMeta(meta);
+return changed;
 }
 @EventHandler public void joined(PlayerJoinEvent event){
 Bukkit.getScheduler().runTaskLater(this,()->{if(event.getPlayer().isOnline())upgradeOnlineEquipment();},20L);
@@ -433,36 +468,102 @@ private void bounceStep(){
 for(Player p:Bukkit.getOnlinePlayers()){
 UUID id=p.getUniqueId();
 if(p.isDead()||p.isInsideVehicle()||p.isGliding()||p.isFlying()||p.isSwimming()||!is(p.getInventory().getBoots(),"boots")){
-airborne.remove(id);fallSpeed.remove(id);bounceEnergy.remove(id);groundedTicks.remove(id);continue;
+airborne.remove(id);
+bounceLocked.remove(id);
+fallSpeed.remove(id);
+groundedTicks.remove(id);
+continue;
 }
 if(!p.isOnGround()){
 airborne.add(id);
-groundedTicks.remove(id);
+groundedTicks.put(id,0);
 fallSpeed.merge(id,Math.max(0,-p.getVelocity().getY()),Math::max);
 continue;
 }
-if(!airborne.remove(id)){
-int grounded=groundedTicks.getOrDefault(id,0)+1;
-groundedTicks.put(id,grounded);
-if(grounded>10){bounceEnergy.remove(id);fallSpeed.remove(id);}
-continue;
-}
+boolean landing=airborne.remove(id);
+int steady=groundedTicks.getOrDefault(id,0);
+if(landing){
 groundedTicks.put(id,0);
 double descent=fallSpeed.getOrDefault(id,0.0);
 fallSpeed.remove(id);
-if(p.isSneaking()){bounceEnergy.remove(id);continue;}
-double prior=bounceEnergy.getOrDefault(id,0.0);
-double power=prior>0?Math.min(1.10,Math.max(.18,prior*.72)):Math.min(1.10,Math.max(.42,descent*.94));
-if(prior>0&&power<.23){bounceEnergy.remove(id);continue;}
-bounceEnergy.put(id,power);
-// This runs on landing, not on fall-damage events: even a low drop onto grass,
-// stone, dirt or any other surface bounces just like a slime block.
+// One bounce only. The lock stays active through the resulting airborne arc;
+// a new jump is armed only after a few fully grounded ticks.
+if(bounceLocked.contains(id)||p.isSneaking()||descent<.08)continue;
+bounceLocked.add(id);
+double strength=Math.min(.72,Math.max(.50,descent*.83));
 Vector v=p.getVelocity();
-p.setVelocity(new Vector(v.getX(),power,v.getZ()));
+p.setVelocity(new Vector(v.getX(),strength,v.getZ()));
 p.setFallDistance(0);
-p.getWorld().playSound(p.getLocation(),Sound.BLOCK_SLIME_BLOCK_FALL,.65f,1.0f);
-p.getWorld().spawnParticle(Particle.ITEM_SLIME,p.getLocation(),9,.26,.08,.26,.045);
+p.getWorld().playSound(p.getLocation(),Sound.BLOCK_SLIME_BLOCK_FALL,.65f,1.15f);
+p.getWorld().spawnParticle(Particle.ITEM_SLIME,p.getLocation(),9,.30,.07,.30,.04);
+continue;
 }
+steady++;
+groundedTicks.put(id,steady);
+if(steady>=4){
+bounceLocked.remove(id);
+fallSpeed.remove(id);
+}
+}
+}
+private void frogWingsMotion(){
+for(Player p:Bukkit.getOnlinePlayers()){
+if(p.isDead()||p.getGameMode()==GameMode.SPECTATOR||p.isInsideVehicle())continue;
+if(!is(p.getInventory().getChestplate(),"wings"))continue;
+Vector v=p.getVelocity();
+if(p.isInWater()){
+// Water alone grants fast motion. This also works when swimming (not gliding).
+Vector aim=p.getLocation().getDirection();
+double strength=getConfig().getDouble("frog-wings-water-speed",.95);
+if(aim.lengthSquared()>.001){
+Vector desired=aim.normalize().multiply(strength);
+p.setVelocity(v.multiply(.30).add(desired.multiply(.70)));
+}
+continue;
+}
+if(!p.isGliding())continue;
+boolean rain=p.getWorld().hasStorm()
+&&p.getWorld().getHighestBlockYAt(p.getLocation().getBlockX(),p.getLocation().getBlockZ())<=p.getLocation().getBlockY()
+&&!dryBiome(p.getLocation().getBlock().getBiome());
+double maxHorizontal=Math.max(.30,Math.min(1.3,getConfig().getDouble(rain?"frog-wings-rain-speed":"frog-wings-glide-speed",rain?.58:.65)));
+double vx=v.getX(),vz=v.getZ();
+double horizontal=Math.sqrt(vx*vx+vz*vz);
+if(horizontal>maxHorizontal){
+vx*=maxHorizontal/horizontal;
+vz*=maxHorizontal/horizontal;
+}
+double y;
+if(rain){
+// Rain creates a gentle ascent; no artificial horizontal slowdown below the cap.
+y=.085;
+}else{
+// Ordinary frog-wings flight always sinks, even if the player pitches up.
+y=Math.min(-.065,v.getY());
+}
+p.setVelocity(new Vector(vx,y,vz));
+}
+}
+private boolean dryBiome(Biome b){
+String name=b.name();
+return name.contains("DESERT")||name.contains("BADLANDS")||name.contains("SAVANNA");
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void noRocketBoost(PlayerElytraBoostEvent event){
+if(is(event.getPlayer().getInventory().getChestplate(),"wings"))event.setCancelled(true);
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void noMending(PlayerItemMendEvent event){
+if(is(event.getItem(),"wings"))event.setCancelled(true);
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void noAnvilRepair(PrepareAnvilEvent event){
+if(is(event.getInventory().getItem(0),"wings")||is(event.getInventory().getItem(1),"wings"))
+event.setResult(null);
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void noGrindstoneRepair(PrepareGrindstoneEvent event){
+if(is(event.getInventory().getItem(0),"wings")||is(event.getInventory().getItem(1),"wings"))
+event.setResult(null);
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void fall(EntityDamageEvent e){
@@ -559,10 +660,9 @@ for(int j=0;j<2;j++){
 ItemDisplay d=pig.getWorld().spawn(pig.getLocation(),ItemDisplay.class,entity->{
 entity.setPersistent(false);
 entity.setBillboard(Display.Billboard.FIXED);
-// NONE avoids the default item-frame angle that made the wings look like sails.
 entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
 entity.setItemStack(item("pig_wing",1));
-entity.setViewRange(1.6f);
+entity.setViewRange(1.4f);
 entity.setTeleportDuration(3);
 mark(entity,displayKey);
 });
@@ -572,33 +672,34 @@ displays.put(pig.getUniqueId(),list);
 }
 Location at=pig.getLocation();
 double yaw=Math.toRadians(at.getYaw());
-double flap=Math.sin(tick*.10)*.10;
+// Local basis relative to the pig's body: sideways and back, not up by its ears.
+Vector right=new Vector(-Math.cos(yaw),0,-Math.sin(yaw));
+Vector back=new Vector(Math.sin(yaw),0,-Math.cos(yaw));
+double flap=Math.sin(tick*.12)*.065;
 for(int j=0;j<2;j++){
 Entity e=Bukkit.getEntity(list.get(j));
 if(!(e instanceof ItemDisplay d))continue;
 float side=j==0?-1f:1f;
-// Place each wing close to the back/shoulder; left side mirrors the same image.
-// Both wings use one source texture, not two separate PNG assets.
-Location loc=at.clone().add(
-Math.cos(yaw)*side*.47+Math.sin(yaw)*.10,
-.84+Math.sin(tick*.10)*.035,
-Math.sin(yaw)*side*.47-Math.cos(yaw)*.10
-);
-loc.setYaw(at.getYaw()+side*22f);
-loc.setPitch(0f);
+// Wings sit at the back of the rib cage, not beside the pig's head.
+Location loc=at.clone().add(right.clone().multiply(side*.37));
+loc.add(back.clone().multiply(.34));
+loc.add(0,.61+flap,0);
+// Rotate the wing planes toward the rear so they resemble folded flight
+// feathers from the front rather than flat wings sprouting near the ears.
+loc.setYaw(at.getYaw()+side*76f);
+loc.setPitch(-10f);
 d.teleport(loc);
-float pitch=(float)(-.12+flap*side);
-Quaternionf angle=new Quaternionf().rotationXYZ(.20f*side,0f,pitch);
+Quaternionf pose=new Quaternionf().rotationXYZ(.07f,side*.12f,(float)(flap*side));
 d.setTransformation(new Transformation(
 new Vector3f(0f,0f,0f),
-angle,
-new Vector3f(side*.78f,.70f,.78f),
+pose,
+new Vector3f(side*.54f,.49f,.54f),
 new Quaternionf()
 ));
 }
 }
 @EventHandler public void playerInput(PlayerInputEvent e){inputCache.put(e.getPlayer().getUniqueId(),e.getInput());}
-@EventHandler public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();inputCache.remove(id);airborne.remove(id);fallSpeed.remove(id);bounceEnergy.remove(id);groundedTicks.remove(id);}
+@EventHandler public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();inputCache.remove(id);airborne.remove(id);fallSpeed.remove(id);bounceLocked.remove(id);groundedTicks.remove(id);}
 @Override public boolean onCommand(CommandSender sender,Command cmd,String label,String[] a){
 if(a.length==0||a[0].equalsIgnoreCase("help")){
 sender.sendMessage("§aSwampSky §7| /swampsky spawn <flying_pig|giant_frog>");
