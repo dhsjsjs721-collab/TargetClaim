@@ -594,11 +594,15 @@ w.playSound(at,Sound.BLOCK_AMETHYST_BLOCK_CHIME,1.0f,1.3f);
 }
 
 private ActionButton action(String caption,String description,String command,NamedTextColor color){
-return ActionButton.create(Component.text(caption,color),Component.text(description),190,DialogAction.customClick(Key.key("targetclaim:"+command),null));
+return ActionButton.create(Component.text(caption,color).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD),Component.text(description,NamedTextColor.GRAY),220,DialogAction.customClick(Key.key("targetclaim:"+command),null));
 }
-private DialogBody message(String s){return DialogBody.plainMessage(Component.text(s));}
+private DialogBody message(String s){return DialogBody.plainMessage(Component.text(s,NamedTextColor.GRAY));}
+private DialogBody stat(String title,String value,NamedTextColor color){
+return DialogBody.plainMessage(Component.text(title+"   ",color).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD).append(Component.text(value,NamedTextColor.WHITE)));
+}
+private String dimension(int level){return SIZE[level]+" × "+HEIGHT[level]+" × "+SIZE[level];}
 private void dialog(Player player,String heading,List<DialogBody> body,List<ActionButton> buttons){
-Dialog d=Dialog.create(b->b.empty().base(DialogBase.builder(Component.text(heading,NamedTextColor.LIGHT_PURPLE)).body(body).canCloseWithEscape(true).build()).type(DialogType.multiAction(buttons).build()));
+Dialog d=Dialog.create(b->b.empty().base(DialogBase.builder(Component.text(heading,NamedTextColor.LIGHT_PURPLE).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD)).body(body).canCloseWithEscape(true).build()).type(DialogType.multiAction(buttons).build()));
 player.showDialog(d);
 }
 private Claim viewedClaim(Player p){UUID id=openedClaim.get(p.getUniqueId());return id==null?claims.get(p.getUniqueId()):claims.get(id);}
@@ -606,17 +610,31 @@ private void showClaimDialog(Player player,Claim c){
 if(!owner(player,c)&&!allies(player.getUniqueId(),c.owner)){tell(player,"§cЧужой приват.");return;}
 openedClaim.put(player.getUniqueId(),c.owner);
 boolean isOwner=player.getUniqueId().equals(c.owner);
-List<DialogBody> body=List.of(message("✦ Владелец: "+c.ownerName),message("Уровень "+c.level+"/4  •  "+SIZE[c.level]+" × "+HEIGHT[c.level]+" × "+SIZE[c.level]+" блоков"),message("Строительство: "+(c.teamBuild?"владелец и команда":"только владелец")+"  •  PvP территории: всегда ВКЛ"));
-List<ActionButton> buttons=new ArrayList<>();
-if(isOwner&&c.level<4)buttons.add(action("✧ Улучшить","Нужно "+AMOUNT[c.level]+" × "+russian(COST[c.level])+" в основной руке","claim_upgrade",NamedTextColor.GREEN));
-buttons.add(action("◈ Красные границы: "+on(viewer(player).borders),"Один яркий красный контур; нажми для переключения","claim_border",NamedTextColor.RED));
+boolean ready=isOwner&&enoughInHand(player,c);
+List<DialogBody> body=new ArrayList<>();
+body.add(stat("ВЛАДЕЛЕЦ",c.ownerName,NamedTextColor.LIGHT_PURPLE));
+body.add(stat("СЕЙЧАС   "+c.level+"/4",dimension(c.level),NamedTextColor.RED));
+if(c.level<4){
+body.add(stat("СЛЕДУЮЩИЙ   "+(c.level+1)+"/4",dimension(c.level+1),NamedTextColor.AQUA));
+body.add(stat("СТОИМОСТЬ",AMOUNT[c.level]+" × "+russian(COST[c.level])+" в основной руке",NamedTextColor.YELLOW));
 if(isOwner){
-buttons.add(action("⚒ Строительство: "+(c.teamBuild?"КОМАНДА":"ТОЛЬКО Я"),"Строительство и использование объектов: владелец или команда","claim_build",NamedTextColor.YELLOW));
-if(pendingDeletion.containsKey(c.owner))buttons.add(action("✖ Отменить удаление","Приват пока сохранён; нажми для отмены","claim_delete_cancel",NamedTextColor.GREEN));
-else buttons.add(action("✖ Удалить приват","Подтверждение, затем 10 секунд; возврат только 3 бумаги","claim_remove",NamedTextColor.RED));
+boolean allowed=ready&&validLevel(c,c.level+1);
+body.add(stat("ПРЕДПРОСМОТР",!ready?"Нужные ресурсы в руке":allowed?"ГОЛУБОЙ • можно улучшить":"ОРАНЖЕВЫЙ • пересечение/высота",allowed?NamedTextColor.GREEN:NamedTextColor.YELLOW));
 }
-buttons.add(action("♜ Моя команда","Приглашения, цвет и PvP участников","team_open",NamedTextColor.LIGHT_PURPLE));
-dialog(player,"✦ TARGETCLAIM • УПРАВЛЕНИЕ",body,buttons);
+}else body.add(stat("СТАТУС","Максимальный уровень достигнут",NamedTextColor.GOLD));
+body.add(stat("МАКСИМУМ",dimension(4),NamedTextColor.GOLD));
+body.add(stat("СТРОИТЕЛЬСТВО",c.teamBuild?"Владелец и команда":"Только владелец",NamedTextColor.YELLOW));
+body.add(stat("PvP","Всегда разрешено; у союзников — по согласию",NamedTextColor.GREEN));
+List<ActionButton> buttons=new ArrayList<>();
+if(isOwner&&c.level<4)buttons.add(action("УЛУЧШИТЬ",AMOUNT[c.level]+" × "+russian(COST[c.level])+"  •  "+dimension(c.level+1),"claim_upgrade",NamedTextColor.GREEN));
+buttons.add(action("КРАСНЫЕ ГРАНИЦЫ   "+on(viewer(player).borders),"Постоянный объёмный контур; предпросмотр отдельно","claim_border",NamedTextColor.RED));
+if(isOwner){
+buttons.add(action("СТРОИТЕЛЬСТВО   "+(c.teamBuild?"КОМАНДА":"ТОЛЬКО Я"),"Разрешения на блоки, двери, сундуки и механизмы","claim_build",NamedTextColor.YELLOW));
+if(pendingDeletion.containsKey(c.owner))buttons.add(action("ОТМЕНИТЬ УДАЛЕНИЕ","Вернуть приват из очереди удаления","claim_delete_cancel",NamedTextColor.GREEN));
+else buttons.add(action("УДАЛИТЬ ПРИВАТ","Подтверждение; 10 секунд на отмену; возврат 3 бумаги","claim_remove",NamedTextColor.RED));
+}
+buttons.add(action("МОЯ КОМАНДА","Участники, приглашения, PvP союзников","team_open",NamedTextColor.LIGHT_PURPLE));
+dialog(player,"TARGETCLAIM  /  УПРАВЛЕНИЕ",body,buttons);
 }
 private String on(boolean value){return value?"ВКЛ":"ВЫКЛ";}
 private void showRemoveDialog(Player player,Claim c){
@@ -630,19 +648,24 @@ dialog(player,"УДАЛЕНИЕ ЗАПЛАНИРОВАНО",List.of(message("У�
 private void showTeamDialog(Player player){
 Group g=groupOf(player.getUniqueId());List<DialogBody> body=new ArrayList<>();List<ActionButton> actions=new ArrayList<>();
 if(g==null){
-body.add(message("Ты пока не состоишь в команде. Максимум 3 человека, цвет выдаётся случайно."));
-body.add(message("Создание: /team create Название  •  Принятие приглашения: /team accept"));
-actions.add(action("Принять приглашение","Подтвердить последнее приглашение","team_accept",NamedTextColor.GREEN));
+body.add(stat("КОМАНДА","Пока не создана",NamedTextColor.GRAY));
+body.add(stat("ЛИМИТ","3 игрока, случайный цвет",NamedTextColor.AQUA));
+body.add(message("Создать: /team create Название    |    Принять: /team accept"));
+actions.add(action("ПРИНЯТЬ ПРИГЛАШЕНИЕ","Подтвердить последнее приглашение","team_accept",NamedTextColor.GREEN));
 }else{
-body.add(message("Команда: "+g.name+"  •  Цвет: "+g.color.name()+"  •  "+g.members.size()+"/3"));
-for(UUID id:g.members){String name=Bukkit.getOfflinePlayer(id).getName();body.add(message((id.equals(g.leader)?"★ ":"• ")+(name==null?id:name)+" — PvP "+on(g.pvpOn.contains(id))));}
-body.add(message("PvP между союзниками сработает, только если ОБА игрока разрешили урон."));
-actions.add(action("⚔ Мой PvP: "+on(g.pvpOn.contains(player.getUniqueId())),"Переключить PvP лично для себя","team_pvp",NamedTextColor.RED));
-if(g.leader.equals(player.getUniqueId()))body.add(message("Пригласить: /team invite Ник  •  Исключить: /team kick Ник  •  Удалить: /team disband"));
-actions.add(action("Выйти из команды","Если ты лидер, назначится следующий участник","team_leave",NamedTextColor.YELLOW));
+body.add(stat("КОМАНДА",g.name,NamedTextColor.LIGHT_PURPLE));
+body.add(stat("СОСТАВ",g.members.size()+" / 3  •  Цвет: "+g.color.name(),NamedTextColor.AQUA));
+for(UUID id:g.members){
+String name=Bukkit.getOfflinePlayer(id).getName();
+body.add(stat(id.equals(g.leader)?"ЛИДЕР":"УЧАСТНИК",(name==null?id.toString():name)+"  •  PvP "+on(g.pvpOn.contains(id)),id.equals(g.leader)?NamedTextColor.GOLD:NamedTextColor.GRAY));
 }
-actions.add(action("← Вернуться","К настройкам привата","claim_open",NamedTextColor.GRAY));
-dialog(player,"♜ КОМАНДА",body,actions);
+body.add(message("PvP между союзниками — только по взаимному согласию."));
+actions.add(action("МОЙ PvP   "+on(g.pvpOn.contains(player.getUniqueId())),"Разрешить или запретить бой с союзниками","team_pvp",NamedTextColor.RED));
+if(g.leader.equals(player.getUniqueId()))body.add(message("Пригласить: /team invite Ник  |  Исключить: /team kick Ник  |  /team disband"));
+actions.add(action("ВЫЙТИ ИЗ КОМАНДЫ","Если ты лидер, лидерство перейдёт дальше","team_leave",NamedTextColor.YELLOW));
+}
+actions.add(action("НАЗАД К ПРИВАТУ","Открыть основное меню","claim_open",NamedTextColor.GRAY));
+dialog(player,"TARGETCLAIM  /  КОМАНДА",body,actions);
 }
 @EventHandler public void dialogAction(PlayerCustomClickEvent e){
 if(!e.getIdentifier().namespace().equals("targetclaim"))return;
