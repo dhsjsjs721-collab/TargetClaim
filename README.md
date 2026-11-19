@@ -1,4 +1,4 @@
-# TargetClaim 1.3.0 (development test)
+# TargetClaim 1.4.0 (development test)
 
 Minecraft Paper 26.3, Java 25. One claim per player.
 
@@ -11,11 +11,15 @@ Minecraft Paper 26.3, Java 25. One claim per player.
   - Level 4: 160 x 160 x 160 (1 dragon egg)
 - Keep the upgrade ingredient in the MAIN hand in one stack when upgrading.
 - Dialog UI opens on right-click on the placed core, or /p.
-- TextDisplay floating label above the core; one brighter red 3D particle border; toggle /p border on|off or in /p.
+- TextDisplay label above the core; highly visible red 3D border with horizontal eye-level contour (toggle /p border on|off).
+- Holding the full NEXT upgrade cost in the main hand previews the expanded territory in CYAN. If the next expansion is blocked by another claim or the world height, the preview is ORANGE. The maximum level-4 bounds are also previewed in GOLD when a further level remains.
+- Dialog GUI shows current size, next size, max size, upgrade cost and preview status, plus streamlined building access / team / removal buttons.
 - Teams: /team create <name>; /team invite <nick>; /team accept; /team leave; /team pvp on|off; /team menu.
 - Teams limited to 3 people; randomized assigned color; PvP between teammates requires BOTH players to consent.
 - Claims default to owner-only building and interactions; owners can switch between only owner and owner + team in the claim dialog.
-- Territory PvP is always on (except consensual team friendly-fire rules). Explosions and pistons still follow vanilla behavior except they cannot destroy or move protected claim cores.
+- Territory PvP is always on (except consensual team friendly-fire rules).
+- TNT, creepers, pistons, fire, liquids and other environmental mechanics are vanilla. Only the claim core itself is protected against explosion and piston movement.
+- Performance: 3D chunk-based claim lookup, bounded particle count per player, distance-based particle culling and less repeated TextDisplay work.
 - Claim deletion requires confirmation, waits 10 seconds, and can be cancelled in the dialog or using /p cancel. Data is saved in plugins/TargetClaim/data.yml.
 
 **Important:** This is a test build. Back up the world and database before replacing TargetClaim 1.2.0. Test the claim's Y bounds, arrows/potions, doors, item frames and piston interaction on a staging server.
