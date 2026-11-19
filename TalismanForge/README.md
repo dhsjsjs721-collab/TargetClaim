@@ -24,3 +24,11 @@ Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil o
 - Craft: ISI / SNS / ITI, I iron ingot, S string, N iron nugget, T stick. No amethyst.
 - Resource pack model: talismanforge:grappling_hook, FISHING_ROD material.
 - Existing talismans, chests, and protections remain.
+
+## 2.5.0 Grappling cast visualization
+- New custom flying hook tip (ItemDisplay) rather than vanilla fishing bobber.
+- Separate idle, cast, flying tip, chain-link pixel textures; rendered line consists of short repeated item displays.
+- Hook uses 15-second cooldown, 36-block range, 8 durability points per cast (8 uses total).
+- Pulls living entities back toward player; respects solid block line-of-sight and same-team friendly-fire disable.
+- Existing item PDC keys are preserved; older hook items remain usable.
+- No vanilla fishing rod item textures are overridden.
