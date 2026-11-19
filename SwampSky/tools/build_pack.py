@@ -91,6 +91,16 @@ def textures():
           "model":{"type":"minecraft:model","model":f"swampsky:item/{name}"}
         }).encode("utf-8")
 
+    # Replace placeholder artwork with the approved individual textures. The worn
+    # frog Elytra is a real 64x32 UV image and the pig source is ONE wing, reused
+    # twice with a mirrored ItemDisplay.
+    def custom(name):
+        encoded=(ROOT/"assets"/(name+".png.b64")).read_text(encoding="ascii").strip()
+        return base64.b64decode(encoded,validate=True)
+    files["assets/swampsky/textures/item/pig_wing.png"]=custom("pig_wing")
+    files["assets/swampsky/textures/item/frog_hide.png"]=custom("frog_hide")
+    files["assets/swampsky/textures/item/frog_wings.png"]=custom("frog_wings_item")
+
     # Real vanilla armor UVs: 64×32 humanoid for boots, humanoid_leggings for pants.
     # The vanilla armor renderer itself supplies the 3D boots/pants geometry.
     # These replace only textures on SwampSky items with the specified equippable asset.
@@ -102,6 +112,11 @@ def textures():
         asset=add_moss(recolor(open_ref(source),family,seed),family)
         assert asset.size==(64,32),(name,asset.size)
         files[f"assets/swampsky/textures/entity/equipment/{name}"]=png(asset)
+
+    # Replace only Elytra worn UV; keep vanilla-based 3D boots and leggings UV.
+    worn=custom("frog_wings_worn")
+    assert Image.open(io.BytesIO(worn)).size==(64,32)
+    files["assets/swampsky/textures/entity/equipment/wings/frog_wings.png"]=worn
 
     files["assets/swampsky/equipment/frog_armor.json"]=json.dumps({
       "layers":{"humanoid":[{"texture":"swampsky:frog_armor"}],
@@ -119,7 +134,7 @@ def textures():
     return files
 
 def mcmeta():
-    return json.dumps({"pack":{"description":"TalismanForge + SwampSky 26.3 | authentic vanilla equipment UV",
+    return json.dumps({"pack":{"description":"TalismanForge + SwampSky 1.2 | 26.3 frog armor and single pig wing",
                                 "min_format":[97,1],"max_format":[97,1]}}).encode("utf-8")
 
 def write_zip(path,entries):

@@ -132,7 +132,10 @@ if(!marked(entity,flyingKey))ground.remove(entity.getUniqueId());
 @EventHandler public void dead(EntityDeathEvent e){
 Entity entity=e.getEntity();
 UUID id=entity.getUniqueId();
-if(entity instanceof Pig){wings.remove(id);ground.remove(id);pigClear(id);}
+if(entity instanceof Pig){
+if(marked(entity,flyingKey))e.getDrops().add(new ItemStack(Material.PHANTOM_MEMBRANE,1+random.nextInt(2)));
+wings.remove(id);ground.remove(id);pigClear(id);
+}
 if(entity instanceof Frog && marked(entity,giantKey)){
 frogs.remove(id);
 e.getDrops().add(item("hide",1+random.nextInt(3)));
@@ -384,6 +387,8 @@ entity.setItemStack(item("pig_wing",1));
 entity.setTransformation(new Transformation(new Vector3f(),new Quaternionf(),new Vector3f(1.6f,1.6f,1.6f),new Quaternionf()));
 mark(entity,displayKey);
 });
+// The two displays share a single wing PNG. Mirror the left wing, no duplicate artwork.
+d.setTransformation(new Transformation(new Vector3f(),new Quaternionf(),new Vector3f(j==0?-1.6f:1.6f,1.6f,1.6f),new Quaternionf()));
 list.add(d.getUniqueId());
 }
 displays.put(pig.getUniqueId(),list);

@@ -11,7 +11,7 @@ on:
       - "SwampSky/**"
       - ".github/workflows/swampsky-build.yml"
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,7 +30,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: SwampSky-Plugin-JAR
-          path: SwampSky/build/libs/SwampSky-1.1.0.jar
+          path: SwampSky/build/libs/SwampSky-1.2.0.jar
       - uses: actions/upload-artifact@v4
         with:
           name: SwampSky-ResourcePack
@@ -39,3 +39,17 @@ jobs:
         with:
           name: TalismanForge-SwampSky-Combined-Pack
           path: SwampSky/build/TalismanForge-SwampSky-Combined.zip
+
+      - name: Publish JAR and combined pack to GitHub branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/swampsky-creatures'
+        run: |
+          mkdir -p builds resourcepacks
+          cp SwampSky/build/libs/SwampSky-1.2.0.jar builds/SwampSky-1.2.0.jar
+          cp SwampSky/build/TalismanForge-SwampSky-Combined.zip resourcepacks/TalismanForge-SwampSky-Complete.zip
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add builds/SwampSky-1.2.0.jar resourcepacks/TalismanForge-SwampSky-Complete.zip
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish SwampSky 1.2.0 jar and combined resourcepack [skip ci]'
+            git push origin HEAD:feature/swampsky-creatures
+          fi
