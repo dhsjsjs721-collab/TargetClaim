@@ -1,8 +1,11 @@
-# TargetClaim 1.4.4 (development test)
+# TargetClaim 1.5.0 (development test)
 
 Minecraft Paper 26.3, Java 25. One claim per player.
 
 - Unique target core (TARGET), crafted with 3 paper and 6 amethyst shards; when its claim is deleted, only 3 paper drop (no upgrade materials).
+- One-use special chest key (TRIPWIRE_HOOK), crafted as **one key** from a vertical column: top 1 gold ingot, middle 1 amethyst shard, bottom 1 iron ingot; the rest of the crafting grid is empty. /p givekey <nick> gives one key for admin testing.
+- To use, hold the special key in the MAIN hand and right-click a CHEST or TRAPPED_CHEST inside someone else's claim where the player lacks access. It never opens the chest; it removes ONE random item from storage and drops that one item into the world above the chest. The key is consumed once on success. If the chest is empty, the key is not consumed. Key use is blocked in Creative/Spectator.
+- Anti-dupe: only server-tagged keys work (not ordinary tripwire hooks); the event is processed from the main hand only, once per player per server tick; selection is weighted by the actual number of items in all eligible stacks; exactly one item is removed synchronously from the original inventory before the world drop; double-chest halves from different claims are not mixed; a drop exception rolls the inventory/key back. Keys are spent only on a successful draw. Test with hopper and other inventory plugins before production.
 - Volumetric 3D protected zone (width x height x depth):
   - Level 0: 16 x 32 x 16 (craft)
   - Level 1: 40 x 48 x 40 (23 amethyst shards)
@@ -18,10 +21,10 @@ Minecraft Paper 26.3, Java 25. One claim per player.
 - Teams: /team create <name>; /team invite <nick>; /team accept; /team leave; /team pvp on|off; /team menu.
 - Teams limited to 3 people; randomized assigned color; PvP between teammates requires BOTH players to consent.
 - Claims default to owner-only building and interactions; owners can switch between only owner and owner + team in the inventory menu.
-- Strict protection: non-owners cannot place, break, open containers or use doors, buttons, switches or other blocks. Protection applies to OP users too. Only the claim owner and explicitly-enabled team members may build and interact. The targetclaim.admin permission is for /p give ONLY, not a bypass. Buckets, ignition, armor-stand manipulation and block damage are also guarded.
+- Strict protection: non-owners cannot place, break, open containers or use doors, buttons, switches or other blocks (the one-use chest key allows only a one-item draw without opening a protected chest). Protection applies to OP users too. Only the claim owner and explicitly-enabled team members may build and interact. The targetclaim.admin permission is for /p give ONLY, not a bypass. Buckets, ignition, armor-stand manipulation and block damage are also guarded.
 - Territory PvP is always on (except consensual team friendly-fire rules).
 - TNT, creepers, pistons, fire, liquids and other environmental mechanics are vanilla. Only the claim core itself is protected against explosion and piston movement.
-- Performance: 3D chunk-based claim lookup; bounded particle counts per player; nearby-only beam rendering (72-block horizontal range), vertical beam segments around each viewer; no extra beacon block or beam entity. Viewer border preferences are stored in data.yml.
+- Performance: 3D chunk-based claim lookup; bounded particle counts per player, distance-culling of borders and upgrade previews. No beacon block or beam effects. Viewer border preferences are stored in data.yml.
 - Clicking Delete in the claim inventory starts the 10-second (200-tick) deletion countdown immediately, without a confirmation page; the inventory closes. During the countdown, the owner can right-click their claim core again to cancel immediately. /p remove starts the countdown, /p cancel cancels it, and attempting to break the core also starts the countdown. Only 3 paper drop upon completion. All claim data lives in plugins/TargetClaim/data.yml.
 
 **Important:** This is a test build. Back up the world and database before replacing an older TargetClaim version. Test the claim's Y bounds, arrows/potions, doors, item frames and piston interaction on a staging server.
@@ -30,5 +33,5 @@ Minecraft Paper 26.3, Java 25. One claim per player.
 GitHub Actions / Build plugin JAR; then download the artifact from the completed run.
 
 ## Commands
-/p, /p info, /p border [on|off], /p upgrade, /p remove, /p cancel, /p give <nick>
+/p, /p info, /p border [on|off], /p upgrade, /p remove, /p cancel, /p give <nick>, /p givekey <nick>
 /team, /team create <name>, /team invite <nick>, /team accept, /team deny, /team leave, /team kick <nick>, /team disband, /team pvp [on|off], /team info
