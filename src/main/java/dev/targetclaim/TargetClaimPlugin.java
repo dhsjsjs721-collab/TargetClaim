@@ -103,7 +103,7 @@ for(Group g:groups.values())updateScoreboard(g);
 for(World w:Bukkit.getWorlds())for(Chunk ch:w.getLoadedChunks())cleanupDisplays(ch);
 for(Claim c:claims.values())ensureDisplay(c);
 Bukkit.getScheduler().runTaskTimer(this,this::visualTick,15L,15L);
-getLogger().info("TargetClaim 1.3: "+claims.size()+" claims, "+groups.size()+" teams");
+getLogger().info("TargetClaim 1.4: "+claims.size()+" claims, "+groups.size()+" teams");
 }
 @Override public void onDisable(){saveAll();}
 
@@ -544,7 +544,7 @@ for(Claim c:regionClaims(p.getWorld().getUID(),pos.getBlockX()-96,pos.getBlockX(
 boolean self=c.owner.equals(p.getUniqueId());
 if(!self&&!(c.teamBuild&&allies(p.getUniqueId(),c.owner)))continue;
 if(Math.abs(pos.getX()-(c.x+.5))>SIZE[c.level]/2.+96||Math.abs(pos.getZ()-(c.z+.5))>SIZE[c.level]/2.+96||Math.abs(pos.getY()-(c.y+.5))>HEIGHT[c.level]/2.+120)continue;
-if(settings.borders&&red.remaining>0)drawBorder(p,c,c.level,BORDER_RED,2.6,96,red,true);
+if(settings.borders&&red.remaining>0)drawBorder(p,c,c.level,BORDER_RED,2.6,140,red,true);
 if(self&&preview){
 boolean valid=validLevel(c,c.level+1);
 drawBorder(p,c,c.level+1,valid?PREVIEW_CYAN:BLOCKED_ORANGE,3.6,132,cyan,false);
