@@ -112,6 +112,7 @@ Bukkit.addRecipe(craftedTag);
 PluginCommand c=getCommand("talismanforge");if(c!=null){c.setExecutor(this);c.setTabCompleter(this);}
 Bukkit.getPluginManager().registerEvents(this,this);
 for(World world:Bukkit.getWorlds())for(Item item:world.getEntitiesByClass(Item.class))trackTalismanDrop(item);
+for(Player player:Bukkit.getOnlinePlayers())restoreShieldRing(player);
 hookListener=new GrapplingHookListener(this);
 Bukkit.getPluginManager().registerEvents(hookListener,this);
 Bukkit.getScheduler().runTaskTimer(this,this::quarterTick,5L,5L);
@@ -518,17 +519,39 @@ for(Player p:Bukkit.getOnlinePlayers())if(held(p)==Talisman.AGES)spawnPath(p,p.g
 private void removeShieldVisuals(ShieldRing ring){
 for(UUID id:ring.visuals){if(id==null)continue;Entity entity=Bukkit.getEntity(id);if(entity!=null)entity.remove();}
 }
-private void createShieldRing(Player p){
-ShieldRing existing=shieldRings.remove(p.getUniqueId());if(existing!=null)removeShieldVisuals(existing);
-ShieldRing ring=new ShieldRing();
+private void saveShieldState(Player p,ShieldRing ring){
+p.getPersistentDataContainer().set(new NamespacedKey(this,"defiance_shield_index"),PersistentDataType.INTEGER,ring.index);
+p.getPersistentDataContainer().set(new NamespacedKey(this,"defiance_shield_health"),PersistentDataType.DOUBLE,ring.health);
+}
+private void clearShieldState(Player p){
+p.getPersistentDataContainer().remove(new NamespacedKey(this,"defiance_shield_index"));
+p.getPersistentDataContainer().remove(new NamespacedKey(this,"defiance_shield_health"));
+}
+private void spawnShieldVisuals(Player p,ShieldRing ring){
 for(int i=0;i<3;i++){
+if(i<ring.index){ring.visuals.add(null);continue;}
 ItemDisplay d=p.getWorld().spawn(p.getLocation().clone().add(0,1.2,0),ItemDisplay.class,display->{
 display.setItemStack(new ItemStack(Material.SHIELD));display.setBillboard(Display.Billboard.CENTER);display.setPersistent(false);display.setInvulnerable(true);
 display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
 });
 ring.visuals.add(d.getUniqueId());
 }
-shieldRings.put(p.getUniqueId(),ring);
+}
+private void restoreShieldRing(Player p){
+Integer index=p.getPersistentDataContainer().get(new NamespacedKey(this,"defiance_shield_index"),PersistentDataType.INTEGER);
+if(index==null||index<0||index>2)return;
+ShieldRing previous=shieldRings.remove(p.getUniqueId());if(previous!=null)removeShieldVisuals(previous);
+ShieldRing ring=new ShieldRing();ring.index=index;
+ring.health=Math.min(4,Math.max(.01,p.getPersistentDataContainer().getOrDefault(new NamespacedKey(this,"defiance_shield_health"),PersistentDataType.DOUBLE,4.0)));
+spawnShieldVisuals(p,ring);shieldRings.put(p.getUniqueId(),ring);
+}
+@EventHandler public void playerJoined(PlayerJoinEvent e){
+Bukkit.getScheduler().runTask(this,()->{if(e.getPlayer().isOnline())restoreShieldRing(e.getPlayer());});
+}
+private void createShieldRing(Player p){
+ShieldRing existing=shieldRings.remove(p.getUniqueId());if(existing!=null)removeShieldVisuals(existing);
+ShieldRing ring=new ShieldRing();spawnShieldVisuals(p,ring);
+shieldRings.put(p.getUniqueId(),ring);saveShieldState(p,ring);
 p.getWorld().playSound(p.getLocation(),Sound.ITEM_SHIELD_BLOCK,1,.65f);
 p.sendMessage("§bТалисман рассыпался: три призрачных щита защищают от ударов.");
 }
@@ -557,16 +580,19 @@ if(ring.health<=0){
 UUID id=ring.visuals.get(ring.index);Entity display=Bukkit.getEntity(id);if(display!=null)display.remove();
 ring.index++;ring.health=4.0;
 p.getWorld().playSound(p.getLocation(),Sound.ITEM_SHIELD_BREAK,.85f,1.4f);
-if(ring.index>=3){shieldRings.remove(p.getUniqueId());p.sendMessage("§7Последний призрачный щит разрушен.");}
+if(ring.index>=3){shieldRings.remove(p.getUniqueId());clearShieldState(p);p.sendMessage("§7Последний призрачный щит разрушен.");}
+else saveShieldState(p,ring);
 }
 return true;
 }
 private void wrathCritical(Player attacker,Player victim,boolean critical){
-UUID id=attacker.getUniqueId();if(!critical){wrathStreak.remove(id);wrathLastCrit.remove(id);return;}
+UUID id=attacker.getUniqueId();if(!critical){wrathStreak.remove(id);wrathLastCrit.remove(id);attacker.sendActionBar(Component.text("Кара: серия критов сброшена",NamedTextColor.GRAY));return;}
 long now=System.currentTimeMillis();
 int count=now-wrathLastCrit.getOrDefault(id,0L)>8000?1:wrathStreak.getOrDefault(id,0)+1;
 wrathStreak.put(id,Math.min(count,6));wrathLastCrit.put(id,now);
 double chance=Math.min(.5,Math.max(0,(count-1)*.10));
+int bars=Math.min(5,count-1);
+attacker.sendActionBar(Component.text("Кара  ["+"■".repeat(bars)+"□".repeat(5-bars)+"]  Износ брони ×"+String.format(Locale.ROOT,"%.1f",1.0+chance),NamedTextColor.GOLD));
 if(random.nextDouble()>=chance)return;
 Bukkit.getScheduler().runTask(this,()->{
 if(!victim.isValid()||victim.isDead()||victim.getEquipment()==null)return;
