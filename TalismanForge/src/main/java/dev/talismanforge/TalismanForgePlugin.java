@@ -7,6 +7,7 @@ import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.command.*;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -42,7 +43,9 @@ static Talisman parse(String s){for(Talisman t:values())if(t.key.equalsIgnoreCas
 }
 private static final long OPEN_DELAY=180_000L;
 private NamespacedKey typeKey,usesKey,chestKey,displayKey,dolphinKey;
-private File saveFile;
+private File saveFile,padsFile;
+private final Map<String,Pad> pads=new HashMap<>();
+private boolean padsChanged=false;
 private final Map<String,Altar> altars=new HashMap<>();
 private final Map<UUID,UUID> holograms=new HashMap<>();
 private final Map<UUID,Long> cleansed=new HashMap<>();
@@ -52,6 +55,12 @@ private final Map<UUID,UUID> thrownEggs=new HashMap<>();
 private final Map<UUID,Long> ghostDolphins=new HashMap<>();
 private final Random random=new Random();
 private int pulses=0;
+private static final class Pad {
+UUID world;int x,y,z;String original;Material replacement;long expire;
+String key(){return world+":"+x+":"+y+":"+z;}
+}
+private static final int MAX_PADS=150;
+private static final long WATER_DURATION=3200L,LAVA_DURATION=4200L;
 private static final class Altar {
 UUID id=UUID.randomUUID(),owner,world;
 int x,y,z;
@@ -63,10 +72,13 @@ Location location(){World w=Bukkit.getWorld(world);return w==null?null:new Locat
 @Override public void onEnable(){
 getDataFolder().mkdirs();saveDefaultConfig();
 saveFile=new File(getDataFolder(),"altars.yml");
+padsFile=new File(getDataFolder(),"temporary-paths.yml");
+loadPads();
 typeKey=new NamespacedKey(this,"talisman_type");usesKey=new NamespacedKey(this,"uses_left");
 chestKey=new NamespacedKey(this,"ritual_chest");displayKey=new NamespacedKey(this,"ritual_display");
 dolphinKey=new NamespacedKey(this,"poseidon_dolphin");
 loadAltars();
+for(Altar a:altars.values())cleanupLegacyBeacon(a);
 ShapedRecipe r=new ShapedRecipe(new NamespacedKey(this,"ritual_chest"),chestItem());
 r.shape("AAA","ATA","AOA");r.setIngredient('A',Material.AMETHYST_SHARD);r.setIngredient('T',Material.TOTEM_OF_UNDYING);r.setIngredient('O',Material.OBSIDIAN);
 Bukkit.addRecipe(r);
@@ -74,12 +86,14 @@ PluginCommand c=getCommand("talismanforge");if(c!=null){c.setExecutor(this);c.se
 Bukkit.getPluginManager().registerEvents(this,this);
 Bukkit.getScheduler().runTaskTimer(this,this::quarterTick,5L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::tick,20L,20L);
-getLogger().info("TalismanForge 2.0.0: "+altars.size()+" ritual chests");
+getLogger().info("TalismanForge 2.1.0: "+altars.size()+" ritual chests");
 }
 @Override public void onDisable(){
 for(UUID id:holograms.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 for(UUID id:ghostDolphins.keySet()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 holograms.clear();ghostDolphins.clear();saveAltars();
+for(Pad pad:new ArrayList<>(pads.values()))restorePad(pad);
+pads.clear();savePads();
 }
 private ItemStack talisman(Talisman t,int lives){
 ItemStack i=new ItemStack(Material.TOTEM_OF_UNDYING);ItemMeta m=i.getItemMeta();
@@ -126,7 +140,7 @@ return n==null?0:n;
 private ItemStack chestItem(){
 ItemStack i=new ItemStack(Material.CHEST);ItemMeta m=i.getItemMeta();
 m.setDisplayName("§5§lСундук талисманов");
-m.setLore(List.of("§7Открой ритуал на улице с видом на небо","§dНастоящий маяк и таймер: 03:00","§7После открытия награда ближайшему игроку","§7Ломать может только поставивший"));
+m.setLore(List.of("§7Открой ритуал на улице с видом на небо","§dСветящийся луч и таймер: 03:00","§7После открытия награда ближайшему игроку","§7Ломать может только поставивший"));
 m.getPersistentDataContainer().set(chestKey,PersistentDataType.BYTE,(byte)1);
 i.setItemMeta(m);return i;
 }
@@ -137,37 +151,81 @@ Byte.valueOf((byte)1).equals(i.getItemMeta().getPersistentDataContainer().get(ne
 }
 private String index(Location loc){return loc.getWorld().getUID()+":"+loc.getBlockX()+":"+loc.getBlockY()+":"+loc.getBlockZ();}
 private Altar altar(Block b){return altars.get(index(b.getLocation()));}
-private boolean beamPart(Altar a,Block b){
-if(!b.getWorld().getUID().equals(a.world))return false;
-int dx=b.getX()-a.x,dy=b.getY()-a.y,dz=b.getZ()-a.z;
-return dy==2&&Math.abs(dx)<=1&&Math.abs(dz)<=1||dy==3&&dx==0&&dz==0||dy==4&&dx==0&&dz==0;
-}
-private Altar protectedAltar(Block b){for(Altar a:altars.values())if(a.index().equals(index(b.getLocation()))||beamPart(a,b))return a;return null;}
-private boolean canBeam(Block chest){
-World w=chest.getWorld();int x=chest.getX(),y=chest.getY(),z=chest.getZ();
-if(y+5>=w.getMaxHeight())return false;
-for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++)if(!w.getBlockAt(x+dx,y+2,z+dz).isEmpty())return false;
-if(!w.getBlockAt(x,y+3,z).isEmpty()||!w.getBlockAt(x,y+4,z).isEmpty())return false;
-for(int yy=y+5;yy<w.getMaxHeight();yy++){
-Block b=w.getBlockAt(x,yy,z);
-if(!b.isEmpty()&&b.getType()!=Material.GLASS&&b.getType()!=Material.PURPLE_STAINED_GLASS&&b.getType()!=Material.LIGHT_BLUE_STAINED_GLASS)return false;
-}
-return true;
-}
-private void buildBeacon(Altar a){
-World w=Bukkit.getWorld(a.world);if(w==null)return;
-for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++)w.getBlockAt(a.x+dx,a.y+2,a.z+dz).setType(Material.IRON_BLOCK,false);
-w.getBlockAt(a.x,a.y+3,a.z).setType(Material.BEACON,false);
-w.getBlockAt(a.x,a.y+4,a.z).setType(Material.PURPLE_STAINED_GLASS,false);
-}
-private void restoreBeacon(Altar a){
+private Altar protectedAltar(Block b){return altar(b);}
+private boolean canBeam(Block b){return b.getY()+2<b.getWorld().getMaxHeight();}
+private void cleanupLegacyBeacon(Altar a){
 World w=Bukkit.getWorld(a.world);if(w==null||!w.isChunkLoaded(a.x>>4,a.z>>4))return;
-if(w.getBlockAt(a.x,a.y+4,a.z).getType()==Material.PURPLE_STAINED_GLASS)w.getBlockAt(a.x,a.y+4,a.z).setType(Material.AIR,false);
-if(w.getBlockAt(a.x,a.y+3,a.z).getType()==Material.BEACON)w.getBlockAt(a.x,a.y+3,a.z).setType(Material.AIR,false);
-for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++){
-Block b=w.getBlockAt(a.x+dx,a.y+2,a.z+dz);
-if(b.getType()==Material.IRON_BLOCK)b.setType(Material.AIR,false);
+if(w.getBlockAt(a.x,a.y+3,a.z).getType()!=Material.BEACON||w.getBlockAt(a.x,a.y+4,a.z).getType()!=Material.PURPLE_STAINED_GLASS)return;
+for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++)if(w.getBlockAt(a.x+dx,a.y+2,a.z+dz).getType()!=Material.IRON_BLOCK)return;
+w.getBlockAt(a.x,a.y+3,a.z).setType(Material.AIR,false);w.getBlockAt(a.x,a.y+4,a.z).setType(Material.AIR,false);
+for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++)w.getBlockAt(a.x+dx,a.y+2,a.z+dz).setType(Material.AIR,false);
 }
+private void beamParticles(Altar a){
+Location loc=a.location();if(loc==null)return;
+World w=loc.getWorld();int top=Math.min(56,w.getMaxHeight()-a.y-2);
+for(Player p:w.getPlayers()){
+if(p.getLocation().distanceSquared(loc)>64*64)continue;
+for(int h=1;h<top;h+=2){
+Location q=loc.clone().add(0,h,0);
+p.spawnParticle(Particle.DUST,q,1,0,0,0,new Particle.DustOptions(Color.fromRGB(160,95,250),1.6f));
+if(h%4==1)p.spawnParticle(Particle.DUST,q,1,0,0,0,new Particle.DustOptions(Color.fromRGB(226,224,255),1.0f));
+if(h%6==1){double t=h*.42+pulses*.12;p.spawnParticle(Particle.DUST,q.clone().add(Math.cos(t)*.25,0,Math.sin(t)*.25),1,0,0,0,new Particle.DustOptions(Color.fromRGB(100,209,255),1.2f));}
+}
+if(pulses%3==0)p.spawnParticle(Particle.END_ROD,loc.clone().add(0,1.2,0),2,.25,.3,.25,.005);
+}
+}
+private void loadPads(){
+if(!padsFile.isFile())return;
+YamlConfiguration cfg=YamlConfiguration.loadConfiguration(padsFile);
+ConfigurationSection section=cfg.getConfigurationSection("paths");if(section==null)return;
+for(String id:section.getKeys(false))try{
+String key="paths."+id+".";Pad pad=new Pad();pad.world=UUID.fromString(Objects.requireNonNull(cfg.getString(key+"world")));
+pad.x=cfg.getInt(key+"x");pad.y=cfg.getInt(key+"y");pad.z=cfg.getInt(key+"z");
+pad.original=Objects.requireNonNull(cfg.getString(key+"original"));pad.replacement=Material.valueOf(Objects.requireNonNull(cfg.getString(key+"replacement")));
+if(!restorePad(pad)){pad.expire=0L;pads.put(pad.key(),pad);}
+}catch(Exception ex){getLogger().warning("Invalid saved liquid path "+id);}
+savePads();
+}
+private void savePads(){
+YamlConfiguration cfg=new YamlConfiguration();int n=0;
+for(Pad pad:pads.values()){
+String k="paths.p"+(n++)+".";cfg.set(k+"world",pad.world.toString());cfg.set(k+"x",pad.x);cfg.set(k+"y",pad.y);cfg.set(k+"z",pad.z);
+cfg.set(k+"original",pad.original);cfg.set(k+"replacement",pad.replacement.name());
+}
+try{cfg.save(padsFile);padsChanged=false;}catch(IOException ex){getLogger().severe("Failed to save liquid paths: "+ex.getMessage());}
+}
+private boolean restorePad(Pad pad){
+World w=Bukkit.getWorld(pad.world);if(w==null)return false;
+Block b=w.getBlockAt(pad.x,pad.y,pad.z);
+if(b.getType()!=pad.replacement)return true;
+try{b.setBlockData(Bukkit.createBlockData(pad.original),false);return true;}catch(IllegalArgumentException e){return false;}
+}
+private void addPad(World w,int x,int y,int z){
+Block b=w.getBlockAt(x,y,z);String k=w.getUID()+":"+x+":"+y+":"+z;
+Pad existing=pads.get(k);
+if(existing!=null){existing.expire=System.currentTimeMillis()+(existing.replacement==Material.MOSS_BLOCK?WATER_DURATION:LAVA_DURATION);return;}
+if(pads.size()>=MAX_PADS)return;
+Material fluid=b.getType();if(fluid!=Material.WATER&&fluid!=Material.LAVA)return;
+BlockData original=b.getBlockData();if(!(original instanceof org.bukkit.block.data.Levelled lvl)||lvl.getLevel()!=0)return;
+Pad pad=new Pad();pad.world=w.getUID();pad.x=x;pad.y=y;pad.z=z;pad.original=original.getAsString();
+pad.replacement=fluid==Material.WATER?Material.MOSS_BLOCK:Material.SOUL_SOIL;
+pad.expire=System.currentTimeMillis()+(fluid==Material.WATER?WATER_DURATION:LAVA_DURATION);
+b.setType(pad.replacement,false);pads.put(pad.key(),pad);padsChanged=true;
+}
+private void spawnPath(Player p,Location to){
+if(p.isFlying()||p.isSneaking()||p.getGameMode()==GameMode.SPECTATOR)return;
+World w=to.getWorld();if(w==null)return;int y=(int)Math.floor(to.getY()-.20);
+if(y<w.getMinHeight()||y>=w.getMaxHeight())return;
+int x=to.getBlockX(),z=to.getBlockZ();addPad(w,x,y,z);
+Vector v=p.getVelocity();
+if(v.lengthSquared()>.035){int xx=(int)Math.floor(to.getX()+Math.max(-.75,Math.min(.75,v.getX()*2.5)));
+int zz=(int)Math.floor(to.getZ()+Math.max(-.75,Math.min(.75,v.getZ()*2.5)));
+if(xx!=x||zz!=z)addPad(w,xx,y,zz);}
+}
+private void cleanupPads(){
+long time=System.currentTimeMillis();
+for(Pad pad:new ArrayList<>(pads.values()))if(time>=pad.expire&&restorePad(pad)){pads.remove(pad.key());padsChanged=true;}
+if(padsChanged&&pulses%2==0)savePads();
 }
 private void loadAltars(){
 if(!saveFile.isFile())return;
@@ -192,18 +250,32 @@ try{y.save(saveFile);}catch(IOException e){getLogger().severe("Could not save ri
 private void removeAltar(Altar a){
 if(altars.remove(a.index())==null)return;
 UUID id=holograms.remove(a.id);if(id!=null){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
-restoreBeacon(a);saveAltars();
+saveAltars();
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void place(BlockPlaceEvent e){
 if(protectedAltar(e.getBlockPlaced())!=null){e.setCancelled(true);return;}
 if(!specialChest(e.getItemInHand()))return;
 Block b=e.getBlockPlaced();Player p=e.getPlayer();
-if(!canBeam(b)){e.setCancelled(true);p.sendMessage("§cНужно открытое небо и свободное место над сундуком (3×3).");return;}
+if(!canBeam(b)){e.setCancelled(true);p.sendMessage("§cНедостаточно места над сундуком.");return;}
 Altar a=new Altar();a.owner=p.getUniqueId();a.world=b.getWorld().getUID();a.x=b.getX();a.y=b.getY();a.z=b.getZ();a.due=System.currentTimeMillis()+OPEN_DELAY;
-altars.put(a.index(),a);buildBeacon(a);saveAltars();
+altars.put(a.index(),a);saveAltars();
 p.sendMessage("§d✦ Сундук установлен! §7Координаты: "+a.x+", "+a.y+", "+a.z);
-p.sendMessage("§7Настоящий луч маяка. Открытие через §d03:00§7.");
+p.sendMessage("§7Светящийся луч без блока маяка. Открытие через §d03:00§7.");
 b.getWorld().playSound(b.getLocation(),Sound.BLOCK_BEACON_ACTIVATE,1,.8f);
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void padBreak(BlockBreakEvent e){
+if(pads.containsKey(index(e.getBlock().getLocation()))){e.setCancelled(true);e.setDropItems(false);e.setExpToDrop(0);}
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void padPlace(BlockPlaceEvent e){
+if(pads.containsKey(index(e.getBlockPlaced().getLocation())))e.setCancelled(true);
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void padExplosion(EntityExplodeEvent e){e.blockList().removeIf(b->pads.containsKey(index(b.getLocation())));}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void padBlockExplosion(BlockExplodeEvent e){e.blockList().removeIf(b->pads.containsKey(index(b.getLocation())));}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void padPiston(BlockPistonExtendEvent e){
+if(e.getBlocks().stream().anyMatch(b->pads.containsKey(index(b.getLocation()))))e.setCancelled(true);
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void padPistonRetract(BlockPistonRetractEvent e){
+if(e.getBlocks().stream().anyMatch(b->pads.containsKey(index(b.getLocation()))))e.setCancelled(true);
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void breakBlock(BlockBreakEvent e){
 Altar a=protectedAltar(e.getBlock());if(a==null)return;
@@ -290,7 +362,7 @@ p.getWorld().spawnParticle(Particle.PORTAL,p.getLocation(),90,.7,1,.7,.25);
 }
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)public void moved(PlayerMoveEvent e){
 Player p=e.getPlayer();if(e.getTo()==null||held(p)==null)return;
-if(held(p)==Talisman.AGES)waterWalk(p);
+if(held(p)==Talisman.AGES)spawnPath(p,e.getTo());
 if(e.getTo().getY()<p.getWorld().getMinHeight()+6){voidRescue(p);return;}
 if(e.getTo().getY()<p.getWorld().getMinHeight()+12)return;
 if(p.isOnGround()&&p.getLocation().getBlock().isPassable()&&p.getLocation().subtract(0,1,0).getBlock().getType().isSolid())safeLocations.put(p.getUniqueId(),p.getLocation().clone());
@@ -452,25 +524,19 @@ p.addPotionEffect(new PotionEffect(PotionEffectType.DOLPHINS_GRACE,100,0,true,fa
 p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,100,0,true,false,true));
 }}
 case HADES -> {if(!p.hasPotionEffect(PotionEffectType.ABSORPTION))p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION,1_000_000,2,true,false,true));}
-case AGES -> {p.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE,100,0,true,false,true));waterWalk(p);}
+case AGES -> p.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE,100,0,true,false,true));
 case END -> p.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY,100,0,true,false,true));
 }
 }
 }
-private void waterWalk(Player p){
-Location l=p.getLocation();Block feet=l.getBlock(),under=l.clone().subtract(0,.25,0).getBlock();
-boolean liquid=feet.isLiquid()||under.isLiquid();
-if(!liquid||p.isSneaking())return;
-if(p.getVelocity().getY()<0){Vector v=p.getVelocity();v.setY(.07);p.setVelocity(v);p.setFallDistance(0);}
-}
 private void tick(){
-pulses++;refresh();dolphinTick();
+pulses++;refresh();dolphinTick();cleanupPads();
 for(Altar a:new ArrayList<>(altars.values())){
 Location loc=a.location();if(loc==null||!loc.getWorld().isChunkLoaded(a.x>>4,a.z>>4))continue;
 World w=loc.getWorld();Block b=w.getBlockAt(a.x,a.y,a.z);
 if(b.getType()!=Material.CHEST){removeAltar(a);continue;}
 if(!a.ready&&System.currentTimeMillis()>=a.due){a.ready=true;saveAltars();w.playSound(loc,Sound.BLOCK_END_PORTAL_SPAWN,1,1.6f);w.spawnParticle(Particle.TOTEM_OF_UNDYING,loc,70,1,1,1,.1);}
-showHologram(a);
+showHologram(a);beamParticles(a);
 if(a.ready){
 Player nearest=null;double best=25*25;
 for(Player p:w.getPlayers()){double d=p.getLocation().distanceSquared(loc);if(d<best){nearest=p;best=d;}}
