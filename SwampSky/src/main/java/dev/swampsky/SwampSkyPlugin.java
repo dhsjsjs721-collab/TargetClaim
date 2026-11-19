@@ -17,6 +17,7 @@ import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInputEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerToggleSneakEvent;
 import org.bukkit.event.entity.EntityDismountEvent;
 import org.bukkit.event.entity.EntityBreedEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -45,6 +46,7 @@ private NamespacedKey flyingKey, ownerKey, giantKey, itemKey, displayKey;
 private final Set<UUID> wings=new HashSet<>(), frogs=new HashSet<>(), ground=new HashSet<>();
 private final Map<UUID,List<UUID>> displays=new HashMap<>();
 private final Map<UUID,Input> inputCache=new HashMap<>();
+private final Map<UUID,UUID> pendingMount=new HashMap<>();
 private final Map<UUID,UUID> aggro=new HashMap<>();
 private final Map<UUID,Long> aggroUntil=new HashMap<>(),attackCooldown=new HashMap<>(),hitWindow=new HashMap<>(),dismountFall=new HashMap<>(),knockbackUntil=new HashMap<>();
 private final Map<UUID,Integer> hitCount=new HashMap<>();
@@ -76,7 +78,7 @@ Bukkit.getScheduler().runTaskTimer(this,this::upgradeOnlineEquipment,40L,100L);
 }
 @Override public void onDisable(){
 for(UUID id:new ArrayList<>(displays.keySet()))pigClear(id);
-aggro.clear();aggroUntil.clear();attackCooldown.clear();hitWindow.clear();hitCount.clear();flightVectors.clear();dismountFall.clear();knockbackUntil.clear();
+aggro.clear();aggroUntil.clear();attackCooldown.clear();hitWindow.clear();hitCount.clear();flightVectors.clear();dismountFall.clear();knockbackUntil.clear();pendingMount.clear();
 for(UUID id:ground){Entity e=Bukkit.getEntity(id);if(e instanceof Pig p){p.setAI(true);p.setAware(true);}}
 for(UUID id:wings){
 Entity e=Bukkit.getEntity(id);
@@ -219,14 +221,12 @@ return;
 }
 e.setCancelled(true);
 if(!player.isSneaking()||!pig.getPassengers().isEmpty()||player.isInsideVehicle())return;
-Bukkit.getScheduler().runTask(this,()->{
-if(!pig.isValid()||!player.isOnline()||player.isInsideVehicle()||!owned(pig,player)||!pig.getPassengers().isEmpty())return;
-pig.setAI(true);pig.setAware(false);
-// Saddle is enabled only for the ride so vanilla accepts the passenger;
-// normal right-click is still cancelled unless the player is sneaking.
-pig.setSaddle(true);
-if(!pig.addPassenger(player))pig.setSaddle(false);
-});
+// Mount after Shift is RELEASED. Mounting while Shift remains pressed makes
+// the client immediately dismount, which feels like a broken interaction.
+UUID playerId=player.getUniqueId();
+UUID pigId=pig.getUniqueId();
+pendingMount.put(playerId,pigId);
+Bukkit.getScheduler().runTaskLater(this,()->pendingMount.remove(playerId,pigId),100L);
 }
 private void breedWingedPigs(){
 // Winged pigs are not controlled by vanilla pathfinding. Match willing parents
@@ -237,11 +237,11 @@ Entity e=Bukkit.getEntity(id);
 if(!(e instanceof Pig first)||!first.isValid()||!first.isAdult()||first.getLoveModeTicks()<=0||!first.canBreed()||paired.contains(id))continue;
 String firstOwner=owner(first);
 if(firstOwner==null)continue;
-for(Entity other:first.getNearbyEntities(5,4,5)){
+for(Entity other:first.getNearbyEntities(12,6,12)){
 if(!(other instanceof Pig second)||!second.isValid()||second==first||!second.isAdult()
 ||second.getLoveModeTicks()<=0||!second.canBreed()||paired.contains(second.getUniqueId()))continue;
 if(!firstOwner.equals(owner(second)))continue;
-if(first.getLocation().distanceSquared(second.getLocation())>4.5*4.5)continue;
+if(first.getLocation().distanceSquared(second.getLocation())>12*12)continue;
 paired.add(first.getUniqueId());paired.add(second.getUniqueId());
 first.setLoveModeTicks(0);second.setLoveModeTicks(0);
 first.setBreed(false);second.setBreed(false);
@@ -946,8 +946,22 @@ new Quaternionf()
 ));
 }
 }
+@EventHandler public void toggleSneak(PlayerToggleSneakEvent e){
+if(e.isSneaking())return;
+Player player=e.getPlayer();
+UUID pigId=pendingMount.remove(player.getUniqueId());
+if(pigId==null)return;
+Bukkit.getScheduler().runTask(this,()->{
+Entity entity=Bukkit.getEntity(pigId);
+if(!(entity instanceof Pig pig)||!pig.isValid()||!player.isOnline()
+||player.isInsideVehicle()||!owned(pig,player)||!pig.getPassengers().isEmpty())return;
+pig.setAI(true);pig.setAware(false);
+pig.setSaddle(true);
+if(!pig.addPassenger(player))pig.setSaddle(false);
+});
+}
 @EventHandler public void playerInput(PlayerInputEvent e){inputCache.put(e.getPlayer().getUniqueId(),e.getInput());}
-@EventHandler public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();inputCache.remove(id);airborne.remove(id);fallSpeed.remove(id);bounceLocked.remove(id);groundedTicks.remove(id);}
+@EventHandler public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();inputCache.remove(id);pendingMount.remove(id);airborne.remove(id);fallSpeed.remove(id);bounceLocked.remove(id);groundedTicks.remove(id);}
 @Override public boolean onCommand(CommandSender sender,Command cmd,String label,String[] a){
 if(a.length==0||a[0].equalsIgnoreCase("help")){
 sender.sendMessage("§aSwampSky §7| /swampsky spawn <flying_pig|giant_frog>");
