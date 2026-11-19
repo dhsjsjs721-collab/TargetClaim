@@ -17,6 +17,9 @@ import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInputEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.entity.EntityDismountEvent;
+import org.bukkit.event.entity.EntityBreedEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.world.*;
 import org.bukkit.inventory.*;
@@ -42,6 +45,10 @@ private NamespacedKey flyingKey, ownerKey, giantKey, itemKey, displayKey;
 private final Set<UUID> wings=new HashSet<>(), frogs=new HashSet<>(), ground=new HashSet<>();
 private final Map<UUID,List<UUID>> displays=new HashMap<>();
 private final Map<UUID,Input> inputCache=new HashMap<>();
+private final Map<UUID,UUID> aggro=new HashMap<>();
+private final Map<UUID,Long> aggroUntil=new HashMap<>(),attackCooldown=new HashMap<>(),hitWindow=new HashMap<>(),dismountFall=new HashMap<>();
+private final Map<UUID,Integer> hitCount=new HashMap<>();
+private final Map<UUID,Vector> flightVectors=new HashMap<>();
 private final Set<UUID> airborne=new HashSet<>(), bounceLocked=new HashSet<>();
 private final Map<UUID,Double> fallSpeed=new HashMap<>();
 private final Map<UUID,Integer> groundedTicks=new HashMap<>();
@@ -69,6 +76,7 @@ Bukkit.getScheduler().runTaskTimer(this,this::upgradeOnlineEquipment,40L,100L);
 }
 @Override public void onDisable(){
 for(UUID id:new ArrayList<>(displays.keySet()))pigClear(id);
+aggro.clear();aggroUntil.clear();attackCooldown.clear();hitWindow.clear();hitCount.clear();flightVectors.clear();dismountFall.clear();
 for(UUID id:ground){Entity e=Bukkit.getEntity(id);if(e instanceof Pig p){p.setAI(true);p.setAware(true);}}
 for(UUID id:wings){
 Entity e=Bukkit.getEntity(id);
@@ -155,6 +163,7 @@ UUID id=entity.getUniqueId();
 if(entity instanceof Pig){
 if(marked(entity,flyingKey))e.getDrops().add(new ItemStack(Material.PHANTOM_MEMBRANE,1+random.nextInt(2)));
 wings.remove(id);ground.remove(id);pigClear(id);
+aggro.remove(id);aggroUntil.remove(id);attackCooldown.remove(id);hitWindow.remove(id);hitCount.remove(id);flightVectors.remove(id);
 }
 if(entity instanceof Frog && marked(entity,giantKey)){
 frogs.remove(id);
@@ -166,41 +175,96 @@ leap.remove(id);hit.remove(id);tongue.remove(id);
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void interact(PlayerInteractEntityEvent e){
-if(e.getHand()!=EquipmentSlot.HAND||!(e.getRightClicked() instanceof Pig p))return;
+if(e.getHand()!=EquipmentSlot.HAND||!(e.getRightClicked() instanceof Pig pig))return;
 Player player=e.getPlayer();
 ItemStack held=player.getInventory().getItemInMainHand();
-String owner=owner(p);
+if(held.getType()==Material.LEAD||player.getInventory().getItemInOffHand().getType()==Material.LEAD)return;
+boolean hasFood=food(held);
+String owner=owner(pig);
 if(owner==null){
-if(!food(held))return;
+if(!hasFood)return;
 e.setCancelled(true);
+if(!pig.isAdult())return;
 double chance=held.getType()==Material.PUMPKIN_PIE?.78:.52;
-if(player.getGameMode()!=GameMode.CREATIVE)held.setAmount(held.getAmount()-1);
-p.getWorld().spawnParticle(Particle.HEART,p.getLocation().add(0,1,0),5,.3,.3,.3,0);
+consume(player,held);
 if(random.nextDouble()<chance){
-p.getPersistentDataContainer().set(ownerKey,PersistentDataType.STRING,player.getUniqueId().toString());
-p.setSaddle(true);
-if(!marked(p,flyingKey))ground.add(p.getUniqueId());
-p.setCustomName(null);p.setCustomNameVisible(false);
-}else p.getWorld().spawnParticle(Particle.SMOKE,p.getLocation().add(0,.9,0),3,.25,.2,.25,.01);
+pig.getPersistentDataContainer().set(ownerKey,PersistentDataType.STRING,player.getUniqueId().toString());
+pig.setSaddle(false);
+if(!marked(pig,flyingKey))ground.add(pig.getUniqueId());
+pig.setCustomName(null);pig.setCustomNameVisible(false);
+pig.getWorld().spawnParticle(Particle.HEART,pig.getLocation().add(0,1,0),8,.32,.3,.32,.03);
+}else pig.getWorld().spawnParticle(Particle.SMOKE,pig.getLocation().add(0,.8,0),3,.3,.2,.3,.01);
+return;
+}
+if(!owned(pig,player)){e.setCancelled(true);return;}
+if(hasFood){
+e.setCancelled(true);
+consume(player,held);
+if(pig.isAdult()&&pig.canBreed()&&pig.getLoveModeTicks()==0){
+pig.setBreedCause(player.getUniqueId());
+pig.setLoveModeTicks(600);
+pig.getWorld().spawnParticle(Particle.HEART,pig.getLocation().add(0,1,0),9,.35,.3,.35,.02);
+}else{
+AttributeInstance max=pig.getAttribute(Attribute.MAX_HEALTH);
+pig.setHealth(Math.min(max==null?10:max.getValue(),pig.getHealth()+4));
+pig.getWorld().spawnParticle(Particle.HEART,pig.getLocation().add(0,.8,0),5,.3,.2,.3,.02);
+}
 return;
 }
 e.setCancelled(true);
-if(!owned(p,player))return;
-if(food(held)){
-if(player.getGameMode()!=GameMode.CREATIVE)held.setAmount(held.getAmount()-1);
-AttributeInstance max=p.getAttribute(Attribute.MAX_HEALTH);
-p.setHealth(Math.min(max==null?10:max.getValue(),p.getHealth()+3));
-p.getWorld().spawnParticle(Particle.HEART,p.getLocation().add(0,.9,0),5,.3,.3,.3,0);
-return;
-}
-if(p.getPassengers().isEmpty()){
+if(!player.isSneaking()||!pig.getPassengers().isEmpty()||player.isInsideVehicle())return;
 Bukkit.getScheduler().runTask(this,()->{
-if(!p.isValid()||!player.isOnline()||player.isInsideVehicle()||!owned(p,player)||!p.getPassengers().isEmpty())return;
-p.setSaddle(true);p.setAI(true);p.setAware(false);
-p.addPassenger(player);
+if(!pig.isValid()||!player.isOnline()||player.isInsideVehicle()||!owned(pig,player)||!pig.getPassengers().isEmpty())return;
+pig.setAI(true);pig.setAware(false);
+pig.setSaddle(false);
+pig.addPassenger(player);
 });
 }
+private void consume(Player player,ItemStack item){
+if(player.getGameMode()!=GameMode.CREATIVE)item.setAmount(item.getAmount()-1);
 }
+@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)
+public void breed(EntityBreedEvent e){
+if(!(e.getEntity() instanceof Pig baby)||!(e.getMother() instanceof Pig mother)||!(e.getFather() instanceof Pig father))return;
+String first=owner(mother);
+if(first!=null && first.equals(owner(father))){
+baby.getPersistentDataContainer().set(ownerKey,PersistentDataType.STRING,first);
+baby.setCustomName(null);baby.setCustomNameVisible(false);
+}
+if(marked(mother,flyingKey)||marked(father,flyingKey)){
+Bukkit.getScheduler().runTask(this,()->{if(baby.isValid())flyingPig(baby);});
+}
+}
+@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)
+public void dismount(EntityDismountEvent e){
+if(!(e.getEntity() instanceof Player player)||!(e.getDismounted() instanceof Pig pig)||!owned(pig,player))return;
+UUID id=player.getUniqueId();
+long until=tick+240;
+dismountFall.put(id,until);
+Bukkit.getScheduler().runTaskLater(this,()->{
+if(dismountFall.getOrDefault(id,0L)==until)dismountFall.remove(id);
+},240L);
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void pigHit(EntityDamageByEntityEvent e){
+if(!(e.getEntity() instanceof Pig pig)||!marked(pig,flyingKey)||!(e.getDamager() instanceof Player player))return;
+UUID id=pig.getUniqueId();
+Vector away=pig.getLocation().toVector().subtract(player.getLocation().toVector());
+if(away.lengthSquared()<.01)away=player.getLocation().getDirection().multiply(-1);
+away.setY(0).normalize().multiply(.85).setY(.42);
+Vector push=away;
+Bukkit.getScheduler().runTask(this,()->{if(pig.isValid()&&pig.getPassengers().isEmpty())pig.setVelocity(push);});
+long prev=hitWindow.getOrDefault(id,-99999L);
+int strikes=tick-prev<=getConfig().getInt("pig-retaliation-hit-window-ticks",240)?hitCount.getOrDefault(id,0)+1:1;
+hitWindow.put(id,tick);hitCount.put(id,strikes);
+if(strikes>=getConfig().getInt("pig-retaliation-hits",3)){
+aggro.put(id,player.getUniqueId());
+aggroUntil.put(id,tick+getConfig().getInt("pig-retaliation-duration-ticks",400));
+hitCount.remove(id);
+pig.getWorld().playSound(pig.getLocation(),Sound.ENTITY_PHANTOM_SWOOP,.8f,1.35f);
+}
+}
+
 private void step(){
 tick+=3;
 for(UUID id:new ArrayList<>(wings)){
@@ -567,8 +631,16 @@ event.setResult(null);
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void fall(EntityDamageEvent e){
-if(e.getEntity() instanceof Player p && e.getCause()==EntityDamageEvent.DamageCause.FALL && is(p.getInventory().getBoots(),"boots"))
+if(e.getEntity() instanceof Player p && e.getCause()==EntityDamageEvent.DamageCause.FALL){
+UUID id=p.getUniqueId();
+Long until=dismountFall.get(id);
+if(until!=null&&tick<=until){
+dismountFall.remove(id);
 e.setCancelled(true);
+return;
+}
+if(is(p.getInventory().getBoots(),"boots"))e.setCancelled(true);
+}
 }
 private void faceVector(Entity entity,Vector vector){
 Vector flat=vector.clone().setY(0);
