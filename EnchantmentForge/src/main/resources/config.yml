@@ -7,3 +7,10 @@ triple-shot-spread-degrees: 10.0
 # Below medium: 1 arrow; medium to full: 2 arrows; full or higher: 3 arrows
 triple-shot-medium-force: 0.50
 triple-shot-full-force: 0.90
+
+# Wandering trader extension (in addition to the vanilla spawn system)
+trader-spawn-minutes: 25
+trader-max-per-world: 2
+trader-despawn-ticks: 48000
+# Each trader has seven staple offers, a mob spawner, a spawn egg, and a rotating selection.
+trader-offers-per-trader: 26

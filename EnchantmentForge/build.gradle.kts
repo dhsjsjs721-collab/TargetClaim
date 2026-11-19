@@ -2,7 +2,7 @@ plugins {
     java
 }
 group = "dev.enchantmentforge"
-version = "1.0.1"
+version = "1.1.0"
 repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
 }
@@ -16,5 +16,5 @@ tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
 }
 tasks.jar {
-    archiveFileName.set("EnchantmentForge-1.0.1.jar")
+    archiveFileName.set("EnchantmentForge-1.1.0.jar")
 }
