@@ -230,7 +230,7 @@ if(c==null){tell(p,"§7Нет привата. Рецепт: §f3 бумаги с
 if(args.length==0){showClaimDialog(p,c);return true;}
 switch(args[0].toLowerCase(Locale.ROOT)){
 case "upgrade" -> upgrade(p,c);
-case "remove" -> showRemoveDialog(p,c);
+case "remove" -> startDeletion(p,c);
 case "cancel" -> cancelDeletion(p,c);
 case "border","borders" -> {
 Viewer v=viewer(p);
@@ -361,7 +361,7 @@ public void breaking(BlockBreakEvent e){
 Claim c=claimCore(e.getBlock());
 if(c!=null){e.setCancelled(true);e.setDropItems(false);e.setExpToDrop(0);
 if(!e.getPlayer().getUniqueId().equals(c.owner)){tell(e.getPlayer(),"§cЯдро привата защищено.");return;}
-showRemoveDialog(e.getPlayer(),c);return;}
+startDeletion(e.getPlayer(),c);return;}
 c=claimAt(e.getBlock().getLocation());if(c!=null&&!canBuild(e.getPlayer(),c))e.setCancelled(true);
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
@@ -370,7 +370,10 @@ Block b=e.getClickedBlock();if(b==null)return;
 Claim core=claimCore(b);
 if(core!=null&&e.getAction()==Action.RIGHT_CLICK_BLOCK){e.setCancelled(true);
 if(e.getHand()!=EquipmentSlot.HAND)return;
-if(e.getPlayer().isSneaking()&&e.getPlayer().getUniqueId().equals(core.owner)&&e.getPlayer().getInventory().getItemInMainHand().getType()==COST[Math.min(core.level,3)]&&core.level<4){upgrade(e.getPlayer(),core);return;}
+if(e.getPlayer().getUniqueId().equals(core.owner)&&pendingDeletion.containsKey(core.owner)){
+cancelDeletion(e.getPlayer(),core);return;
+}
+if(e.getPlayer().isSneaking()&&e.getPlayer().getUniqueId().equals(core.owner)&&core.level<4&&e.getPlayer().getInventory().getItemInMainHand().getType()==COST[core.level]){upgrade(e.getPlayer(),core);return;}
 showClaimDialog(e.getPlayer(),core);return;
 }
 Claim c=claimAt(b.getLocation());if(c==null)return;
@@ -483,7 +486,10 @@ saveAll();
 }
 private void startDeletion(Player p,Claim c){
 if(!p.getUniqueId().equals(c.owner))return;
-if(pendingDeletion.containsKey(c.owner)){showPendingDeletionDialog(p);return;}
+if(claims.get(c.owner)!=c)return;
+if(pendingDeletion.containsKey(c.owner)){
+tell(p,"§eУдаление уже запущено. §7ПКМ по ядру или §f/p cancel §7— отменить.");return;
+}
 org.bukkit.scheduler.BukkitTask task=Bukkit.getScheduler().runTaskLater(this,()->{
 pendingDeletion.remove(c.owner);
 if(claims.get(c.owner)!=c)return;
@@ -491,20 +497,22 @@ removeClaim(c);
 Player online=Bukkit.getPlayer(c.owner);
 if(online!=null){
 if(online.getOpenInventory().getTopInventory().getHolder() instanceof ClaimMenu)online.closeInventory();
-tell(online,"§aПриват удалён. Возвращено §f3 бумаги§a; улучшения не возвращаются.");
+tell(online,"§aПриват удалён. Возвращено §f3 бумаги§a.");
 }
 },200L);
 pendingDeletion.put(c.owner,task);
-tell(p,"§eУдаление запланировано через §c10 секунд§e. Отменить: §f/p cancel");
-showPendingDeletionDialog(p);
+if(p.getOpenInventory().getTopInventory().getHolder() instanceof ClaimMenu)p.closeInventory();
+tell(p,"§cУдаление через 10 секунд. §7ПКМ по ядру — отменить. §8(/p cancel)");
 }
 private void cancelDeletion(Player p,Claim c){
-if(!p.getUniqueId().equals(c.owner)){tell(p,"§cОтменить удаление может только владелец.");return;}
+if(!p.getUniqueId().equals(c.owner)){tell(p,"§cТолько владелец может отменить удаление.");return;}
 org.bukkit.scheduler.BukkitTask task=pendingDeletion.remove(c.owner);
-if(task==null){tell(p,"§7Удаление не запланировано.");return;}
+if(task==null){tell(p,"§7Удаление не запущено.");return;}
 task.cancel();
-tell(p,"§aУдаление отменено.");
-showClaimDialog(p,c);
+tell(p,"§aУдаление отменено. Приват сохранён.");
+Inventory top=p.getOpenInventory().getTopInventory();
+if(top.getHolder() instanceof ClaimMenu menu&&menu.page.equals("main")&&c.owner.equals(menu.claimId))
+top.setItem(15,guiItem(Material.RED_DYE,"§cУдалить","§7Запустить отсчёт 10 секунд"));
 }
 
 private void ensureDisplay(Claim c){
@@ -619,14 +627,6 @@ private void showUpgradeDialog(Player player,Claim c){
 if(player.getUniqueId().equals(c.owner))openClaimMenu(player,c,"upgrade");
 }
 private String on(boolean value){return value?"ВКЛ":"ВЫКЛ";}
-private void showRemoveDialog(Player player,Claim c){
-if(!player.getUniqueId().equals(c.owner)){tell(player,"§cТолько владелец может удалить приват.");return;}
-openClaimMenu(player,c,pendingDeletion.containsKey(c.owner)?"pending":"delete");
-}
-private void showPendingDeletionDialog(Player player){
-Claim claim=claims.get(player.getUniqueId());
-if(claim!=null)openClaimMenu(player,claim,"pending");
-}
 private void showTeamDialog(Player player){openClaimMenu(player,claims.get(player.getUniqueId()),"team");}
 private final class ClaimMenu implements InventoryHolder {
 final UUID claimId;
@@ -636,7 +636,7 @@ ClaimMenu(Claim claim,String page){
 this.claimId=claim==null?null:claim.owner;
 this.page=page;
 String title=switch(page){
-case "upgrade"->"Улучшение";case "team"->"Команда";case "delete"->"Удаление";case "pending"->"Удаление";default->"TargetClaim";
+case "upgrade"->"Улучшение";case "team"->"Команда";default->"TargetClaim";
 };
 this.inventory=Bukkit.createInventory(this,27,"§8"+title);
 }
@@ -660,15 +660,6 @@ switch(page){
 case "main"->fillMainMenu(menu.inventory,player,claim);
 case "upgrade"->fillUpgradeMenu(menu.inventory,player,claim);
 case "team"->fillTeamMenu(menu.inventory,player);
-case "delete"->{
-menu.inventory.setItem(4,guiItem(Material.TARGET,"§cУдалить приват?","§7Улучшения не возвращаются"));
-menu.inventory.setItem(13,guiItem(Material.RED_DYE,"§cПодтвердить","§710 секунд на отмену","§7После удаления выпадут 3 бумаги"));
-menu.inventory.setItem(18,guiItem(Material.ARROW,"§7Назад"));
-}
-case "pending"->{
-menu.inventory.setItem(4,guiItem(Material.CLOCK,"§eУдаление запущено","§710 секунд после подтверждения"));
-menu.inventory.setItem(13,guiItem(Material.LIME_DYE,"§aОтменить удаление","§7Также можно: /p cancel"));
-}
 }
 player.openInventory(menu.inventory);
 }
@@ -686,7 +677,10 @@ if(own&&claim.level<4)inv.setItem(11,guiItem(Material.AMETHYST_SHARD,"§aУлу�
 inv.setItem(12,borderTile(player));
 if(own)inv.setItem(13,buildTile(claim));
 inv.setItem(14,guiItem(Material.NAME_TAG,"§dКоманда","§7Участники и PvP"));
-if(own)inv.setItem(15,guiItem(Material.RED_DYE,"§cУдалить","§710 секунд на отмену"));
+if(own){
+if(pendingDeletion.containsKey(claim.owner))inv.setItem(15,guiItem(Material.LIME_DYE,"§aОтменить удаление","§7Приват останется на месте"));
+else inv.setItem(15,guiItem(Material.RED_DYE,"§cУдалить","§7Запустить отсчёт 10 секунд"));
+}
 }
 private void fillUpgradeMenu(Inventory inv,Player player,Claim claim){
 inv.setItem(4,guiItem(Material.TARGET,"§fПриват §7"+claim.level+"/4"));
@@ -773,19 +767,15 @@ inv.setItem(12,borderTile(player));
 }
 case 13->{if(isOwner){claim.teamBuild=!claim.teamBuild;saveAll();inv.setItem(13,buildTile(claim));}}
 case 14->changePage(player,claim,"team");
-case 15->{if(isOwner)changePage(player,claim,pendingDeletion.containsKey(claim.owner)?"pending":"delete");}
+case 15->{if(isOwner){
+if(pendingDeletion.containsKey(claim.owner))cancelDeletion(player,claim);
+else Bukkit.getScheduler().runTask(this,()->startDeletion(player,claim));
+}}
 }
 }
 case "upgrade"->{
 if(slot==18)changePage(player,claim,"main");
 else if(slot==22&&isOwner&&claim.level<4){upgrade(player,claim);fillUpgradeMenu(inv,player,claim);}
-}
-case "delete"->{
-if(slot==18)changePage(player,claim,"main");
-else if(slot==13&&isOwner)Bukkit.getScheduler().runTask(this,()->startDeletion(player,claim));
-}
-case "pending"->{
-if(slot==13&&isOwner)Bukkit.getScheduler().runTask(this,()->cancelDeletion(player,claim));
 }
 default->{}
 }
