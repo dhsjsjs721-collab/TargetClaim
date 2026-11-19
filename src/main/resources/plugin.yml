@@ -1,5 +1,5 @@
 name: TargetClaim
-version: 1.4.2
+version: 1.4.3
 main: dev.targetclaim.TargetClaimPlugin
 api-version: '26.3'
 author: TargetClaim
@@ -14,5 +14,5 @@ commands:
     aliases: [tc]
 permissions:
   targetclaim.admin:
-    description: May give claim cores
+    description: May give claim cores; does not bypass player claim restrictions
     default: op
