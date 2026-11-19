@@ -43,6 +43,7 @@ private static final int[] AMOUNT = {23,64,3,1};
 private static final ChatColor[] COLORS = {ChatColor.AQUA,ChatColor.BLUE,ChatColor.GOLD,ChatColor.GREEN,ChatColor.LIGHT_PURPLE,ChatColor.RED,ChatColor.YELLOW,ChatColor.DARK_AQUA,ChatColor.DARK_GREEN,ChatColor.DARK_PURPLE,ChatColor.DARK_RED,ChatColor.WHITE,ChatColor.GRAY};
 private static final String PREFIX = "§5§lTargetClaim §8» §r";
 private final Map<UUID,Claim> claims = new HashMap<>();
+private final Map<UUID,Map<Long,Set<Claim>>> spatialIndex = new HashMap<>();
 private final Map<UUID,Group> groups = new LinkedHashMap<>();
 private final Map<UUID,UUID> membership = new HashMap<>();
 private final Map<UUID,Invite> invites = new HashMap<>();
@@ -86,6 +87,7 @@ targetKey=new NamespacedKey(this,"claim_target");
 displayKey=new NamespacedKey(this,"display_owner");
 dataFile=new File(getDataFolder(),"data.yml");getDataFolder().mkdirs();
 loadAll();
+for(Claim claim:claims.values())indexClaim(claim);
 if(!dataFile.isFile()&&new File(getDataFolder(),"claims.yml").isFile()){saveAll();getLogger().info("Migrated legacy claims.yml to data.yml");}
 ShapedRecipe recipe=new ShapedRecipe(new NamespacedKey(this,"target_recipe"),specialTarget());
 recipe.shape("PPP","AAA","AAA");
@@ -99,7 +101,8 @@ Objects.requireNonNull(getCommand("team")).setTabCompleter(this);
 Bukkit.getPluginManager().registerEvents(this,this);
 for(Group g:groups.values())updateScoreboard(g);
 for(World w:Bukkit.getWorlds())for(Chunk ch:w.getLoadedChunks())cleanupDisplays(ch);
-Bukkit.getScheduler().runTaskTimer(this,this::visualTick,30L,30L);
+for(Claim c:claims.values())ensureDisplay(c);
+Bukkit.getScheduler().runTaskTimer(this,this::visualTick,15L,15L);
 getLogger().info("TargetClaim 1.3: "+claims.size()+" claims, "+groups.size()+" teams");
 }
 @Override public void onDisable(){saveAll();}
@@ -158,12 +161,61 @@ String r="viewers."+entry.getKey()+".";Viewer v=entry.getValue();y.set(r+"border
 }
 try{y.save(dataFile);}catch(IOException ex){getLogger().severe("Cannot save data.yml: "+ex.getMessage());}
 }
-private Claim claimAt(Location loc){for(Claim c:claims.values())if(c.contains(loc))return c;return null;}
-private Claim claimCore(Block block){for(Claim c:claims.values())if(c.isCore(block))return c;return null;}
-private boolean overlap(Claim a){for(Claim b:claims.values()){
-if(a.owner.equals(b.owner)||!a.world.equals(b.world))continue;
-if(a.minX()<=b.maxX()&&a.maxX()>=b.minX()&&a.minY()<=b.maxY()&&a.maxY()>=b.minY()&&a.minZ()<=b.maxZ()&&a.maxZ()>=b.minZ())return true;
-}return false;}
+private static long chunkKey(int cx,int cz){return ((long)cx<<32) ^ (cz&0xffffffffL);}
+private Set<Claim> chunkClaims(UUID world,int cx,int cz){
+Map<Long,Set<Claim>> index=spatialIndex.get(world);
+return index==null?Collections.emptySet():index.getOrDefault(chunkKey(cx,cz),Collections.emptySet());
+}
+private int minX(Claim c,int level){return c.x-SIZE[level]/2;}
+private int minZ(Claim c,int level){return c.z-SIZE[level]/2;}
+private int minY(Claim c,int level){return c.y-HEIGHT[level]/2;}
+private int maxX(Claim c,int level){return minX(c,level)+SIZE[level]-1;}
+private int maxZ(Claim c,int level){return minZ(c,level)+SIZE[level]-1;}
+private int maxY(Claim c,int level){return minY(c,level)+HEIGHT[level]-1;}
+private void indexClaim(Claim c){
+Map<Long,Set<Claim>> byChunk=spatialIndex.computeIfAbsent(c.world,id->new HashMap<>());
+for(int x=c.minX()>>4;x<=c.maxX()>>4;x++)for(int z=c.minZ()>>4;z<=c.maxZ()>>4;z++)
+byChunk.computeIfAbsent(chunkKey(x,z),id->new HashSet<>()).add(c);
+}
+private void unindexClaim(Claim c){
+Map<Long,Set<Claim>> byChunk=spatialIndex.get(c.world);
+if(byChunk==null)return;
+for(int x=c.minX()>>4;x<=c.maxX()>>4;x++)for(int z=c.minZ()>>4;z<=c.maxZ()>>4;z++){
+long key=chunkKey(x,z);Set<Claim> group=byChunk.get(key);
+if(group!=null){group.remove(c);if(group.isEmpty())byChunk.remove(key);}
+}
+if(byChunk.isEmpty())spatialIndex.remove(c.world);
+}
+private Set<Claim> regionClaims(UUID world,int fromX,int toX,int fromZ,int toZ){
+Set<Claim> found=new LinkedHashSet<>();
+for(int x=fromX>>4;x<=toX>>4;x++)for(int z=fromZ>>4;z<=toZ>>4;z++)
+found.addAll(chunkClaims(world,x,z));
+return found;
+}
+private Claim claimAt(Location loc){
+if(loc==null||loc.getWorld()==null)return null;
+for(Claim c:chunkClaims(loc.getWorld().getUID(),loc.getBlockX()>>4,loc.getBlockZ()>>4))
+if(c.contains(loc))return c;
+return null;
+}
+private Claim claimCore(Block block){
+Claim c=claimAt(block.getLocation());
+return c!=null&&c.isCore(block)?c:null;
+}
+private boolean wouldOverlap(Claim c,int level){
+int left=minX(c,level),right=maxX(c,level),front=minZ(c,level),back=maxZ(c,level);
+int bottom=minY(c,level),top=maxY(c,level);
+for(Claim other:regionClaims(c.world,left,right,front,back)){
+if(other.owner.equals(c.owner))continue;
+if(left<=other.maxX()&&right>=other.minX()&&bottom<=other.maxY()&&top>=other.minY()&&front<=other.maxZ()&&back>=other.minZ())return true;
+}
+return false;
+}
+private boolean validLevel(Claim c,int level){
+World world=Bukkit.getWorld(c.world);
+return world!=null&&minY(c,level)>=world.getMinHeight()&&maxY(c,level)<world.getMaxHeight()&&!wouldOverlap(c,level);
+}
+private boolean overlap(Claim c){return wouldOverlap(c,c.level);}
 private Group groupOf(UUID player){UUID id=membership.get(player);return id==null?null:groups.get(id);}
 private boolean allies(UUID a,UUID b){if(a.equals(b))return true;UUID x=membership.get(a);return x!=null&&x.equals(membership.get(b));}
 private boolean owner(Player player,Claim c){return player.getUniqueId().equals(c.owner)||player.hasPermission("targetclaim.admin");}
@@ -312,8 +364,8 @@ if(claims.containsKey(p.getUniqueId())){e.setCancelled(true);tell(p,"§cУ те�
 Claim c=new Claim(p.getUniqueId(),p.getName(),b.getLocation());
 if(c.minY()<b.getWorld().getMinHeight()||c.maxY()>=b.getWorld().getMaxHeight()){e.setCancelled(true);tell(p,"§cУстанови мишень выше/ниже: область должна помещаться в высоту мира.");return;}
 if(overlap(c)){e.setCancelled(true);tell(p,"§cПриват пересекается с другой территорией.");return;}
-claims.put(c.owner,c);
-Bukkit.getScheduler().runTask(this,()->{if(b.getType()!=Material.TARGET){claims.remove(c.owner);return;}ensureDisplay(c);saveAll();});
+claims.put(c.owner,c);indexClaim(c);
+Bukkit.getScheduler().runTask(this,()->{if(b.getType()!=Material.TARGET){claims.remove(c.owner);unindexClaim(c);return;}ensureDisplay(c);saveAll();});
 tell(p,"§aПриват создан: §f16×32×16. §7ПКМ — меню.");
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
@@ -390,15 +442,17 @@ if(!p.getUniqueId().equals(c.owner)){tell(p,"§cТолько владелец м
 if(c.level>=4){tell(p,"§aПриват уже максимального уровня.");return;}
 Material type=COST[c.level];int count=AMOUNT[c.level];ItemStack held=p.getInventory().getItemInMainHand();
 if(held.getType()!=type||held.getAmount()<count){tell(p,"§eДержи в основной руке §f"+count+" × "+russian(type)+"§e одним стаком и повтори.");return;}
-c.level++;
-if(c.minY()<p.getWorld().getMinHeight()||c.maxY()>=p.getWorld().getMaxHeight()||overlap(c)){
-c.level--;tell(p,"§cНельзя расширить: пересечение с другой территорией или выход за границы мира.");return;}
+if(!validLevel(c,c.level+1)){
+tell(p,"§cНельзя расширить: пересечение с другой территорией или выход за границы мира.");return;
+}
+unindexClaim(c);c.level++;indexClaim(c);
 held.setAmount(held.getAmount()-count);saveAll();refreshDisplay(c);showUpgradeEffects(c);
 tell(p,"§aУлучшено до уровня "+c.level+" §7(§f"+SIZE[c.level]+"×"+HEIGHT[c.level]+"×"+SIZE[c.level]+"§7)");
 }
 private String russian(Material material){return switch(material){case AMETHYST_SHARD->"аметистовых осколков";case NETHERITE_SCRAP->"незеритового лома";case DRAGON_EGG->"яйцо дракона";default->material.name();};}
 private void removeClaim(Claim c){
 if(!claims.remove(c.owner,c))return;
+unindexClaim(c);
 org.bukkit.scheduler.BukkitTask pending=pendingDeletion.remove(c.owner);
 if(pending!=null)pending.cancel();
 World w=Bukkit.getWorld(c.world);
@@ -448,7 +502,14 @@ private void setDisplayText(TextDisplay display,Claim c){
 display.setText("§d§l✦ ПРИВАТ ✦\n§f"+c.ownerName+"\n§dУровень §f"+c.level+"§8/§f4  §7•  §f"+SIZE[c.level]+"×"+HEIGHT[c.level]+"×"+SIZE[c.level]+"\n§7ПКМ — управление");
 }
 private void refreshDisplay(Claim c){ensureDisplay(c);}
-@EventHandler public void chunkLoad(ChunkLoadEvent e){Bukkit.getScheduler().runTask(this,()->cleanupDisplays(e.getChunk()));}
+@EventHandler public void chunkLoad(ChunkLoadEvent e){
+Bukkit.getScheduler().runTask(this,()->{
+Chunk chunk=e.getChunk();
+cleanupDisplays(chunk);
+for(Claim c:chunkClaims(chunk.getWorld().getUID(),chunk.getX(),chunk.getZ()))
+if((c.x>>4)==chunk.getX()&&(c.z>>4)==chunk.getZ())ensureDisplay(c);
+});
+}
 private void cleanupDisplays(Chunk ch){
 for(Entity e:ch.getEntities())if(e instanceof TextDisplay text){String marker=text.getPersistentDataContainer().get(displayKey,PersistentDataType.STRING);
 if(marker==null)continue;
