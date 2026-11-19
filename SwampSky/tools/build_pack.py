@@ -157,7 +157,8 @@ def build():
         for info in z.infolist():
             if not info.is_dir() and info.filename not in ("pack.mcmeta",):
                 merged[info.filename]=z.read(info.filename)
-    merged.update(standalone)
+    # Keep the original TalismanForge pack.png so its recognizable pack icon survives.
+    merged.update({key:value for key,value in standalone.items() if key != "pack.png"})
     # Restore four TalismanForge grappling-hook assets present in the previous
     # combined pack but absent from the base v2.0.0 pack. Never overwrite an
     # asset if a newer TalismanForge resource already supplies it.
