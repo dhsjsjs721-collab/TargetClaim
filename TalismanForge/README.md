@@ -58,3 +58,14 @@ Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil o
 - Buffs are removed when a talisman is unequipped; Ages fire resistance is also removed and Poseidon water/rain buffs end when conditions are no longer met.
 - All dropped talismans except Poseidon resist fire/lava damage, float upward in lava and sink in water. Poseidon floats in water and retains vanilla lava vulnerability.
 - Dropped talismans are tracked on spawn and chunk entity load; an initial scan catches items already loaded when the plugin starts.
+
+
+## TalismanForge 2.5.5 — Reliquary and balanced talisman additions
+- Ritual chest is now the **Reliquary**. Newly crafted reliquaries are BARRIER blocks with a client-visible ItemDisplay using item_model `talismanforge:reliquary`. The 32x32 texture/model assets must be merged into the existing resource pack separately. The magical vertical particle beam still needs no physical beacon. Existing placed ritual chests and legacy crafted chest items are still recognized.
+- Maiming: critical hits add Weakness I (3 seconds) alongside the existing Wither.
+- Wrath: consecutive critical hits on a player (no non-critical strikes, 8-second combo timeout) gradually increase opponent armor wear up to approximately x1.5. The prior damage and attack-speed bonuses remain.
+- Defiance: perfect parries were NOT added. Shield disable protection is retained. When the last resurrection charge is spent, three orbiting visual shields appear, each has two hearts of durability; each qualifying incoming hit is fully blocked by one shield, even if that one hit exceeds its remaining durability. Damage overflow does not pass to subsequent shields. They disappear when individually broken or when their player disconnects.
+- Ages: first resurrection has no added buff; second resurrection gives exactly 3 seconds of damage immunity and glowing; final charge summons four temporary allays for 2.5 seconds with a short nearby nausea effect. Existing thorn, fire immunity and temporary paths remain.
+- Ages temporary paths vary moss types over water, choose stone suitable to the neighboring Nether or underground terrain over lava, and restore submerged plant block data (kelp/seagrass) where replaced. Legacy pad saves are still loaded.
+- Joker, Poseidon, Hades, End/Zeus are unchanged.
+- For the resource pack addon, include the supplied `assets/talismanforge/items/reliquary.json`, `assets/talismanforge/models/block/reliquary.json` and matching PNG textures. Without the updated pack the BARRIER base block appears invisible.
