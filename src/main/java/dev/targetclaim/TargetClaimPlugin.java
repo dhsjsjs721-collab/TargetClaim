@@ -85,10 +85,9 @@ recipe.setIngredient('P',Material.PAPER);
 recipe.setIngredient('A',Material.AMETHYST_SHARD);
 Bukkit.addRecipe(recipe);
 ShapedRecipe keyRecipe=new ShapedRecipe(new NamespacedKey(this,"chest_key_recipe"),specialChestKey());
-keyRecipe.shape(" G "," A "," I ");
-keyRecipe.setIngredient('G',Material.GOLD_INGOT);
+keyRecipe.shape("A","S");
 keyRecipe.setIngredient('A',Material.AMETHYST_SHARD);
-keyRecipe.setIngredient('I',Material.IRON_INGOT);
+keyRecipe.setIngredient('S',Material.STICK);
 Bukkit.addRecipe(keyRecipe);
 Objects.requireNonNull(getCommand("p")).setExecutor(this);
 Objects.requireNonNull(getCommand("team")).setExecutor(this);
@@ -99,7 +98,7 @@ for(Group g:groups.values())updateScoreboard(g);
 for(World w:Bukkit.getWorlds())for(Chunk ch:w.getLoadedChunks())cleanupDisplays(ch);
 for(Claim c:claims.values())ensureDisplay(c);
 Bukkit.getScheduler().runTaskTimer(this,this::visualTick,15L,15L);
-getLogger().info("TargetClaim 1.5.0: "+claims.size()+" claims, "+groups.size()+" teams");
+getLogger().info("TargetClaim 1.5.1: "+claims.size()+" claims, "+groups.size()+" teams");
 }
 @Override public void onDisable(){saveAll();}
 
