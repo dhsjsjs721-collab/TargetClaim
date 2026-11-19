@@ -23,3 +23,10 @@ frog-wings-glide-speed: 0.65
 frog-wings-rain-speed: 0.58
 # Water is the only propulsion boost; fireworks are blocked
 frog-wings-water-speed: 0.95
+
+# Autonomous winged pig flight and behavior
+flying-pig-speed: 0.48
+# Three deliberate hits by the same player within this time provoke retaliation
+pig-retaliation-hits: 3
+pig-retaliation-hit-window-ticks: 240
+pig-retaliation-duration-ticks: 400
