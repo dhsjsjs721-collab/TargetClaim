@@ -233,9 +233,12 @@ if(slope)speed*=getConfig().getDouble("slope-multiplier",1.45);
 dir.multiply(speed);
 }
 double y=fly?0:pig.getVelocity().getY();
-if(fly&&in.isJump())y=.29;
-else if(!fly&&(in.isJump()||slope)&&pig.isOnGround())y=.52;
-else if(fly&&slope)y=.18;
+if(fly){
+if(in.isJump())y=.29;
+else if(in.isForward()&&p.getLocation().getPitch()>35)y=-.18;
+else if(in.isForward()&&p.getLocation().getPitch()<-35)y=.13;
+else if(slope)y=.18;
+}else if((in.isJump()||slope)&&pig.isOnGround())y=.52;
 if(fly&&snow(pig.getLocation()))y=Math.max(y,.10);
 pig.setVelocity(new Vector(dir.getX(),y,dir.getZ()));
 pig.setRotation(p.getLocation().getYaw(),0);
