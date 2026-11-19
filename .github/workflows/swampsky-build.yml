@@ -25,12 +25,17 @@ jobs:
         with:
           gradle-version: '9.2.1'
       - run: gradle -p SwampSky build --no-daemon
+      - run: python3 -m pip install --disable-pip-version-check Pillow
       - run: python3 SwampSky/tools/build_pack.py
       - uses: actions/upload-artifact@v4
         with:
           name: SwampSky-Plugin-JAR
-          path: SwampSky/build/libs/SwampSky-1.0.0.jar
+          path: SwampSky/build/libs/SwampSky-1.1.0.jar
       - uses: actions/upload-artifact@v4
         with:
           name: SwampSky-ResourcePack
           path: SwampSky/build/SwampSky-ResourcePack.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TalismanForge-SwampSky-Combined-Pack
+          path: SwampSky/build/TalismanForge-SwampSky-Combined.zip
