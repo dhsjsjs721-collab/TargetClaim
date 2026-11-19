@@ -38,3 +38,10 @@ Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil o
 - Fix giant spiraling/overlapping sprites in first person: link displays are now 3D vanilla CHAIN block displays and are rotated to follow the rope direction, instead of camera-facing item sprites.
 - Smaller hook projectile (scale 0.30), bounded chain spacing and offset away from player camera.
 - No changes to the unified resource pack: reuse existing pack URL and SHA1. All previous talismans and other datapack textures unchanged.
+
+
+## v2.5.2: native item cooldown / ender pearls
+- Hook uses the vanilla gray cooldown sweep overlay (300 ticks / 15s) instead of action-bar countdown text; shows even for existing hooks via cooldown-group migration.
+- Dedicated custom item cooldown group `talismanforge:grappling_hook_cooldown`; ordinary fishing rods are unaffected.
+- Ender pearls gain a vanilla cooldown overlay for 200 ticks / 10s following a successful launch.
+- Keep resource-pack URL constant and merge all 60 assets in the newly supplied SwampSky resource pack.

@@ -8,6 +8,8 @@ import org.bukkit.entity.*;
 import org.bukkit.event.*;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.entity.ProjectileLaunchEvent;
+import org.bukkit.inventory.meta.components.UseCooldownComponent;
 import org.bukkit.event.player.*;
 import org.bukkit.inventory.*;
 import org.bukkit.inventory.meta.Damageable;
@@ -24,6 +26,9 @@ import org.joml.Vector3f;
 /** Standalone hook with custom visual projectile; never creates a fishing bobber or white fishing line. */
 public final class GrapplingHookListener implements Listener {
 private static final long COOLDOWN=15_000L;
+private static final int HOOK_COOLDOWN_TICKS=300;
+private static final int PEARL_COOLDOWN_TICKS=200;
+private static final NamespacedKey HOOK_COOLDOWN_GROUP=new NamespacedKey("talismanforge","grappling_hook_cooldown");
 private static final int WEAR_PER_CAST=8;
 private static final double RANGE=36.0, FLIGHT_SPEED=2.4;
 private static final int MAX_LINKS=48;
@@ -70,6 +75,10 @@ ItemMeta m=i.getItemMeta();
 m.setDisplayName("§7§lКрюк-кошка");
 m.setLore(List.of("§7ПКМ — бросить крюк на цепи","§7Притягивает мобов и игроков к тебе","§7Дальность: §f36 блоков","§7КД: §d15 секунд","§7Ресурс: §f8 бросков", "§8Без аметиста"));
 m.setItemModel(IDLE);
+UseCooldownComponent cooldown=m.getUseCooldown();
+cooldown.setCooldownSeconds(15f);
+cooldown.setCooldownGroup(HOOK_COOLDOWN_GROUP);
+m.setUseCooldown(cooldown);
 m.getPersistentDataContainer().set(hookKey,PersistentDataType.BYTE,(byte)1);
 i.setItemMeta(m);
 return i;
@@ -80,6 +89,19 @@ return i!=null&&i.getType()==Material.FISHING_ROD&&i.hasItemMeta()&&
 Byte.valueOf((byte)1).equals(i.getItemMeta().getPersistentDataContainer().get(hookKey,PersistentDataType.BYTE));
 }
 
+/** Migrates hooks crafted before v2.5.2 to a dedicated cooldown group. */
+private void migrateOldHook(Player p){
+ItemStack item=p.getInventory().getItemInMainHand();
+if(!special(item))return;
+ItemMeta meta=item.getItemMeta();
+UseCooldownComponent cooldown=meta.getUseCooldown();
+if(HOOK_COOLDOWN_GROUP.equals(cooldown.getCooldownGroup()) && Math.abs(cooldown.getCooldownSeconds()-15f)<.01f)return;
+cooldown.setCooldownSeconds(15f);
+cooldown.setCooldownGroup(HOOK_COOLDOWN_GROUP);
+meta.setUseCooldown(cooldown);
+item.setItemMeta(meta);
+p.getInventory().setItemInMainHand(item);
+}
 private ItemStack displayItem(NamespacedKey key){
 ItemStack i=new ItemStack(Material.IRON_NUGGET);
 ItemMeta m=i.getItemMeta();
@@ -150,10 +172,11 @@ if(!special(p.getInventory().getItemInMainHand()))return;
 e.setCancelled(true);
 e.setUseInteractedBlock(Event.Result.DENY);
 e.setUseItemInHand(Event.Result.DENY);
-if(shots.containsKey(p.getUniqueId())){p.sendActionBar(Component.text("Крюк уже летит",NamedTextColor.GRAY));return;}
+if(shots.containsKey(p.getUniqueId()))return;
+migrateOldHook(p);
 long now=System.currentTimeMillis();
 long left=cooldowns.getOrDefault(p.getUniqueId(),0L)-now;
-if(left>0){p.sendActionBar(Component.text("Крюк: "+((left+999)/1000)+" сек.",NamedTextColor.LIGHT_PURPLE));return;}
+if(left>0||p.hasCooldown(p.getInventory().getItemInMainHand()))return;
 
 Shot shot=new Shot();
 shot.shooterId=p.getUniqueId();
@@ -165,9 +188,20 @@ shots.put(p.getUniqueId(),shot);
 cooldowns.put(p.getUniqueId(),now+COOLDOWN);
 reduceDurability(p);
 handModel(p,CAST);
+// Native gray radial cooldown indicator, shared only with other custom hooks.
+p.setCooldown(newHook(),HOOK_COOLDOWN_TICKS);
 p.getWorld().playSound(p,Sound.ITEM_CROSSBOW_SHOOT,.8f,1.25f);
 }
 
+/** Extends the vanilla pearl cooldown from 1 second to 10 seconds. */
+@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)
+public void pearlLaunch(ProjectileLaunchEvent event){
+if(!(event.getEntity() instanceof EnderPearl pearl)||!(pearl.getShooter() instanceof Player player))return;
+// Schedule after the vanilla launch handler so vanilla's one-second cooldown cannot override this.
+Bukkit.getScheduler().runTask(plugin,()->{
+if(player.isOnline())player.setCooldown(Material.ENDER_PEARL,PEARL_COOLDOWN_TICKS);
+});
+}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void blockVanillaFishing(PlayerFishEvent e){
 if(special(e.getPlayer().getInventory().getItemInMainHand()))e.setCancelled(true);
