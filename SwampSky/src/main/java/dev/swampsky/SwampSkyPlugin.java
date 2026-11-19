@@ -306,7 +306,7 @@ if(nearest==null)return;
 Player p=nearest;UUID id=f.getUniqueId();
 // Keep the frog's head pointed at its target while jumping and attacking.
 faceVector(f,p.getLocation().toVector().subtract(f.getLocation().toVector()));
-if(dist>8&&ready(leap,id,38)){
+if(dist>8&&f.isOnGround()&&ready(leap,id,38)){
 Vector v=p.getLocation().toVector().subtract(f.getLocation().toVector()).setY(0);
 if(v.lengthSquared()>.1){
 faceVector(f,v);
@@ -384,25 +384,36 @@ private void upgradeOnlineEquipment(){
 for(Player player:Bukkit.getOnlinePlayers()){
 if(player.isDead())continue;
 // Re-apply the proper equipment slot on older SwampSky items without replacing them.
-ItemStack boots=player.getInventory().getBoots();
-ItemStack legs=player.getInventory().getLeggings();
-ItemStack chest=player.getInventory().getChestplate();
-if(is(boots,"boots"))fixEquipment(boots,"boots");
-if(is(legs,"leggings"))fixEquipment(legs,"leggings");
-if(is(chest,"wings"))fixEquipment(chest,"wings");
+PlayerInventory inventory=player.getInventory();
+ItemStack boots=inventory.getBoots();
+ItemStack legs=inventory.getLeggings();
+ItemStack chest=inventory.getChestplate();
+ItemStack helmet=inventory.getHelmet();
+if(is(boots,"boots") && fixEquipment(boots,"boots"))inventory.setBoots(boots);
+if(is(legs,"leggings") && fixEquipment(legs,"leggings"))inventory.setLeggings(legs);
+if(is(chest,"wings") && fixEquipment(chest,"wings"))inventory.setChestplate(chest);
+// Repair v1.2.1 wings that players accidentally equipped on their heads.
+if(is(helmet,"wings")){
+fixEquipment(helmet,"wings");
+if(chest==null || chest.getType().isAir()){
+inventory.setHelmet(null);
+inventory.setChestplate(helmet);
+}else inventory.setHelmet(helmet);
 }
 }
-private void fixEquipment(ItemStack stack,String kind){
-if(stack==null||!stack.hasItemMeta())return;
+}
+private boolean fixEquipment(ItemStack stack,String kind){
+if(stack==null||!stack.hasItemMeta())return false;
 ItemMeta meta=stack.getItemMeta();
 EquippableComponent equip=meta.getEquippable();
-if(equip==null)return;
+if(equip==null)return false;
 EquipmentSlot slot=kind.equals("wings")?EquipmentSlot.CHEST:kind.equals("leggings")?EquipmentSlot.LEGS:EquipmentSlot.FEET;
 NamespacedKey model=new NamespacedKey("swampsky",kind.equals("wings")?"frog_wings":"frog_armor");
-if(equip.getSlot()==slot&&model.equals(equip.getModel()))return;
+if(equip.getSlot()==slot&&model.equals(equip.getModel()))return false;
 equip.setSlot(slot);equip.setModel(model);
 meta.setEquippable(equip);
 stack.setItemMeta(meta);
+return true;
 }
 @EventHandler public void joined(PlayerJoinEvent event){
 Bukkit.getScheduler().runTaskLater(this,()->{if(event.getPlayer().isOnline())upgradeOnlineEquipment();},20L);
@@ -510,13 +521,18 @@ double radius=minRadius+random.nextDouble()*(maxRadius-minRadius);
 int x=(int)Math.floor(center.getX()+Math.cos(angle)*radius);
 int z=(int)Math.floor(center.getZ()+Math.sin(angle)*radius);
 if(!w.isChunkLoaded(x>>4,z>>4))return null;
-int y=w.getHighestBlockYAt(x,z,HeightMap.MOTION_BLOCKING_NO_LEAVES);
-if(y<=w.getMinHeight()+1||y+2>=w.getMaxHeight())return null;
-Block below=w.getBlockAt(x,y-1,z);
-Block feet=w.getBlockAt(x,y,z);
-Block head=w.getBlockAt(x,y+1,z);
-if(!below.getType().isSolid()||below.isLiquid()||!feet.isPassable()||!head.isPassable()||feet.isLiquid()||head.isLiquid())return null;
-return new Location(w,x+.5,y,z+.5);
+int top=w.getHighestBlockYAt(x,z,HeightMap.MOTION_BLOCKING_NO_LEAVES);
+// Heightmap versions differ on whether the returned Y is the top solid block
+// or the first free block. Resolve the actual standing surface safely.
+for(int y=Math.min(top+1,w.getMaxHeight()-3);y>=Math.max(top-3,w.getMinHeight()+2);y--){
+Block floor=w.getBlockAt(x,y,z);
+Block feet=w.getBlockAt(x,y+1,z);
+Block head=w.getBlockAt(x,y+2,z);
+if(!floor.getType().isSolid()||floor.isLiquid())continue;
+if(!feet.isPassable()||!head.isPassable()||feet.isLiquid()||head.isLiquid())continue;
+return new Location(w,x+.5,y+1,z+.5);
+}
+return null;
 }
 
 private void pigClear(UUID id){
