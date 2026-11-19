@@ -1,9 +1,9 @@
-# TargetClaim 1.5.0 (development test)
+# TargetClaim 1.5.1 (development test)
 
 Minecraft Paper 26.3, Java 25. One claim per player.
 
 - Unique target core (TARGET), crafted with 3 paper and 6 amethyst shards; when its claim is deleted, only 3 paper drop (no upgrade materials).
-- One-use special chest key (TRIPWIRE_HOOK), crafted as **one key** from a vertical column: top 1 gold ingot, middle 1 amethyst shard, bottom 1 iron ingot; the rest of the crafting grid is empty. /p givekey <nick> gives one key for admin testing.
+- One-use special chest key (TRIPWIRE_HOOK), crafted as **one key** from a vertical column: top 1 amethyst shard, bottom 1 stick; the rest of the crafting grid is empty. /p givekey <nick> gives one key for admin testing.
 - To use, hold the special key in the MAIN hand and right-click a CHEST or TRAPPED_CHEST inside someone else's claim where the player lacks access. It never opens the chest; it removes ONE random item from storage and drops that one item into the world above the chest. The key is consumed once on success. If the chest is empty, the key is not consumed. Key use is blocked in Creative/Spectator.
 - Anti-dupe: only server-tagged keys work (not ordinary tripwire hooks); the event is processed from the main hand only, once per player per server tick; selection is weighted by the actual number of items in all eligible stacks; exactly one item is removed synchronously from the original inventory before the world drop; double-chest halves from different claims are not mixed; a drop exception rolls the inventory/key back. Keys are spent only on a successful draw. Test with hopper and other inventory plugins before production.
 - Volumetric 3D protected zone (width x height x depth):
