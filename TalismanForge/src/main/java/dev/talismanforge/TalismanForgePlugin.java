@@ -701,20 +701,20 @@ w.playSound(loc,Sound.ENTITY_PLAYER_LEVELUP,1,1.3f);
 private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
-sender.sendMessage("§dTalismanForge 2.5 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|chest>");
+sender.sendMessage("§dTalismanForge 2.5 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|chest|hook>");
 sender.sendMessage("§7Рецепт сундука: 7 аметистов + тотем + обсидиан снизу. Талисманы в любой руке.");return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
 if(args.length<3){sender.sendMessage("§cИспользуй: /tf give <ник> <тип>");return true;}
 Player p=Bukkit.getPlayerExact(args[1]);if(p==null){sender.sendMessage("§cИгрок не найден.");return true;}
-Talisman t=Talisman.parse(args[2]);ItemStack i=args[2].equalsIgnoreCase("chest")?chestItem():t==null?null:talisman(t,t.lives);
+Talisman t=Talisman.parse(args[2]);ItemStack i=args[2].equalsIgnoreCase("chest")?chestItem():args[2].equalsIgnoreCase("hook")?hookListener.createHookItem():t==null?null:talisman(t,t.lives);
 if(i==null){sender.sendMessage("§cНеизвестный тип.");return true;}
 give(p,i);sender.sendMessage("§aВыдано игроку "+p.getName());return true;
 }
 @Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] args){
 if(args.length==1)return List.of("give");
 if(args.length==2)return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
-if(args.length==3)return List.of("maiming","wrath","defiance","joker","poseidon","hades","ages","end","chest");
+if(args.length==3)return List.of("maiming","wrath","defiance","joker","poseidon","hades","ages","end","chest","hook");
 return List.of();
 }
 @EventHandler public void quit(PlayerQuitEvent e){

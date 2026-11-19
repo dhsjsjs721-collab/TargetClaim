@@ -62,6 +62,7 @@ Bukkit.addRecipe(r);
 Bukkit.getScheduler().runTaskTimer(plugin,this::tick,1L,1L);
 }
 
+public ItemStack createHookItem(){return newHook();}
 private ItemStack newHook(){
 ItemStack i=new ItemStack(Material.FISHING_ROD);
 ItemMeta m=i.getItemMeta();
