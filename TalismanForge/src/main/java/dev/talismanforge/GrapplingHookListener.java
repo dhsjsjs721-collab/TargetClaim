@@ -26,7 +26,8 @@ public final class GrapplingHookListener implements Listener {
 private static final long COOLDOWN=15_000L;
 private static final int WEAR_PER_CAST=8;
 private static final double RANGE=36.0, FLIGHT_SPEED=2.4;
-private static final int MAX_LINKS=30;
+private static final int MAX_LINKS=48;
+private static final double LINK_STEP=0.72;
 private static final NamespacedKey IDLE=new NamespacedKey("talismanforge","grappling_hook");
 private static final NamespacedKey CAST=new NamespacedKey("talismanforge","grappling_hook_cast");
 private static final NamespacedKey TIP=new NamespacedKey("talismanforge","grappling_hook_tip");
@@ -43,7 +44,7 @@ World world;
 Location location;
 Vector direction;
 ItemDisplay projectile;
-List<ItemDisplay> links=new ArrayList<>();
+List<BlockDisplay> links=new ArrayList<>();
 Phase phase=Phase.FLY;
 double traveled;
 int age;
@@ -159,7 +160,7 @@ shot.shooterId=p.getUniqueId();
 shot.world=p.getWorld();
 shot.location=p.getEyeLocation().clone().add(p.getEyeLocation().getDirection().normalize().multiply(1.1));
 shot.direction=p.getEyeLocation().getDirection().normalize();
-shot.projectile=display(shot.world,shot.location,TIP,.9f);
+shot.projectile=display(shot.world,shot.location,TIP,.30f);
 shots.put(p.getUniqueId(),shot);
 cooldowns.put(p.getUniqueId(),now+COOLDOWN);
 reduceDurability(p);
@@ -236,29 +237,49 @@ target.setVelocity(v.normalize().multiply(Math.min(1.75,Math.max(.6,len*.38))));
 target.setFallDistance(0);
 }
 
+private BlockDisplay chainDisplay(World world,Location at){
+return world.spawn(at,BlockDisplay.class,d->{
+d.setBlock(Bukkit.createBlockData(Material.CHAIN));
+d.setBillboard(Display.Billboard.FIXED);
+d.setGravity(false);
+d.setInvulnerable(true);
+d.setPersistent(false);
+d.setTeleportDuration(1);
+});
+}
+
 private void updateLinks(Player owner,Shot shot){
-Location from=owner.getEyeLocation().clone().add(owner.getEyeLocation().getDirection().multiply(.38));
+Location from=owner.getEyeLocation().clone().add(owner.getEyeLocation().getDirection().multiply(.9)).add(0,-.30,0);
 Location to=shot.location;
-double dist=from.distance(to);
-int count=Math.min(MAX_LINKS,Math.max(0,(int)Math.floor(dist/.9)));
-while(shot.links.size()<count){
-shot.links.add(display(shot.world,from,LINK,.72f));
-}
+Vector separation=to.toVector().subtract(from.toVector());
+double dist=separation.length();
+int count=Math.min(MAX_LINKS,Math.max(0,(int)Math.floor((dist-.6)/LINK_STEP)));
+while(shot.links.size()<count)shot.links.add(chainDisplay(shot.world,from));
 while(shot.links.size()>count){
-ItemDisplay d=shot.links.remove(shot.links.size()-1);if(d.isValid())d.remove();
+BlockDisplay d=shot.links.remove(shot.links.size()-1);if(d.isValid())d.remove();
 }
+if(count==0)return;
+Vector dir=separation.normalize();
+Vector3f direction=new Vector3f((float)dir.getX(),(float)dir.getY(),(float)dir.getZ());
+Quaternionf rotation=new Quaternionf().rotationTo(new Vector3f(0,1,0),direction);
+Vector3f scale=new Vector3f(.42f,.70f,.42f);
+// BlockDisplay geometry is located at the block corner: compensate for the rotated center.
+Vector3f translation=new Vector3f(.21f,.35f,.21f);
+rotation.transform(translation);translation.negate();
 for(int i=0;i<count;i++){
-double t=(i+1.0)/(count+1.0);
-Location step=from.clone().add(to.toVector().subtract(from.toVector()).multiply(t));
-ItemDisplay display=shot.links.get(i);
-if(display.isValid())display.teleport(step);
+double distance=(i+1)*LINK_STEP;
+Location at=from.clone().add(dir.clone().multiply(distance));
+BlockDisplay d=shot.links.get(i);
+if(!d.isValid())continue;
+d.teleport(at);
+d.setTransformation(new Transformation(new Vector3f(translation),new Quaternionf(rotation),new Vector3f(scale),new Quaternionf()));
 }
 }
 
 private void stop(Shot s){
 if(shots.remove(s.shooterId,s)){
 if(s.projectile!=null&&s.projectile.isValid())s.projectile.remove();
-for(ItemDisplay d:s.links)if(d.isValid())d.remove();
+for(BlockDisplay d:s.links)if(d.isValid())d.remove();
 s.links.clear();
 Player p=Bukkit.getPlayer(s.shooterId);
 if(p!=null)restoreModels(p);

@@ -32,3 +32,9 @@ Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil o
 - Pulls living entities back toward player; respects solid block line-of-sight and same-team friendly-fire disable.
 - Existing item PDC keys are preserved; older hook items remain usable.
 - No vanilla fishing rod item textures are overridden.
+
+
+## TalismanForge 2.5.1 — hook visual fix
+- Fix giant spiraling/overlapping sprites in first person: link displays are now 3D vanilla CHAIN block displays and are rotated to follow the rope direction, instead of camera-facing item sprites.
+- Smaller hook projectile (scale 0.30), bounded chain spacing and offset away from player camera.
+- No changes to the unified resource pack: reuse existing pack URL and SHA1. All previous talismans and other datapack textures unchanged.
