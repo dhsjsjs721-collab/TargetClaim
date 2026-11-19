@@ -1,5 +1,16 @@
 package dev.targetclaim;
 
+import io.papermc.paper.connection.PlayerGameConnection;
+import io.papermc.paper.dialog.Dialog;
+import io.papermc.paper.event.player.PlayerCustomClickEvent;
+import io.papermc.paper.registry.data.dialog.ActionButton;
+import io.papermc.paper.registry.data.dialog.DialogBase;
+import io.papermc.paper.registry.data.dialog.body.DialogBody;
+import io.papermc.paper.registry.data.dialog.action.DialogAction;
+import io.papermc.paper.registry.data.dialog.type.DialogType;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.command.*;
@@ -9,332 +20,549 @@ import org.bukkit.entity.*;
 import org.bukkit.event.*;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.*;
-import org.bukkit.event.inventory.*;
 import org.bukkit.event.hanging.*;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.*;
+import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.*;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.projectiles.ProjectileSource;
+import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.Team;
+import org.bukkit.potion.PotionEffect;
 import java.io.*;
 import java.util.*;
 
-public final class TargetClaimPlugin extends JavaPlugin implements Listener {
+public final class TargetClaimPlugin extends JavaPlugin implements Listener, CommandExecutor, TabCompleter {
 private static final int[] SIZE = {16,40,80,120,160};
+private static final int[] HEIGHT = {32,48,80,120,160};
 private static final Material[] COST = {Material.AMETHYST_SHARD,Material.AMETHYST_SHARD,Material.NETHERITE_SCRAP,Material.DRAGON_EGG};
 private static final int[] AMOUNT = {23,64,3,1};
+private static final ChatColor[] COLORS = {ChatColor.AQUA,ChatColor.BLUE,ChatColor.GOLD,ChatColor.GREEN,ChatColor.LIGHT_PURPLE,ChatColor.RED,ChatColor.YELLOW,ChatColor.DARK_AQUA,ChatColor.DARK_GREEN,ChatColor.DARK_PURPLE,ChatColor.DARK_RED,ChatColor.WHITE,ChatColor.GRAY};
+private static final String PREFIX = "§5§lTargetClaim §8» §r";
 private final Map<UUID,Claim> claims = new HashMap<>();
-private NamespacedKey key;
-private File file;
+private final Map<UUID,Group> groups = new LinkedHashMap<>();
+private final Map<UUID,UUID> membership = new HashMap<>();
+private final Map<UUID,Invite> invites = new HashMap<>();
+private final Map<UUID,Viewer> viewers = new HashMap<>();
+private final Map<UUID,UUID> openedClaim = new HashMap<>();
+private final Random random = new Random();
+private NamespacedKey targetKey,displayKey;
+private File dataFile;
 
 private static final class Claim {
 UUID owner,world;
-String name;
+String ownerName;
 int x,y,z,level;
-boolean teamUse=true,teamBuild=true,pvp=false;
-Claim(UUID owner,String name,Location loc){
-this.owner=owner;this.name=name;this.world=loc.getWorld().getUID();
-this.x=loc.getBlockX();this.y=loc.getBlockY();this.z=loc.getBlockZ();
-}
+boolean teamUse=true,teamBuild=true,pvp=false,teamBorders=false;
+Claim(UUID id,String name,Location loc){owner=id;ownerName=name;world=loc.getWorld().getUID();x=loc.getBlockX();y=loc.getBlockY();z=loc.getBlockZ();}
 int minX(){return x-SIZE[level]/2;}
-int minZ(){return z-SIZE[level]/2;}
 int maxX(){return minX()+SIZE[level]-1;}
+int minZ(){return z-SIZE[level]/2;}
 int maxZ(){return minZ()+SIZE[level]-1;}
-boolean contains(Location p){return p!=null&&p.getWorld()!=null&&p.getWorld().getUID().equals(world)&&p.getBlockX()>=minX()&&p.getBlockX()<=maxX()&&p.getBlockZ()>=minZ()&&p.getBlockZ()<=maxZ();}
+int minY(){return y-HEIGHT[level]/2;}
+int maxY(){return minY()+HEIGHT[level]-1;}
+boolean contains(Location loc){return loc!=null&&loc.getWorld()!=null&&loc.getWorld().getUID().equals(world)&&loc.getBlockX()>=minX()&&loc.getBlockX()<=maxX()&&loc.getBlockY()>=minY()&&loc.getBlockY()<=maxY()&&loc.getBlockZ()>=minZ()&&loc.getBlockZ()<=maxZ();}
 boolean isCore(Block b){return b.getWorld().getUID().equals(world)&&b.getX()==x&&b.getY()==y&&b.getZ()==z;}
 }
-private static final class Menu implements InventoryHolder {
-Inventory inv;UUID owner;boolean confirm;
-Menu(UUID owner,boolean confirm){this.owner=owner;this.confirm=confirm;}
-public Inventory getInventory(){return inv;}
+private static final class Group {
+UUID id,leader;
+String name;
+ChatColor color;
+final LinkedHashSet<UUID> members=new LinkedHashSet<>();
+final Set<UUID> pvpOn=new HashSet<>();
+Group(UUID id,UUID leader,String name,ChatColor color){this.id=id;this.leader=leader;this.name=name;this.color=color;members.add(leader);}
 }
+private record Invite(UUID group,long expires) {}
+private static final class Viewer {
+boolean borders=true;
+int mode=1,color=0;
+}
+
 @Override public void onEnable(){
-key=new NamespacedKey(this,"claim_target");
-file=new File(getDataFolder(),"claims.yml");getDataFolder().mkdirs();
-load();
-ShapedRecipe recipe=new ShapedRecipe(new NamespacedKey(this,"claim_recipe"),target());
+targetKey=new NamespacedKey(this,"claim_target");
+displayKey=new NamespacedKey(this,"display_owner");
+dataFile=new File(getDataFolder(),"data.yml");getDataFolder().mkdirs();
+loadAll();
+ShapedRecipe recipe=new ShapedRecipe(new NamespacedKey(this,"target_recipe"),specialTarget());
 recipe.shape("PPP","AAA","AAA");
 recipe.setIngredient('P',Material.PAPER);
 recipe.setIngredient('A',Material.AMETHYST_SHARD);
 Bukkit.addRecipe(recipe);
+Objects.requireNonNull(getCommand("p")).setExecutor(this);
+Objects.requireNonNull(getCommand("team")).setExecutor(this);
+Objects.requireNonNull(getCommand("p")).setTabCompleter(this);
+Objects.requireNonNull(getCommand("team")).setTabCompleter(this);
 Bukkit.getPluginManager().registerEvents(this,this);
-Objects.requireNonNull(getCommand("p")).setExecutor(this::command);
-getLogger().info("Loaded "+claims.size()+" claims");
+for(Group g:groups.values())updateScoreboard(g);
+for(World w:Bukkit.getWorlds())for(Chunk ch:w.getLoadedChunks())cleanupDisplays(ch);
+Bukkit.getScheduler().runTaskTimer(this,this::visualTick,30L,30L);
+getLogger().info("TargetClaim 1.3: "+claims.size()+" claims, "+groups.size()+" teams");
 }
-@Override public void onDisable(){save();}
-private ItemStack target(){
+@Override public void onDisable(){saveAll();}
+
+private ItemStack specialTarget(){
 ItemStack item=new ItemStack(Material.TARGET);
-ItemMeta meta=item.getItemMeta();
-meta.setDisplayName("§d§lМишень привата");
-meta.setLore(List.of("§7Один приват на игрока","§7ПКМ — настройки","§7При удалении не выпадает"));
-meta.getPersistentDataContainer().set(key,PersistentDataType.BYTE,(byte)1);
-item.setItemMeta(meta);return item;
+ItemMeta meta=item.getItemMeta();meta.setDisplayName("§d§l✦ Ядро привата ✦");
+meta.setLore(List.of("§7Особая мишень территории","§7Лимит: §f1 приват на игрока","§7ПКМ: §fкрасивое меню","§cНе выпадает после разрушения"));
+meta.getPersistentDataContainer().set(targetKey,PersistentDataType.BYTE,(byte)1);item.setItemMeta(meta);return item;
 }
-private boolean special(ItemStack i){
-return i!=null&&i.getType()==Material.TARGET&&i.hasItemMeta()&&Byte.valueOf((byte)1).equals(i.getItemMeta().getPersistentDataContainer().get(key,PersistentDataType.BYTE));
+private boolean isSpecial(ItemStack item){return item!=null&&item.getType()==Material.TARGET&&item.hasItemMeta()&&Byte.valueOf((byte)1).equals(item.getItemMeta().getPersistentDataContainer().get(targetKey,PersistentDataType.BYTE));}
+
+private void loadAll(){
+YamlConfiguration y=YamlConfiguration.loadConfiguration(dataFile);
+ConfigurationSection claimsSection=y.getConfigurationSection("claims");
+if(claimsSection!=null)for(String id:claimsSection.getKeys(false))try{
+UUID owner=UUID.fromString(id);
+String root="claims."+id+".";
+World w=Bukkit.getWorld(UUID.fromString(Objects.requireNonNull(y.getString(root+"world"))));
+if(w==null){getLogger().warning("Skipping claim with unloaded world: "+id);continue;}
+Claim c=new Claim(owner,y.getString(root+"name","unknown"),new Location(w,y.getInt(root+"x"),y.getInt(root+"y"),y.getInt(root+"z")));
+c.level=Math.max(0,Math.min(4,y.getInt(root+"level",0)));
+c.teamUse=y.getBoolean(root+"teamUse",true);c.teamBuild=y.getBoolean(root+"teamBuild",true);c.pvp=y.getBoolean(root+"pvp",false);c.teamBorders=y.getBoolean(root+"teamBorders",false);
+claims.put(owner,c);
+}catch(Exception ex){getLogger().warning("Invalid claim "+id+": "+ex.getMessage());}
+ConfigurationSection teamsSection=y.getConfigurationSection("teams");
+if(teamsSection!=null)for(String id:teamsSection.getKeys(false))try{
+UUID gid=UUID.fromString(id);String root="teams."+id+".";
+UUID leader=UUID.fromString(Objects.requireNonNull(y.getString(root+"leader")));
+ChatColor color=ChatColor.valueOf(y.getString(root+"color","AQUA"));
+Group g=new Group(gid,leader,y.getString(root+"name","Team"),color);
+g.members.clear();for(String s:y.getStringList(root+"members"))g.members.add(UUID.fromString(s));
+if(!g.members.contains(leader))g.members.add(leader);
+while(g.members.size()>3){UUID last=g.members.iterator().next();if(last.equals(g.leader))break;g.members.remove(last);}
+for(String s:y.getStringList(root+"pvpOn"))try{UUID m=UUID.fromString(s);if(g.members.contains(m))g.pvpOn.add(m);}catch(Exception ignored){}
+for(UUID m:g.members)membership.put(m,gid);
+groups.put(gid,g);
+}catch(Exception ex){getLogger().warning("Invalid team "+id+": "+ex.getMessage());}
+ConfigurationSection viewSection=y.getConfigurationSection("viewers");
+if(viewSection!=null)for(String id:viewSection.getKeys(false))try{
+UUID uid=UUID.fromString(id);String root="viewers."+id+".";Viewer v=new Viewer();
+v.borders=y.getBoolean(root+"borders",true);v.mode=Math.max(0,Math.min(2,y.getInt(root+"mode",1)));v.color=Math.max(0,Math.min(3,y.getInt(root+"color",0)));viewers.put(uid,v);
+}catch(Exception ignored){}
 }
-private void save(){
-YamlConfiguration c=new YamlConfiguration();
-for(Claim q:claims.values()){
-String p="claims."+q.owner+".";
-c.set(p+"name",q.name);c.set(p+"world",q.world.toString());
-c.set(p+"x",q.x);c.set(p+"y",q.y);c.set(p+"z",q.z);
-c.set(p+"level",q.level);c.set(p+"teamUse",q.teamUse);
-c.set(p+"teamBuild",q.teamBuild);c.set(p+"pvp",q.pvp);
+private void saveAll(){
+YamlConfiguration y=new YamlConfiguration();
+for(Claim c:claims.values()){
+String r="claims."+c.owner+".";y.set(r+"name",c.ownerName);y.set(r+"world",c.world.toString());y.set(r+"x",c.x);y.set(r+"y",c.y);y.set(r+"z",c.z);y.set(r+"level",c.level);y.set(r+"teamUse",c.teamUse);y.set(r+"teamBuild",c.teamBuild);y.set(r+"pvp",c.pvp);y.set(r+"teamBorders",c.teamBorders);
 }
-try{c.save(file);}catch(IOException e){getLogger().severe("Claim save error "+e.getMessage());}
+for(Group g:groups.values()){
+String r="teams."+g.id+".";y.set(r+"name",g.name);y.set(r+"leader",g.leader.toString());y.set(r+"color",g.color.name());y.set(r+"members",g.members.stream().map(UUID::toString).toList());y.set(r+"pvpOn",g.pvpOn.stream().map(UUID::toString).toList());
 }
-private void load(){
-if(!file.isFile())return;
-YamlConfiguration c=YamlConfiguration.loadConfiguration(file);
-ConfigurationSection s=c.getConfigurationSection("claims");if(s==null)return;
-for(String id:s.getKeys(false)){
-try{
-UUID owner=UUID.fromString(id),world=UUID.fromString(c.getString("claims."+id+".world"));
-World w=Bukkit.getWorld(world);if(w==null){getLogger().warning("Unknown world for "+id);continue;}
-String p="claims."+id+".";
-Claim q=new Claim(owner,c.getString(p+"name","?"),new Location(w,c.getInt(p+"x"),c.getInt(p+"y"),c.getInt(p+"z")));
-q.level=Math.max(0,Math.min(4,c.getInt(p+"level")));
-q.teamUse=c.getBoolean(p+"teamUse",true);
-q.teamBuild=c.getBoolean(p+"teamBuild",true);
-q.pvp=c.getBoolean(p+"pvp",false);
-claims.put(owner,q);
-}catch(Exception e){getLogger().warning("Malformed claim "+id);}
+for(Map.Entry<UUID,Viewer> entry:viewers.entrySet()){
+String r="viewers."+entry.getKey()+".";Viewer v=entry.getValue();y.set(r+"borders",v.borders);y.set(r+"mode",v.mode);y.set(r+"color",v.color);
 }
+try{y.save(dataFile);}catch(IOException ex){getLogger().severe("Cannot save data.yml: "+ex.getMessage());}
 }
-private Claim at(Location loc){
-for(Claim q:claims.values())if(q.contains(loc))return q;
-return null;
+private Claim claimAt(Location loc){for(Claim c:claims.values())if(c.contains(loc))return c;return null;}
+private Claim claimCore(Block block){for(Claim c:claims.values())if(c.isCore(block))return c;return null;}
+private boolean overlap(Claim a){for(Claim b:claims.values()){
+if(a.owner.equals(b.owner)||!a.world.equals(b.world))continue;
+if(a.minX()<=b.maxX()&&a.maxX()>=b.minX()&&a.minY()<=b.maxY()&&a.maxY()>=b.minY()&&a.minZ()<=b.maxZ()&&a.maxZ()>=b.minZ())return true;
+}return false;}
+private Group groupOf(UUID player){UUID id=membership.get(player);return id==null?null:groups.get(id);}
+private boolean allies(UUID a,UUID b){if(a.equals(b))return true;UUID x=membership.get(a);return x!=null&&x.equals(membership.get(b));}
+private boolean owner(Player player,Claim c){return player.getUniqueId().equals(c.owner)||player.hasPermission("targetclaim.admin");}
+private boolean canUse(Player player,Claim c){return owner(player,c)||(c.teamUse&&allies(player.getUniqueId(),c.owner));}
+private boolean canBuild(Player player,Claim c){return owner(player,c)||(c.teamBuild&&allies(player.getUniqueId(),c.owner));}
+private boolean friendlyDamageBlocked(Player attacker,Player victim){
+if(attacker==null||victim==null||attacker.equals(victim)||!allies(attacker.getUniqueId(),victim.getUniqueId()))return false;
+Group g=groupOf(attacker.getUniqueId());return g!=null&&!(g.pvpOn.contains(attacker.getUniqueId())&&g.pvpOn.contains(victim.getUniqueId()));
 }
-private Claim core(Block block){
-for(Claim q:claims.values())if(q.isCore(block))return q;
-return null;
-}
-private boolean overlap(Claim c){
-for(Claim q:claims.values()){
-if(q.owner.equals(c.owner)||!q.world.equals(c.world))continue;
-if(c.minX()<=q.maxX()&&c.maxX()>=q.minX()&&c.minZ()<=q.maxZ()&&c.maxZ()>=q.minZ())return true;
-}
-return false;
-}
-private boolean owner(Player p,Claim c){return p.getUniqueId().equals(c.owner)||p.hasPermission("targetclaim.admin");}
-private Team team(String name){
-return Bukkit.getScoreboardManager().getMainScoreboard().getEntryTeam(name);
-}
-private boolean ally(Player p,Claim c){
-Team a=team(c.name),b=team(p.getName());
-return a!=null&&b!=null&&a.getColor()!=ChatColor.RESET&&a.getColor()==b.getColor();
-}
-private boolean canBuild(Player p,Claim c){return owner(p,c)||(c.teamBuild&&ally(p,c));}
-private boolean canUse(Player p,Claim c){return owner(p,c)||(c.teamUse&&ally(p,c));}
-private boolean command(CommandSender sender,Command cmd,String alias,String[] args){
+private void tell(CommandSender sender,String message){sender.sendMessage(PREFIX+message);}
+
+@Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
+if(command.getName().equalsIgnoreCase("team"))return teamCommand(sender,args);
 if(args.length>0&&args[0].equalsIgnoreCase("give")){
-if(!sender.hasPermission("targetclaim.admin")){sender.sendMessage("§cНет прав");return true;}
-if(args.length<2){sender.sendMessage("§e/p give <ник>");return true;}
-Player p=Bukkit.getPlayerExact(args[1]);
-if(p==null){sender.sendMessage("§cИгрок не найден");return true;}
-Map<Integer,ItemStack> rest=p.getInventory().addItem(target());
-for(ItemStack item:rest.values())p.getWorld().dropItemNaturally(p.getLocation(),item);
-sender.sendMessage("§aМишень выдана");return true;
+if(!sender.hasPermission("targetclaim.admin")){tell(sender,"§cНет прав.");return true;}
+if(args.length<2){tell(sender,"§e/p give <ник>");return true;}
+Player recipient=Bukkit.getPlayerExact(args[1]);if(recipient==null){tell(sender,"§cИгрок не найден.");return true;}
+for(ItemStack rest:recipient.getInventory().addItem(specialTarget()).values())recipient.getWorld().dropItemNaturally(recipient.getLocation(),rest);
+tell(sender,"§aМишень выдана игроку "+recipient.getName());return true;
 }
-if(!(sender instanceof Player p)){sender.sendMessage("Только игрок");return true;}
+if(!(sender instanceof Player p)){tell(sender,"§cЭта команда только для игроков.");return true;}
 Claim c=claims.get(p.getUniqueId());
-if(c==null){p.sendMessage("§dСоздай мишень из 3 бумаги и 6 аметистов. Лимит: 1.");return true;}
-if(args.length>0&&args[0].equalsIgnoreCase("border")){border(p,c);return true;}
-if(args.length>0&&args[0].equalsIgnoreCase("remove")){menu(p,c,true);return true;}
-menu(p,c,false);return true;
+if(c==null){tell(p,"§7Нет привата. Рецепт: §f3 бумаги сверху и 6 аметистов снизу.");return true;}
+if(args.length==0){showClaimDialog(p,c);return true;}
+switch(args[0].toLowerCase(Locale.ROOT)){
+case "upgrade" -> upgrade(p,c);
+case "remove" -> showRemoveDialog(p,c);
+case "border","borders" -> {
+Viewer v=viewer(p);
+if(args.length==1){showBorderDialog(p,c);return true;}
+if(args[1].equalsIgnoreCase("on"))v.borders=true;
+else if(args[1].equalsIgnoreCase("off"))v.borders=false;
+else{showBorderDialog(p,c);return true;}
+saveAll();tell(p,"§eГраницы: "+(v.borders?"§aВКЛ":"§cВЫКЛ"));
 }
+case "info" -> {tell(p,"§dУровень "+c.level+"/4, объём: "+SIZE[c.level]+"×"+HEIGHT[c.level]+"×"+SIZE[c.level]+", 1 приват на игрока.");}
+default -> showClaimDialog(p,c);
+}
+return true;
+}
+@Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] args){
+if(args.length==1)return starts(cmd.getName().equalsIgnoreCase("p")?List.of("upgrade","border","remove","info","give"):List.of("create","invite","accept","deny","leave","kick","disband","pvp","info","menu"),args[0]);
+if(args.length==2&&cmd.getName().equalsIgnoreCase("team")&&(args[0].equalsIgnoreCase("invite")||args[0].equalsIgnoreCase("kick")))return starts(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(),args[1]);
+if(args.length==2&&args[0].equalsIgnoreCase("pvp"))return starts(List.of("on","off"),args[1]);
+if(args.length==2&&args[0].equalsIgnoreCase("border"))return starts(List.of("on","off"),args[1]);
+return List.of();
+}
+private List<String> starts(List<String> words,String query){String q=query.toLowerCase(Locale.ROOT);return words.stream().filter(s->s.toLowerCase(Locale.ROOT).startsWith(q)).toList();}
+private boolean teamCommand(CommandSender sender,String[] args){
+if(!(sender instanceof Player p)){tell(sender,"§cТолько для игроков.");return true;}
+Group g=groupOf(p.getUniqueId());
+if(args.length==0||args[0].equalsIgnoreCase("menu")){showTeamDialog(p);return true;}
+switch(args[0].toLowerCase(Locale.ROOT)){
+case "create" -> {
+if(g!=null){tell(p,"§cТы уже в команде.");break;}
+if(args.length<2){tell(p,"§eИспользуй: /team create <название>");break;}
+String name=args[1];
+if(!name.matches("[\\p{L}\\p{N}_-]{3,16}")){tell(p,"§cНазвание: 3–16 букв/цифр, _ или -.");break;}
+if(groups.values().stream().anyMatch(t->t.name.equalsIgnoreCase(name))){tell(p,"§cТакое название уже занято.");break;}
+List<ChatColor> available=new ArrayList<>(Arrays.asList(COLORS));for(Group t:groups.values())available.remove(t.color);
+if(available.isEmpty())available.addAll(Arrays.asList(COLORS));
+Group newGroup=new Group(UUID.randomUUID(),p.getUniqueId(),name,available.get(random.nextInt(available.size())));
+groups.put(newGroup.id,newGroup);membership.put(p.getUniqueId(),newGroup.id);
+updateScoreboard(newGroup);saveAll();tell(p,"§aКоманда §r"+newGroup.color+name+" §aсоздана. Лимит 3 игрока. Приглашай: /team invite <ник>.");
+}
+case "invite" -> {
+if(g==null||!g.leader.equals(p.getUniqueId())){tell(p,"§cПриглашать может только лидер.");break;}
+if(g.members.size()>=3){tell(p,"§cВ команде уже 3 игрока.");break;}
+if(args.length<2){tell(p,"§e/team invite <ник>");break;}
+Player target=Bukkit.getPlayerExact(args[1]);
+if(target==null||target.equals(p)){tell(p,"§cИгрок не найден.");break;}
+if(groupOf(target.getUniqueId())!=null){tell(p,"§cИгрок уже состоит в команде.");break;}
+invites.put(target.getUniqueId(),new Invite(g.id,System.currentTimeMillis()+120000));
+tell(target,"§dПриглашение в команду §r"+g.color+g.name+"§d. Принять: §f/team accept §7(2 минуты)");
+tell(p,"§aПриглашение отправлено.");
+}
+case "accept" -> {
+if(g!=null){tell(p,"§cСначала выйди из текущей команды.");break;}
+Invite invite=invites.remove(p.getUniqueId());
+if(invite==null||invite.expires<System.currentTimeMillis()){tell(p,"§cПриглашение отсутствует или истекло.");break;}
+Group target=groups.get(invite.group);
+if(target==null||target.members.size()>=3){tell(p,"§cКоманда удалена или заполнена.");break;}
+target.members.add(p.getUniqueId());membership.put(p.getUniqueId(),target.id);
+updateScoreboard(target);saveAll();broadcast(target,"§aИгрок "+p.getName()+" присоединился.");
+}
+case "deny" -> {invites.remove(p.getUniqueId());tell(p,"§7Приглашение отклонено.");}
+case "leave" -> {
+if(g==null){tell(p,"§cТы не в команде.");break;}
+leave(p.getUniqueId(),g);tell(p,"§aТы вышел из команды.");
+}
+case "kick" -> {
+if(g==null||!g.leader.equals(p.getUniqueId())){tell(p,"§cИсключать может только лидер.");break;}
+if(args.length<2){tell(p,"§e/team kick <ник>");break;}
+UUID target=null;for(UUID uid:g.members){OfflinePlayer off=Bukkit.getOfflinePlayer(uid);if(off.getName()!=null&&off.getName().equalsIgnoreCase(args[1]))target=uid;}
+if(target==null||target.equals(p.getUniqueId())){tell(p,"§cИгрок не найден или это лидер.");break;}
+leave(target,g);tell(p,"§aИгрок исключён.");Player other=Bukkit.getPlayer(target);if(other!=null)tell(other,"§cТы исключён из команды.");
+}
+case "disband" -> {
+if(g==null||!g.leader.equals(p.getUniqueId())){tell(p,"§cУдалить команду может только лидер.");break;}
+disband(g);tell(p,"§aКоманда расформирована.");
+}
+case "pvp" -> {
+if(g==null){tell(p,"§cТы не в команде.");break;}
+boolean newValue;
+if(args.length<2)newValue=!g.pvpOn.contains(p.getUniqueId());
+else if(args[1].equalsIgnoreCase("on"))newValue=true;
+else if(args[1].equalsIgnoreCase("off"))newValue=false;
+else{tell(p,"§e/team pvp on|off");break;}
+if(newValue)g.pvpOn.add(p.getUniqueId());else g.pvpOn.remove(p.getUniqueId());
+saveAll();tell(p,"§eТвой PvP с союзниками: "+(newValue?"§aВКЛ":"§cВЫКЛ")+"§7. Урон проходит только если оба включили.");
+}
+case "info" -> {
+if(g==null){tell(p,"§cТы не в команде.");break;}
+tell(p,"§eКоманда: "+g.color+g.name+"§7, игроков "+g.members.size()+"/3");
+for(UUID id:g.members){OfflinePlayer off=Bukkit.getOfflinePlayer(id);tell(p,"§7- §f"+(off.getName()==null?id:off.getName())+(id.equals(g.leader)?" §6(лидер)":"")+(g.pvpOn.contains(id)?" §aPvP ON":" §cPvP OFF"));}
+}
+default -> tell(p,"§e/team create|invite|accept|leave|kick|disband|pvp|info|menu");
+}
+return true;
+}
+private void broadcast(Group group,String msg){for(UUID uid:group.members){Player p=Bukkit.getPlayer(uid);if(p!=null)tell(p,msg);}}
+private void leave(UUID uid,Group g){
+g.members.remove(uid);g.pvpOn.remove(uid);membership.remove(uid);removeFromScoreboard(uid,g);
+if(g.members.isEmpty()){destroyGroup(g);return;}
+if(uid.equals(g.leader))g.leader=g.members.iterator().next();
+saveAll();broadcast(g,"§eСостав команды обновлён.");
+}
+private void disband(Group g){for(UUID uid:new ArrayList<>(g.members)){membership.remove(uid);removeFromScoreboard(uid,g);Player player=Bukkit.getPlayer(uid);if(player!=null)tell(player,"§cКоманда расформирована.");}destroyGroup(g);}
+private void destroyGroup(Group g){groups.remove(g.id);Scoreboard s=Bukkit.getScoreboardManager().getMainScoreboard();Team t=s.getTeam(scoreName(g));if(t!=null)t.unregister();saveAll();}
+private String scoreName(Group g){return "tc_"+g.id.toString().replace("-","").substring(0,12);}
+private void removeFromScoreboard(UUID id,Group g){Team team=Bukkit.getScoreboardManager().getMainScoreboard().getTeam(scoreName(g));OfflinePlayer off=Bukkit.getOfflinePlayer(id);if(team!=null&&off.getName()!=null)team.removeEntry(off.getName());}
+private void updateScoreboard(Group g){
+Scoreboard s=Bukkit.getScoreboardManager().getMainScoreboard();Team team=s.getTeam(scoreName(g));if(team==null)team=s.registerNewTeam(scoreName(g));
+team.setColor(g.color);team.setAllowFriendlyFire(true);team.setPrefix(g.color.toString());
+for(UUID id:g.members){OfflinePlayer off=Bukkit.getOfflinePlayer(id);if(off.getName()!=null)team.addEntry(off.getName());}
+}
+@EventHandler public void join(PlayerJoinEvent event){Group g=groupOf(event.getPlayer().getUniqueId());if(g!=null)updateScoreboard(g);}
+
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void place(BlockPlaceEvent e){
-Block b=e.getBlockPlaced();Player p=e.getPlayer();
-Claim old=at(b.getLocation());
-if(old!=null&&!canBuild(p,old)){e.setCancelled(true);p.sendMessage("§cЧужой приват.");return;}
-if(!special(e.getItemInHand()))return;
-if(claims.containsKey(p.getUniqueId())){e.setCancelled(true);p.sendMessage("§cЛимит: 1 приват.");return;}
+Block b=e.getBlockPlaced();Player p=e.getPlayer();Claim occupied=claimAt(b.getLocation());
+if(occupied!=null&&!canBuild(p,occupied)){e.setCancelled(true);tell(p,"§cСтроительство запрещено.");return;}
+if(!isSpecial(e.getItemInHand()))return;
+if(claims.containsKey(p.getUniqueId())){e.setCancelled(true);tell(p,"§cУ тебя уже один приват.");return;}
 Claim c=new Claim(p.getUniqueId(),p.getName(),b.getLocation());
-if(overlap(c)){e.setCancelled(true);p.sendMessage("§cПриват пересекается с чужим.");return;}
+if(c.minY()<b.getWorld().getMinHeight()||c.maxY()>=b.getWorld().getMaxHeight()){e.setCancelled(true);tell(p,"§cУстанови мишень выше/ниже: область должна помещаться в высоту мира.");return;}
+if(overlap(c)){e.setCancelled(true);tell(p,"§cПриват пересекается с другой территорией.");return;}
 claims.put(c.owner,c);
-Bukkit.getScheduler().runTask(this,()->{
-if(b.getType()!=Material.TARGET||!b.getWorld().getUID().equals(c.world))claims.remove(c.owner,c);
-save();
-});
-p.sendMessage("§aПриват создан: 16×16. ПКМ по мишени — меню.");
+Bukkit.getScheduler().runTask(this,()->{if(b.getType()!=Material.TARGET){claims.remove(c.owner);return;}ensureDisplay(c);saveAll();});
+tell(p,"§aПриват создан: §f16×32×16. §7ПКМ — меню.");
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
-public void breakBlock(BlockBreakEvent e){
-Claim c=core(e.getBlock());
-if(c!=null){
-e.setCancelled(true);e.setDropItems(false);e.setExpToDrop(0);
-if(!owner(e.getPlayer(),c)){e.getPlayer().sendMessage("§cНельзя ломать чужую мишень.");return;}
-remove(c);e.getPlayer().sendMessage("§aПриват удалён без возврата мишени.");return;
-}
-c=at(e.getBlock().getLocation());
-if(c!=null&&!canBuild(e.getPlayer(),c))e.setCancelled(true);
+public void breaking(BlockBreakEvent e){
+Claim c=claimCore(e.getBlock());
+if(c!=null){e.setCancelled(true);e.setDropItems(false);e.setExpToDrop(0);
+if(!e.getPlayer().getUniqueId().equals(c.owner)){tell(e.getPlayer(),"§cМишень может сломать только её владелец.");return;}
+removeClaim(c);tell(e.getPlayer(),"§aПриват удалён. Мишень не выпадает.");return;}
+c=claimAt(e.getBlock().getLocation());if(c!=null&&!canBuild(e.getPlayer(),c))e.setCancelled(true);
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void interact(PlayerInteractEvent e){
 Block b=e.getClickedBlock();if(b==null)return;
-Claim c=core(b);
-if(c!=null&&e.getAction()==Action.RIGHT_CLICK_BLOCK){
-e.setCancelled(true);
-if(e.getHand()==EquipmentSlot.HAND)menu(e.getPlayer(),c,false);
-return;
+Claim core=claimCore(b);
+if(core!=null&&e.getAction()==Action.RIGHT_CLICK_BLOCK){e.setCancelled(true);
+if(e.getHand()!=EquipmentSlot.HAND)return;
+openedClaim.put(e.getPlayer().getUniqueId(),core.owner);
+if(e.getPlayer().isSneaking()&&e.getPlayer().getUniqueId().equals(core.owner)&&e.getPlayer().getInventory().getItemInMainHand().getType()==COST[Math.min(core.level,3)]&&core.level<4){upgrade(e.getPlayer(),core);return;}
+showClaimDialog(e.getPlayer(),core);return;
 }
-c=at(b.getLocation());if(c==null)return;
+Claim c=claimAt(b.getLocation());if(c==null)return;
 if(e.getAction()==Action.RIGHT_CLICK_BLOCK&&!canUse(e.getPlayer(),c))e.setCancelled(true);
 if(e.getAction()==Action.PHYSICAL&&!canUse(e.getPlayer(),c))e.setCancelled(true);
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
-public void open(InventoryOpenEvent e){
-if(!(e.getPlayer() instanceof Player p))return;
-Claim c=at(e.getInventory().getLocation());
-if(c!=null&&!canUse(p,c))e.setCancelled(true);
+public void openInventory(InventoryOpenEvent e){if(!(e.getPlayer() instanceof Player p))return;Location loc=e.getInventory().getLocation();Claim c=claimAt(loc);if(c!=null&&!canUse(p,c))e.setCancelled(true);}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void entityInteract(PlayerInteractEntityEvent e){Claim c=claimAt(e.getRightClicked().getLocation());if(c!=null&&!canUse(e.getPlayer(),c))e.setCancelled(true);}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void damage(EntityDamageByEntityEvent e){
+Player attacker=attacker(e.getDamager());
+if(e.getEntity() instanceof Player victim){
+if(attacker!=null&&friendlyDamageBlocked(attacker,victim)){e.setCancelled(true);return;}
+Claim c=claimAt(victim.getLocation());if(c!=null&&!c.pvp&&attacker!=null&&!attacker.equals(victim)){e.setCancelled(true);return;}
+}
+Claim c=claimAt(e.getEntity().getLocation());
+if(c!=null&&!(e.getEntity() instanceof Player)&&attacker!=null&&!canBuild(attacker,c))e.setCancelled(true);
+}
+private Player attacker(Entity entity){
+if(entity instanceof Player p)return p;
+if(entity instanceof Projectile p){ProjectileSource shooter=p.getShooter();return shooter instanceof Player player?player:shooter instanceof Tameable tame&&tame.getOwner() instanceof Player owner?owner:null;}
+if(entity instanceof TNTPrimed t&&t.getSource() instanceof Player p)return p;
+if(entity instanceof AreaEffectCloud cloud&&cloud.getSource() instanceof Player p)return p;
+if(entity instanceof Tameable t&&t.getOwner() instanceof Player p)return p;
+return null;
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
-public void interactEntity(PlayerInteractEntityEvent e){
-Claim c=at(e.getRightClicked().getLocation());
-if(c!=null&&!canUse(e.getPlayer(),c))e.setCancelled(true);
-}
+public void splash(PotionSplashEvent e){Player shooter=attacker(e.getEntity());if(shooter==null)return;for(LivingEntity entity:e.getAffectedEntities())if(entity instanceof Player victim&&friendlyDamageBlocked(shooter,victim))e.setIntensity(entity,0);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
-public void entityDamage(EntityDamageByEntityEvent e){
-Claim c=at(e.getEntity().getLocation());if(c==null)return;
-Player p=null;
-if(e.getDamager() instanceof Player a)p=a;
-if(e.getDamager() instanceof Projectile shot&&shot.getShooter() instanceof Player a)p=a;
-if(p==null)return;
-if(e.getEntity() instanceof Player){if(!c.pvp)e.setCancelled(true);}
-else if(!canBuild(p,c))e.setCancelled(true);
-}
+public void lingering(AreaEffectCloudApplyEvent e){Player shooter=attacker(e.getEntity());if(shooter==null)return;e.getAffectedEntities().removeIf(entity->entity instanceof Player victim&&friendlyDamageBlocked(shooter,victim));}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
-public void hangingPlace(HangingPlaceEvent e){
-Claim c=at(e.getEntity().getLocation());
-if(c!=null&&(e.getPlayer()==null||!canBuild(e.getPlayer(),c)))e.setCancelled(true);
-}
+public void hangingPlace(HangingPlaceEvent e){Claim c=claimAt(e.getEntity().getLocation());if(c!=null&&(e.getPlayer()==null||!canBuild(e.getPlayer(),c)))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
-public void hangingBreak(HangingBreakByEntityEvent e){
-Claim c=at(e.getEntity().getLocation());
-if(c!=null&&e.getRemover() instanceof Player p&&!canBuild(p,c))e.setCancelled(true);
-}
+public void hangingBreak(HangingBreakByEntityEvent e){Claim c=claimAt(e.getEntity().getLocation());if(c!=null&&e.getRemover() instanceof Player p&&!canBuild(p,c))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
-public void multiblock(BlockMultiPlaceEvent e){
-for(var s:e.getReplacedBlockStates()){
-Claim c=at(s.getLocation());
-if(c!=null&&!canBuild(e.getPlayer(),c)){e.setCancelled(true);return;}
-}
-}
+public void multiPlace(BlockMultiPlaceEvent e){for(var state:e.getReplacedBlockStates()){Claim c=claimAt(state.getLocation());if(c!=null&&!canBuild(e.getPlayer(),c)){e.setCancelled(true);return;}}}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
-public void explode(EntityExplodeEvent e){exploded(e.blockList());}
+public void blockExplosion(BlockExplodeEvent e){handleExplosion(e.blockList());}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
-public void blockExplode(BlockExplodeEvent e){exploded(e.blockList());}
-private void exploded(List<Block> blocks){
-List<Claim> destroyed=new ArrayList<>();
-blocks.removeIf(b->{Claim c=core(b);if(c==null)return false;destroyed.add(c);return true;});
-if(destroyed.isEmpty())return;
-Bukkit.getScheduler().runTask(this,()->{
-for(Claim c:destroyed)remove(c);
-});
+public void entityExplosion(EntityExplodeEvent e){handleExplosion(e.blockList());}
+private void handleExplosion(List<Block> broken){
+List<Claim> cores=new ArrayList<>();
+broken.removeIf(b->{Claim c=claimCore(b);if(c==null)return false;cores.add(c);return true;});
+if(!cores.isEmpty())Bukkit.getScheduler().runTask(this,()->{for(Claim c:cores)removeClaim(c);});
 }
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)
-public void piston(BlockPistonExtendEvent e){pistonMoved(e.getBlocks());}
+public void pistonExtend(BlockPistonExtendEvent e){handlePiston(e.getBlocks(),e.getDirection());}
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)
-public void pistonRetract(BlockPistonRetractEvent e){pistonMoved(e.getBlocks());}
-private void pistonMoved(List<Block> blocks){
-List<Claim> moved=new ArrayList<>();
-for(Block b:blocks){Claim c=core(b);if(c!=null)moved.add(c);}
+public void pistonRetract(BlockPistonRetractEvent e){handlePiston(e.getBlocks(),e.getDirection());}
+private void handlePiston(List<Block> blocks,org.bukkit.block.BlockFace dir){
+List<Claim> moved=new ArrayList<>();for(Block b:blocks){Claim c=claimCore(b);if(c!=null)moved.add(c);}
 if(moved.isEmpty())return;
-Bukkit.getScheduler().runTask(this,()->{
-for(Claim c:moved){
-World w=Bukkit.getWorld(c.world);if(w!=null&&w.getBlockAt(c.x,c.y,c.z).getType()!=Material.TARGET){
-claims.remove(c.owner,c);save();
+Bukkit.getScheduler().runTask(this,()->{for(Claim c:moved){World w=Bukkit.getWorld(c.world);if(w==null)continue;
+Block original=w.getBlockAt(c.x,c.y,c.z);
+if(original.getType()!=Material.TARGET){removeClaim(c);Block destination=w.getBlockAt(c.x+dir.getModX(),c.y+dir.getModY(),c.z+dir.getModZ());if(destination.getType()==Material.TARGET)destination.setType(Material.AIR,false);}
+}});
 }
-}
-});
-}
-private ItemStack item(Material mat,String name,String... lore){
-ItemStack i=new ItemStack(mat);ItemMeta m=i.getItemMeta();
-m.setDisplayName(name);m.setLore(Arrays.asList(lore));i.setItemMeta(m);return i;
-}
-private void menu(Player p,Claim c,boolean confirm){
-Menu holder=new Menu(c.owner,confirm);
-Inventory inv=Bukkit.createInventory(holder,27,confirm?"§cУдалить приват?":"§5Приват | "+c.name);
-holder.inv=inv;
-if(confirm){
-inv.setItem(11,item(Material.LIME_CONCRETE,"§aПодтвердить удаление"));
-inv.setItem(15,item(Material.RED_CONCRETE,"§cНазад"));
-}else{
-inv.setItem(10,item(Material.MAP,"§dТерритория","§7Уровень: "+c.level+"/4","§7Размер: "+SIZE[c.level]+"×"+SIZE[c.level]));
-if(c.level<4)inv.setItem(12,item(Material.EMERALD,"§aУлучшить","§7Следующая: "+SIZE[c.level+1]+"×"+SIZE[c.level+1],"§7Цена: "+AMOUNT[c.level]+" × "+COST[c.level]));
-inv.setItem(14,item(c.teamUse?Material.LIME_DYE:Material.GRAY_DYE,"§bДоступ союзников: "+(c.teamUse?"§aДа":"§cНет")));
-inv.setItem(16,item(c.teamBuild?Material.IRON_PICKAXE:Material.BARRIER,"§bСтроительство союзников: "+(c.teamBuild?"§aДа":"§cНет")));
-inv.setItem(18,item(Material.BARRIER,"§cУдалить приват"));
-inv.setItem(22,item(Material.COMPASS,"§eГраницы"));
-inv.setItem(24,item(Material.DIAMOND_SWORD,"§bPvP: "+(c.pvp?"§aДа":"§cНет")));
-}
-p.openInventory(inv);
-}
-@EventHandler public void click(InventoryClickEvent e){
-if(!(e.getView().getTopInventory().getHolder() instanceof Menu m))return;
-e.setCancelled(true);
-if(!(e.getWhoClicked() instanceof Player p))return;
-int slot=e.getRawSlot();if(slot<0||slot>=27)return;
-Bukkit.getScheduler().runTask(this,()->{
-if(!p.isOnline()||p.getOpenInventory().getTopInventory().getHolder()!=m)return;
-Claim c=claims.get(m.owner);if(c==null){p.closeInventory();return;}
-if(m.confirm){
-if(slot==11&&p.getUniqueId().equals(c.owner)){remove(c);p.closeInventory();p.sendMessage("§aПриват удалён.");}
-else if(slot==15)menu(p,c,false);
-return;
-}
-if(slot==22){border(p,c);return;}
-if(!p.getUniqueId().equals(c.owner)){p.sendMessage("§cНастройки доступны владельцу.");return;}
-switch(slot){
-case 12 -> upgrade(p,c);
-case 14 -> {c.teamUse=!c.teamUse;save();menu(p,c,false);}
-case 16 -> {c.teamBuild=!c.teamBuild;save();menu(p,c,false);}
-case 18 -> menu(p,c,true);
-case 24 -> {c.pvp=!c.pvp;save();menu(p,c,false);}
-default -> {}
-}
-});
-}
-@EventHandler public void drag(InventoryDragEvent e){
-if(!(e.getView().getTopInventory().getHolder() instanceof Menu))return;
-for(int slot:e.getRawSlots())if(slot<e.getView().getTopInventory().getSize()){e.setCancelled(true);return;}
-}
+
 private void upgrade(Player p,Claim c){
-if(c.level>=4)return;
-Material type=COST[c.level];int amount=AMOUNT[c.level],count=0;
-for(ItemStack stack:p.getInventory().getStorageContents())if(stack!=null&&stack.getType()==type)count+=stack.getAmount();
-if(count<amount){p.sendMessage("§cНедостаточно ресурсов: "+amount+" × "+type);return;}
+if(!p.getUniqueId().equals(c.owner)){tell(p,"§cТолько владелец может улучшать приват.");return;}
+if(c.level>=4){tell(p,"§aПриват уже максимального уровня.");return;}
+Material type=COST[c.level];int count=AMOUNT[c.level];ItemStack held=p.getInventory().getItemInMainHand();
+if(held.getType()!=type||held.getAmount()<count){tell(p,"§eДержи в основной руке §f"+count+" × "+russian(type)+"§e одним стаком и повтори.");return;}
 c.level++;
-if(overlap(c)){c.level--;p.sendMessage("§cРасширение пересекает чужой приват.");return;}
-ItemStack[] stacks=p.getInventory().getStorageContents();
-for(int n=0;n<stacks.length&&amount>0;n++){
-ItemStack stack=stacks[n];if(stack==null||stack.getType()!=type)continue;
-int take=Math.min(stack.getAmount(),amount);amount-=take;
-stack.setAmount(stack.getAmount()-take);if(stack.getAmount()<=0)stacks[n]=null;
+if(c.minY()<p.getWorld().getMinHeight()||c.maxY()>=p.getWorld().getMaxHeight()||overlap(c)){
+c.level--;tell(p,"§cНельзя расширить: пересечение с другой территорией или выход за границы мира.");return;}
+held.setAmount(held.getAmount()-count);saveAll();refreshDisplay(c);showUpgradeEffects(c);
+tell(p,"§aУлучшено до уровня "+c.level+" §7(§f"+SIZE[c.level]+"×"+HEIGHT[c.level]+"×"+SIZE[c.level]+"§7)");
 }
-p.getInventory().setStorageContents(stacks);save();
-p.sendMessage("§aПриват улучшен до "+SIZE[c.level]+"×"+SIZE[c.level]);
-menu(p,c,false);
-}
-private void remove(Claim c){
+private String russian(Material material){return switch(material){case AMETHYST_SHARD->"аметистовых осколков";case NETHERITE_SCRAP->"незеритового лома";case DRAGON_EGG->"яйцо дракона";default->material.name();};}
+private void removeClaim(Claim c){
 if(!claims.remove(c.owner,c))return;
 World w=Bukkit.getWorld(c.world);
-if(w!=null){Block b=w.getBlockAt(c.x,c.y,c.z);if(b.getType()==Material.TARGET)b.setType(Material.AIR,false);}
-save();
+if(w!=null){Block b=w.getBlockAt(c.x,c.y,c.z);if(b.getType()==Material.TARGET)b.setType(Material.AIR,false);
+for(Entity entity:w.getNearbyEntities(new Location(w,c.x+.5,c.y+1.7,c.z+.5),2,3,2))if(entity instanceof TextDisplay&&c.owner.toString().equals(entity.getPersistentDataContainer().get(displayKey,PersistentDataType.STRING)))entity.remove();}
+saveAll();
 }
-private void border(Player p,Claim c){
-World w=Bukkit.getWorld(c.world);
-if(w==null||!p.getWorld().equals(w)){p.sendMessage("§cНужно быть в мире привата.");return;}
-double y=p.getLocation().getY()+1.5;
-for(int i=0;i<=48;i++){
-double t=i/48.0,x=c.minX()+.5+t*(SIZE[c.level]-1),z=c.minZ()+.5+t*(SIZE[c.level]-1);
-p.spawnParticle(Particle.END_ROD,x,y,c.minZ()+.5,1,0,0,0,0);
-p.spawnParticle(Particle.END_ROD,x,y,c.maxZ()+.5,1,0,0,0,0);
-p.spawnParticle(Particle.END_ROD,c.minX()+.5,y,z,1,0,0,0,0);
-p.spawnParticle(Particle.END_ROD,c.maxX()+.5,y,z,1,0,0,0,0);
+
+private void ensureDisplay(Claim c){
+World w=Bukkit.getWorld(c.world);if(w==null||!w.isChunkLoaded(c.x>>4,c.z>>4))return;
+if(w.getBlockAt(c.x,c.y,c.z).getType()!=Material.TARGET)return;
+Location position=new Location(w,c.x+.5,c.y+1.55,c.z+.5);
+for(Entity entity:w.getNearbyEntities(position,2,3,2))if(entity instanceof TextDisplay text&&c.owner.toString().equals(entity.getPersistentDataContainer().get(displayKey,PersistentDataType.STRING))){setDisplayText(text,c);return;}
+TextDisplay entity=w.spawn(position,TextDisplay.class,text->{
+text.setBillboard(Display.Billboard.CENTER);text.setShadowed(true);text.setSeeThrough(false);
+text.setBackgroundColor(Color.fromARGB(145,20,13,35));text.setLineWidth(180);text.setPersistent(true);
+text.getPersistentDataContainer().set(displayKey,PersistentDataType.STRING,c.owner.toString());
+});
+setDisplayText(entity,c);
 }
+private void setDisplayText(TextDisplay display,Claim c){
+display.setText("§d§l✦ ПРИВАТ ✦\n§f"+c.ownerName+"\n§dУровень §f"+c.level+"§8/§f4  §7•  §f"+SIZE[c.level]+"×"+HEIGHT[c.level]+"×"+SIZE[c.level]+"\n§7ПКМ — управление");
+}
+private void refreshDisplay(Claim c){ensureDisplay(c);}
+@EventHandler public void chunkLoad(ChunkLoadEvent e){Bukkit.getScheduler().runTask(this,()->cleanupDisplays(e.getChunk()));}
+private void cleanupDisplays(Chunk ch){
+for(Entity e:ch.getEntities())if(e instanceof TextDisplay text){String marker=text.getPersistentDataContainer().get(displayKey,PersistentDataType.STRING);
+if(marker==null)continue;
+try{Claim c=claims.get(UUID.fromString(marker));if(c==null||!c.world.equals(e.getWorld().getUID())||e.getLocation().distanceSquared(new Location(e.getWorld(),c.x+.5,c.y+1.55,c.z+.5))>4)text.remove();else setDisplayText(text,c);}catch(Exception ignored){text.remove();}
+}
+}
+private void visualTick(){
+for(Player p:Bukkit.getOnlinePlayers()){
+Viewer view=viewer(p);
+for(Claim c:claims.values()){
+if(!c.world.equals(p.getWorld().getUID()))continue;
+double dx=p.getLocation().getX()-(c.x+.5),dz=p.getLocation().getZ()-(c.z+.5);
+if(Math.abs(dx)>SIZE[c.level]/2.+100||Math.abs(dz)>SIZE[c.level]/2.+100||Math.abs(p.getLocation().getY()-c.y)>HEIGHT[c.level]/2.+100)continue;
+ensureDisplay(c);
+if(!view.borders)continue;
+if(!p.getUniqueId().equals(c.owner)&&!(c.teamBorders&&allies(p.getUniqueId(),c.owner)))continue;
+particleBorder(p,c,view);
+}
+}
+}
+private Viewer viewer(Player p){return viewers.computeIfAbsent(p.getUniqueId(),id->new Viewer());}
+private Color dustColor(Viewer v){return switch(v.color){case 1->Color.fromRGB(57,198,232);case 2->Color.fromRGB(78,222,143);case 3->Color.fromRGB(247,181,73);default->Color.fromRGB(170,110,242);};}
+private void sendParticle(Player p,Viewer v,double x,double y,double z,int index){
+if(v.mode==0)p.spawnParticle(Particle.END_ROD,x,y,z,1,0,0,0,0);
+else{
+p.spawnParticle(Particle.DUST,x,y,z,1,0,0,0,new Particle.DustOptions(dustColor(v),1.05f));
+if(index%11==0)p.spawnParticle(v.mode==2?Particle.PORTAL:Particle.ENCHANT,x,y,z,1,0,0,0,0.02);
+}
+}
+private void particleBorder(Player p,Claim c,Viewer v){
+double minX=c.minX()+.5,maxX=c.maxX()+.5,minZ=c.minZ()+.5,maxZ=c.maxZ()+.5;
+double lower=c.minY()+.5,upper=c.maxY()+.5,eye=Math.max(lower,Math.min(upper,p.getLocation().getY()));
+int steps=Math.min(48,Math.max(8,SIZE[c.level]/3));
+for(int i=0;i<=steps;i++){
+double t=i/(double)steps,xx=minX+(maxX-minX)*t,zz=minZ+(maxZ-minZ)*t;
+sendParticle(p,v,xx,eye,minZ,i);sendParticle(p,v,xx,eye,maxZ,i+4);sendParticle(p,v,minX,eye,zz,i+8);sendParticle(p,v,maxX,eye,zz,i+12);
+}
+for(int i=0;i<=18;i++){
+double yy=lower+(upper-lower)*i/18.0;
+sendParticle(p,v,minX,yy,minZ,i);sendParticle(p,v,minX,yy,maxZ,i);sendParticle(p,v,maxX,yy,minZ,i);sendParticle(p,v,maxX,yy,maxZ,i);
+}
+}
+private void showUpgradeEffects(Claim c){World w=Bukkit.getWorld(c.world);if(w==null)return;
+Location at=new Location(w,c.x+.5,c.y+1.15,c.z+.5);
+w.spawnParticle(c.level==4?Particle.DRAGON_BREATH:Particle.ENCHANT,at,55,1.2,1.2,1.2,0.15);
+w.playSound(at,Sound.BLOCK_AMETHYST_BLOCK_CHIME,1.0f,1.3f);
+}
+
+private ActionButton action(String caption,String description,String command,NamedTextColor color){
+return ActionButton.create(Component.text(caption,color),Component.text(description),190,DialogAction.customClick(Key.key("targetclaim:"+command),null));
+}
+private DialogBody message(String s){return DialogBody.plainMessage(Component.text(s));}
+private void dialog(Player player,String heading,List<DialogBody> body,List<ActionButton> buttons){
+Dialog d=Dialog.create(b->b.empty().base(DialogBase.builder(Component.text(heading,NamedTextColor.LIGHT_PURPLE)).body(body).canCloseWithEscape(true).build()).type(DialogType.multiAction(buttons)));
+player.showDialog(d);
+}
+private Claim viewedClaim(Player p){UUID id=openedClaim.get(p.getUniqueId());return id==null?claims.get(p.getUniqueId()):claims.get(id);}
+private void showClaimDialog(Player player,Claim c){
+if(!owner(player,c)&&!allies(player.getUniqueId(),c.owner)){tell(player,"§cЧужой приват.");return;}
+openedClaim.put(player.getUniqueId(),c.owner);
+boolean isOwner=player.getUniqueId().equals(c.owner);
+List<DialogBody> body=List.of(message("✦ Владелец: "+c.ownerName),message("Уровень "+c.level+"/4  •  "+SIZE[c.level]+" × "+HEIGHT[c.level]+" × "+SIZE[c.level]+" блоков"),message("Строительство союзникам: "+(c.teamBuild?"ВКЛ":"ВЫКЛ")+"  •  PvP: "+(c.pvp?"ВКЛ":"ВЫКЛ")));
+List<ActionButton> buttons=new ArrayList<>();
+if(isOwner&&c.level<4)buttons.add(action("✧ Улучшить","Держи "+AMOUNT[c.level]+" × "+russian(COST[c.level])+" в основной руке","claim_upgrade",NamedTextColor.GREEN));
+buttons.add(action("◈ Границы","Включить/выключить или выбрать частицы","claim_border",NamedTextColor.AQUA));
+if(isOwner){
+buttons.add(action("☑ Доступ союзникам: "+on(c.teamUse),"Использование дверей, сундуков и механизмов","claim_use",NamedTextColor.YELLOW));
+buttons.add(action("⚒ Строительство: "+on(c.teamBuild),"Разрешение ставить и ломать блоки","claim_build",NamedTextColor.YELLOW));
+buttons.add(action("⚔ PvP на территории: "+on(c.pvp),"Выключено — игроки не наносят друг другу урон","claim_pvp",NamedTextColor.RED));
+buttons.add(action("✦ Границы союзникам: "+on(c.teamBorders),"Показ границ участникам твоей команды","claim_teamborders",NamedTextColor.AQUA));
+buttons.add(action("✖ Удалить приват","Без возврата мишени и ресурсов","claim_remove",NamedTextColor.RED));
+}
+buttons.add(action("♜ Моя команда","Приглашения, цвет, PvP участников","team_open",NamedTextColor.LIGHT_PURPLE));
+dialog(player,"✦ TARGETCLAIM • УПРАВЛЕНИЕ",body,buttons);
+}
+private String on(boolean value){return value?"ВКЛ":"ВЫКЛ";}
+private void showBorderDialog(Player player,Claim c){Viewer v=viewer(player);
+List<DialogBody> body=List.of(message("Границы объёмные: линии по сторонам + светящиеся углы"),message("Сейчас: "+on(v.borders)+"  •  "+new String[]{"Минимальные","Магические","Насыщенные"}[v.mode]),message("Цвет: "+new String[]{"Фиолетовый","Голубой","Зелёный","Золотой"}[v.color]));
+dialog(player,"✧ ВИЗУАЛИЗАЦИЯ ГРАНИЦ",body,List.of(
+action("Границы: "+on(v.borders),"Показывать постоянно неподалёку от привата","border_toggle",NamedTextColor.GREEN),
+action("Эффект: следующий","END_ROD / DUST + ENCHANT / DUST + PORTAL","border_mode",NamedTextColor.LIGHT_PURPLE),
+action("Цвет: следующий","Четыре варианта цвета светящихся линий","border_color",NamedTextColor.AQUA),
+action("← Назад","Вернуться к настройкам привата","claim_open",NamedTextColor.GRAY)));
+}
+private void showRemoveDialog(Player player,Claim c){
+if(!player.getUniqueId().equals(c.owner)){tell(player,"§cТолько владелец может удалить приват.");return;}
+dialog(player,"УДАЛЕНИЕ ПРИВАТА",List.of(message("Внимание! Мишень исчезнет навсегда. Ресурсы и улучшения не возвращаются.")),List.of(action("Удалить навсегда","Подтвердить уничтожение","claim_delete_confirm",NamedTextColor.RED),action("Отмена","Вернуться в меню","claim_open",NamedTextColor.GREEN)));
+}
+private void showTeamDialog(Player player){
+Group g=groupOf(player.getUniqueId());List<DialogBody> body=new ArrayList<>();List<ActionButton> actions=new ArrayList<>();
+if(g==null){
+body.add(message("Ты пока не состоишь в команде. Максимум 3 человека, цвет выдаётся случайно."));
+body.add(message("Создание: /team create Название  •  Принятие приглашения: /team accept"));
+actions.add(action("Принять приглашение","Подтвердить последнее приглашение","team_accept",NamedTextColor.GREEN));
+}else{
+body.add(message("Команда: "+g.name+"  •  Цвет: "+g.color.name()+"  •  "+g.members.size()+"/3"));
+for(UUID id:g.members){String name=Bukkit.getOfflinePlayer(id).getName();body.add(message((id.equals(g.leader)?"★ ":"• ")+(name==null?id:name)+" — PvP "+on(g.pvpOn.contains(id))));}
+body.add(message("PvP между союзниками сработает, только если ОБА игрока разрешили урон."));
+actions.add(action("⚔ Мой PvP: "+on(g.pvpOn.contains(player.getUniqueId())),"Переключить PvP лично для себя","team_pvp",NamedTextColor.RED));
+if(g.leader.equals(player.getUniqueId()))body.add(message("Пригласить: /team invite Ник  •  Исключить: /team kick Ник  •  Удалить: /team disband"));
+actions.add(action("Выйти из команды","Если ты лидер, назначится следующий участник","team_leave",NamedTextColor.YELLOW));
+}
+actions.add(action("← Вернуться","К настройкам привата","claim_open",NamedTextColor.GRAY));
+dialog(player,"♜ КОМАНДА",body,actions);
+}
+@EventHandler public void dialogAction(PlayerCustomClickEvent e){
+if(!e.getIdentifier().namespace().equals("targetclaim"))return;
+if(!(e.getCommonConnection() instanceof PlayerGameConnection game))return;
+Player p=game.getPlayer();String action=e.getIdentifier().value();
+Bukkit.getScheduler().runTask(this,()->handleDialogAction(p,action));
+}
+private void handleDialogAction(Player p,String a){
+if(!p.isOnline())return;
+if(a.equals("team_open")){showTeamDialog(p);return;}
+if(a.equals("team_accept")){teamCommand(p,new String[]{"accept"});showTeamDialog(p);return;}
+if(a.equals("team_leave")){teamCommand(p,new String[]{"leave"});return;}
+if(a.equals("team_pvp")){teamCommand(p,new String[]{"pvp"});showTeamDialog(p);return;}
+Claim c=viewedClaim(p);if(c==null){tell(p,"§cПриват не найден.");return;}
+if(!p.getUniqueId().equals(c.owner)&&!allies(p.getUniqueId(),c.owner)){tell(p,"§cДоступ запрещён.");return;}
+if(a.equals("claim_open")){showClaimDialog(p,c);return;}
+if(a.equals("claim_border")){showBorderDialog(p,c);return;}
+if(a.startsWith("border_")){
+Viewer v=viewer(p);
+switch(a){case "border_toggle"->v.borders=!v.borders;case "border_mode"->v.mode=(v.mode+1)%3;case "border_color"->v.color=(v.color+1)%4;default->{};}
+saveAll();showBorderDialog(p,c);return;
+}
+if(!p.getUniqueId().equals(c.owner)){tell(p,"§cТолько владелец изменяет настройки.");return;}
+switch(a){
+case "claim_upgrade"->{upgrade(p,c);showClaimDialog(p,c);return;}
+case "claim_use"->c.teamUse=!c.teamUse;
+case "claim_build"->c.teamBuild=!c.teamBuild;
+case "claim_pvp"->c.pvp=!c.pvp;
+case "claim_teamborders"->c.teamBorders=!c.teamBorders;
+case "claim_remove"->{showRemoveDialog(p,c);return;}
+case "claim_delete_confirm"->{removeClaim(c);p.closeDialog();tell(p,"§aПриват удалён без возврата мишени.");return;}
+default->{return;}
+}
+saveAll();showClaimDialog(p,c);
 }
 }
