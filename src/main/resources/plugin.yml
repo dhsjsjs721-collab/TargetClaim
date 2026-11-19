@@ -1,5 +1,5 @@
 name: TargetClaim
-version: 1.3.0
+version: 1.4.0
 main: dev.targetclaim.TargetClaimPlugin
 api-version: '26.3'
 author: TargetClaim
