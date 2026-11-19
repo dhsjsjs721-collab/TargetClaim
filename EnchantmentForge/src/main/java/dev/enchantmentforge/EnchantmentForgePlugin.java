@@ -35,7 +35,7 @@ import java.util.Map;
 public final class EnchantmentForgePlugin extends JavaPlugin implements Listener, CommandExecutor, TabCompleter {
 private enum Enchant {
 SOULBOUND("soulbound", "§bНеутрачиваемость I", "Сохраняется при смерти", "soulbound-anvil-cost", 8),
-TRIPLE_SHOT("triple_shot", "§6Тройная стрела I", "Выпускает 3 стрелы по горизонтали", "triple-shot-anvil-cost", 6);
+TRIPLE_SHOT("triple_shot", "§6Тройная стрела I", "1–3 стрелы в зависимости от натяжения", "triple-shot-anvil-cost", 6);
 final String id;
 final String title;
 final String description;
@@ -163,20 +163,38 @@ if (!(event.getEntity() instanceof Player player)) return;
 if (!has(event.getBow(),Enchant.TRIPLE_SHOT)) return;
 if (!(event.getProjectile() instanceof AbstractArrow original)) return;
 if (event.getBow().getType()!=Material.BOW) return;
-Vector velocity=original.getVelocity();
+
+// Minecraft reports bow draw strength between 0 and 1.
+double medium=Math.max(0.01,Math.min(0.99,getConfig().getDouble("triple-shot-medium-force",0.50)));
+double full=Math.max(medium,Math.min(1.0,getConfig().getDouble("triple-shot-full-force",0.90)));
+double force=event.getForce();
+int count=force>=full?3:force>=medium?2:1;
+if (count==1) return;
+
+Vector velocity=original.getVelocity().clone();
 if (velocity.lengthSquared()<0.0001) return;
 double spread=Math.max(0,Math.min(35,getConfig().getDouble("triple-shot-spread-degrees",10.0)));
 Vector side=new Vector(-velocity.getZ(),0,velocity.getX());
 if (side.lengthSquared()<0.0001) side=new Vector(1,0,0);
 side.normalize().multiply(0.18);
 Location center=original.getLocation();
-for (int sign:new int[]{-1,1}) {
-Location spawn=center.clone().add(side.clone().multiply(sign));
+
+// A medium draw has two symmetrically angled arrows;
+// a full draw preserves the original central arrow and adds one on each side.
+double[] extraAngles;
+if (count==2) {
+original.setVelocity(velocity.clone().rotateAroundY(Math.toRadians(-spread/2.0)));
+extraAngles=new double[]{spread/2.0};
+} else {
+extraAngles=new double[]{-spread,spread};
+}
+for (double angle:extraAngles) {
+Location spawn=center.clone().add(side.clone().multiply(angle<0?-1:1));
 Entity entity=player.getWorld().spawnEntity(spawn,original.getType());
 if (!(entity instanceof AbstractArrow extra)) {entity.remove();continue;}
 extra.setShooter(player);
 extra.setWeapon(event.getBow().clone());
-extra.setVelocity(velocity.clone().rotateAroundY(Math.toRadians(sign*spread)));
+extra.setVelocity(velocity.clone().rotateAroundY(Math.toRadians(angle)));
 extra.setDamage(original.getDamage());
 extra.setCritical(original.isCritical());
 extra.setPierceLevel(original.getPierceLevel());
