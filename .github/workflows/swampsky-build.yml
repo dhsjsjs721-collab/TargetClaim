@@ -1,0 +1,62 @@
+name: Build SwampSky JAR and ResourcePack
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, feature/swampsky-creatures]
+    paths:
+      - "SwampSky/**"
+      - ".github/workflows/swampsky-build.yml"
+  pull_request:
+    paths:
+      - "SwampSky/**"
+      - ".github/workflows/swampsky-build.yml"
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+      - run: gradle -p SwampSky build --no-daemon
+      - run: python3 -m pip install --disable-pip-version-check Pillow
+      - name: Read latest existing pack from main
+        run: |
+          git fetch origin main --depth=1
+          git show FETCH_HEAD:resourcepacks/TalismanForge-2.0.0-ResourcePack.zip > "${RUNNER_TEMP}/talismanforge-base.zip"
+      - run: python3 SwampSky/tools/build_pack.py
+        env:
+          SWAMPSKY_BASE_PACK: ${{ runner.temp }}/talismanforge-base.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SwampSky-Plugin-JAR
+          path: SwampSky/build/libs/SwampSky-1.2.1.jar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SwampSky-ResourcePack
+          path: SwampSky/build/SwampSky-ResourcePack.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TalismanForge-SwampSky-Combined-Pack
+          path: SwampSky/build/TalismanForge-SwampSky-Combined.zip
+
+      - name: Publish JAR and combined pack to GitHub branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/swampsky-creatures'
+        run: |
+          mkdir -p builds resourcepacks
+          cp SwampSky/build/libs/SwampSky-1.2.1.jar builds/SwampSky-1.2.1.jar
+          cp SwampSky/build/TalismanForge-SwampSky-Combined.zip resourcepacks/TalismanForge-SwampSky-Complete.zip
+          sha1sum resourcepacks/TalismanForge-SwampSky-Complete.zip | awk '{print $1}' > resourcepacks/TalismanForge-SwampSky-Complete.sha1
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add builds/SwampSky-1.2.1.jar resourcepacks/TalismanForge-SwampSky-Complete.zip resourcepacks/TalismanForge-SwampSky-Complete.sha1
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish SwampSky 1.2.0 jar and combined resourcepack [skip ci]'
+            git push origin HEAD:feature/swampsky-creatures
+          fi
