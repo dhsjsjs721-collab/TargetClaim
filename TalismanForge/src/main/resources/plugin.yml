@@ -1,11 +1,11 @@
 name: TalismanForge
-version: 2.5.4
+version: 2.5.5
 main: dev.talismanforge.TalismanForgePlugin
 api-version: '26.3'
 author: TalismanForge
 commands:
   talismanforge:
-    description: Custom totems and ritual chests
+    description: Custom talismans and reliquary block
     aliases: [tf, talismans]
     usage: /tf give <player> <type>
 permissions:
