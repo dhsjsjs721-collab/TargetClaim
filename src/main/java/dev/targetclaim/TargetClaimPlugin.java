@@ -1,16 +1,5 @@
 package dev.targetclaim;
 
-import io.papermc.paper.connection.PlayerGameConnection;
-import io.papermc.paper.dialog.Dialog;
-import io.papermc.paper.event.player.PlayerCustomClickEvent;
-import io.papermc.paper.registry.data.dialog.ActionButton;
-import io.papermc.paper.registry.data.dialog.DialogBase;
-import io.papermc.paper.registry.data.dialog.body.DialogBody;
-import io.papermc.paper.registry.data.dialog.action.DialogAction;
-import io.papermc.paper.registry.data.dialog.type.DialogType;
-import net.kyori.adventure.key.Key;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.command.*;
@@ -48,7 +37,6 @@ private final Map<UUID,Group> groups = new LinkedHashMap<>();
 private final Map<UUID,UUID> membership = new HashMap<>();
 private final Map<UUID,Invite> invites = new HashMap<>();
 private final Map<UUID,Viewer> viewers = new HashMap<>();
-private final Map<UUID,UUID> openedClaim = new HashMap<>();
 private final Map<UUID,org.bukkit.scheduler.BukkitTask> pendingDeletion = new HashMap<>();
 private final Random random = new Random();
 private NamespacedKey targetKey,displayKey;
@@ -103,7 +91,7 @@ for(Group g:groups.values())updateScoreboard(g);
 for(World w:Bukkit.getWorlds())for(Chunk ch:w.getLoadedChunks())cleanupDisplays(ch);
 for(Claim c:claims.values())ensureDisplay(c);
 Bukkit.getScheduler().runTaskTimer(this,this::visualTick,15L,15L);
-getLogger().info("TargetClaim 1.4.1: "+claims.size()+" claims, "+groups.size()+" teams");
+getLogger().info("TargetClaim 1.4.2: "+claims.size()+" claims, "+groups.size()+" teams");
 }
 @Override public void onDisable(){saveAll();}
 
@@ -382,7 +370,6 @@ Block b=e.getClickedBlock();if(b==null)return;
 Claim core=claimCore(b);
 if(core!=null&&e.getAction()==Action.RIGHT_CLICK_BLOCK){e.setCancelled(true);
 if(e.getHand()!=EquipmentSlot.HAND)return;
-openedClaim.put(e.getPlayer().getUniqueId(),core.owner);
 if(e.getPlayer().isSneaking()&&e.getPlayer().getUniqueId().equals(core.owner)&&e.getPlayer().getInventory().getItemInMainHand().getType()==COST[Math.min(core.level,3)]&&core.level<4){upgrade(e.getPlayer(),core);return;}
 showClaimDialog(e.getPlayer(),core);return;
 }
@@ -471,7 +458,10 @@ pendingDeletion.remove(c.owner);
 if(claims.get(c.owner)!=c)return;
 removeClaim(c);
 Player online=Bukkit.getPlayer(c.owner);
-if(online!=null)tell(online,"§aПриват удалён. Возвращено §f3 бумаги§a; улучшения не возвращаются.");
+if(online!=null){
+if(online.getOpenInventory().getTopInventory().getHolder() instanceof ClaimMenu)online.closeInventory();
+tell(online,"§aПриват удалён. Возвращено §f3 бумаги§a; улучшения не возвращаются.");
+}
 },200L);
 pendingDeletion.put(c.owner,task);
 tell(p,"§eУдаление запланировано через §c10 секунд§e. Отменить: §f/p cancel");
@@ -589,19 +579,7 @@ w.spawnParticle(c.level==4?Particle.DRAGON_BREATH:Particle.ENCHANT,at,55,1.2,1.2
 w.playSound(at,Sound.BLOCK_AMETHYST_BLOCK_CHIME,1.0f,1.3f);
 }
 
-private ActionButton action(String caption,String description,String command,NamedTextColor color){
-return ActionButton.create(Component.text(caption,color).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD),Component.text(description,NamedTextColor.GRAY),148,DialogAction.customClick(Key.key("targetclaim:"+command),null));
-}
-private DialogBody message(String s){return DialogBody.plainMessage(Component.text(s,NamedTextColor.GRAY));}
-private DialogBody stat(String title,String value,NamedTextColor color){
-return DialogBody.plainMessage(Component.text(title+"   ",color).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD).append(Component.text(value,NamedTextColor.WHITE)));
-}
 private String dimension(int level){return SIZE[level]+" × "+HEIGHT[level]+" × "+SIZE[level];}
-private void dialog(Player player,String heading,List<DialogBody> body,List<ActionButton> buttons){
-Dialog d=Dialog.create(b->b.empty().base(DialogBase.builder(Component.text(heading,NamedTextColor.LIGHT_PURPLE).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD)).body(body).canCloseWithEscape(true).build()).type(DialogType.multiAction(buttons,null,2)));
-player.showDialog(d);
-}
-private Claim viewedClaim(Player p){UUID id=openedClaim.get(p.getUniqueId());return id==null?claims.get(p.getUniqueId()):claims.get(id);}
 private void showClaimDialog(Player player,Claim c){
 if(!owner(player,c)&&!allies(player.getUniqueId(),c.owner)){tell(player,"§cЧужой приват.");return;}
 openClaimMenu(player,c,"main");
@@ -619,35 +597,6 @@ Claim claim=claims.get(player.getUniqueId());
 if(claim!=null)openClaimMenu(player,claim,"pending");
 }
 private void showTeamDialog(Player player){openClaimMenu(player,claims.get(player.getUniqueId()),"team");}
-@EventHandler public void dialogAction(PlayerCustomClickEvent e){
-if(!e.getIdentifier().namespace().equals("targetclaim"))return;
-if(!(e.getCommonConnection() instanceof PlayerGameConnection game))return;
-Player p=game.getPlayer();String action=e.getIdentifier().value();
-Bukkit.getScheduler().runTask(this,()->handleDialogAction(p,action));
-}
-private void handleDialogAction(Player p,String a){
-if(!p.isOnline())return;
-if(a.equals("team_open")){showTeamDialog(p);return;}
-if(a.equals("team_accept")){teamCommand(p,new String[]{"accept"});showTeamDialog(p);return;}
-if(a.equals("team_leave")){teamCommand(p,new String[]{"leave"});return;}
-if(a.equals("team_pvp")){teamCommand(p,new String[]{"pvp"});showTeamDialog(p);return;}
-Claim c=viewedClaim(p);if(c==null){tell(p,"§cПриват не найден.");return;}
-if(!p.getUniqueId().equals(c.owner)&&!allies(p.getUniqueId(),c.owner)){tell(p,"§cДоступ запрещён.");return;}
-if(a.equals("claim_open")){showClaimDialog(p,c);return;}
-if(a.equals("claim_close")){p.closeDialog();return;}
-if(a.equals("claim_border")){Viewer v=viewer(p);v.borders=!v.borders;saveAll();showClaimDialog(p,c);return;}
-if(!p.getUniqueId().equals(c.owner)){tell(p,"§cТолько владелец изменяет настройки.");return;}
-switch(a){
-case "claim_upgrade_menu"->{showUpgradeDialog(p,c);return;}
-case "claim_upgrade"->{upgrade(p,c);showUpgradeDialog(p,c);return;}
-case "claim_build"->c.teamBuild=!c.teamBuild;
-case "claim_remove"->{showRemoveDialog(p,c);return;}
-case "claim_delete_confirm"->{startDeletion(p,c);return;}
-case "claim_delete_cancel"->{cancelDeletion(p,c);return;}
-default->{return;}
-}
-saveAll();showClaimDialog(p,c);
-}
 private final class ClaimMenu implements InventoryHolder {
 final UUID claimId;
 final String page;
