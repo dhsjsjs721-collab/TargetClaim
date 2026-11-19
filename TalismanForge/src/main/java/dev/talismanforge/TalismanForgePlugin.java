@@ -31,7 +31,7 @@ private enum Talisman {
 MAIMING("maiming","§5Талисман Увечья",2),
 WRATH("wrath","§cТалисман Кары",0),
 DEFIANCE("defiance","§bТалисман Противостояния",2),
-LIFE("life","§aТалисман Жизни",2),
+JOKER("joker","§dТалисман Джокера",1),
 POSEIDON("poseidon","§3Талисман Посейдона",1),
 HADES("hades","§4Талисман Аида",1),
 AGES("ages","§6Талисман Веков",3),
@@ -48,7 +48,7 @@ private final Map<String,Pad> pads=new HashMap<>();
 private boolean padsChanged=false;
 private final Map<String,Altar> altars=new HashMap<>();
 private final Map<UUID,UUID> holograms=new HashMap<>();
-private final Map<UUID,Long> cleansed=new HashMap<>();
+
 private final Map<UUID,Talisman> active=new HashMap<>();
 private final Map<UUID,Location> safeLocations=new HashMap<>();
 private final Map<UUID,UUID> thrownEggs=new HashMap<>();
@@ -83,11 +83,20 @@ for(Altar a:altars.values())cleanupLegacyBeacon(a);
 ShapedRecipe r=new ShapedRecipe(new NamespacedKey(this,"ritual_chest"),chestItem());
 r.shape("AAA","ATA","AOA");r.setIngredient('A',Material.AMETHYST_SHARD);r.setIngredient('T',Material.TOTEM_OF_UNDYING);r.setIngredient('O',Material.OBSIDIAN);
 Bukkit.addRecipe(r);
+ShapedRecipe vanillaTotem=new ShapedRecipe(new NamespacedKey(this,"golden_totem"),new ItemStack(Material.TOTEM_OF_UNDYING));
+vanillaTotem.shape("GGG","GEG","GGG");
+vanillaTotem.setIngredient('G',Material.GOLD_BLOCK);
+vanillaTotem.setIngredient('E',Material.EMERALD);
+Bukkit.addRecipe(vanillaTotem);
+ShapelessRecipe craftedTag=new ShapelessRecipe(new NamespacedKey(this,"paper_string_name_tag"),new ItemStack(Material.NAME_TAG));
+craftedTag.addIngredient(Material.PAPER);
+craftedTag.addIngredient(Material.STRING);
+Bukkit.addRecipe(craftedTag);
 PluginCommand c=getCommand("talismanforge");if(c!=null){c.setExecutor(this);c.setTabCompleter(this);}
 Bukkit.getPluginManager().registerEvents(this,this);
 Bukkit.getScheduler().runTaskTimer(this,this::quarterTick,5L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::tick,20L,20L);
-getLogger().info("TalismanForge 2.2.0: "+altars.size()+" ritual chests");
+getLogger().info("TalismanForge 2.3.0: "+altars.size()+" ritual chests");
 }
 @Override public void onDisable(){
 for(UUID id:holograms.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
@@ -110,7 +119,7 @@ switch(t){
 case MAIMING -> {lore.add("§c−0.5 сердца, Голод I");lore.add("§5Удары: Иссушение I, 5 секунд");}
 case WRATH -> {lore.add("§c−2 сердца, без воскрешения");lore.add("§6Сила II, +30% скорость атаки");lore.add("§c+35% прямого урона оружием");}
 case DEFIANCE -> {lore.add("§c−2 сердца, Поглощение II");lore.add("§bЩит невозможно временно отключить");}
-case LIFE -> {lore.add("§a+1 сердце");lore.add("§aСнятие плохих эффектов каждые 30 сек.");}
+case JOKER -> {lore.add("§dОдин шанс: 50% спастись от смерти");lore.add("§7Неудача: талисман исчезнет");lore.add("§aУдача: Скорость II, Сила II, Сопротивление I на 5 минут");lore.add("§5Клыки призывателя атакуют существ рядом");}
 case POSEIDON -> {lore.add("§3Вода / дождь: дыхание, скорость");lore.add("§bСпасение только в воде или под дождём");lore.add("§cСухая смерть: гроза и призрачный дельфин");}
 case HADES -> {lore.add("§c−4 сердца, Поглощение III");lore.add("§7Мобы игнорируют, пока их не тревожат");lore.add("§4Возрождение только рядом с игроками");}
 case AGES -> {lore.add("§eТри спасения, шипы на всех атаках");lore.add("§6Хождение по воде и лаве, защита от огня");}
@@ -120,7 +129,7 @@ m.setLore(lore);
 if(t==Talisman.MAIMING)attribute(m,"maiming_health",Attribute.MAX_HEALTH,-1,AttributeModifier.Operation.ADD_NUMBER);
 if(t==Talisman.WRATH){attribute(m,"wrath_health",Attribute.MAX_HEALTH,-4,AttributeModifier.Operation.ADD_NUMBER);attribute(m,"wrath_attack_speed",Attribute.ATTACK_SPEED,.30,AttributeModifier.Operation.ADD_SCALAR);}
 if(t==Talisman.DEFIANCE)attribute(m,"defiance_health",Attribute.MAX_HEALTH,-4,AttributeModifier.Operation.ADD_NUMBER);
-if(t==Talisman.LIFE)attribute(m,"life_health",Attribute.MAX_HEALTH,2,AttributeModifier.Operation.ADD_NUMBER);
+
 if(t==Talisman.HADES)attribute(m,"hades_health",Attribute.MAX_HEALTH,-8,AttributeModifier.Operation.ADD_NUMBER);
 i.setItemMeta(m);return i;
 }
@@ -409,6 +418,7 @@ default -> {}
 }
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void byEntity(EntityDamageByEntityEvent e){
+if(e.getDamager() instanceof EvokerFangs fangs&&fangs.getOwner()!=null&&fangs.getOwner().getUniqueId().equals(e.getEntity().getUniqueId())){e.setCancelled(true);return;}
 if(e.getEntity() instanceof Player hades&&held(hades)==Talisman.HADES){
 if(e.getDamager() instanceof Fireball fireball&&fireball.getShooter() instanceof Ghast){e.setCancelled(true);return;}
 LivingEntity threat=null;
@@ -460,6 +470,25 @@ fired++;if(fired>=2)break;
 }
 if(fired>0)ghastCooldowns.put(owner.getUniqueId(),now);
 }
+private void jokerFangs(Player owner){
+UUID id=owner.getUniqueId();
+for(int wave=0;wave<3;wave++){
+final int ring=wave;
+Bukkit.getScheduler().runTaskLater(this,()->{
+Player caster=Bukkit.getPlayer(id);
+if(caster==null||caster.isDead())return;
+World world=caster.getWorld();
+Location center=caster.getLocation();
+for(Entity ent:world.getNearbyEntities(center,9,4,9)){
+if(!(ent instanceof LivingEntity target)||target==caster||!target.isValid()||target.isDead()||ent instanceof ArmorStand)continue;
+Location at=target.getLocation().clone();
+world.spawn(at,EvokerFangs.class,fang->{fang.setOwner(caster);fang.setAttackDelay(4+ring*2);});
+}
+world.spawnParticle(Particle.WITCH,center.clone().add(0,.8,0),30,.8,.5,.8,.03);
+world.playSound(center,Sound.ENTITY_EVOKER_CAST_SPELL,1.0f,1.15f);
+},ring*10L);
+}
+}
 private boolean critical(Player p){return p.getFallDistance()>0&&!p.isOnGround()&&!p.isInWater()&&!p.isClimbing()&&!p.hasPotionEffect(PotionEffectType.BLINDNESS);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void hostileTarget(EntityTargetLivingEntityEvent e){
 if(!(e.getTarget() instanceof Player p))return;
@@ -471,7 +500,12 @@ if(held(p)==Talisman.HADES&&e.getEntity() instanceof Monster&&!e.getReason().nam
 if(!(e.getEntity() instanceof Player p))return;
 EquipmentSlot slot=e.getHand();
 if(slot!=EquipmentSlot.OFF_HAND&&slot!=EquipmentSlot.HAND)return;
-ItemStack equippedItem=equipped(p,slot);Talisman t=itemType(equippedItem);if(t==null)return;
+ItemStack equippedItem=equipped(p,slot);Talisman t=itemType(equippedItem);
+if(t==null){
+String oldType=equippedItem!=null&&equippedItem.hasItemMeta()?equippedItem.getItemMeta().getPersistentDataContainer().get(typeKey,PersistentDataType.STRING):null;
+if("life".equals(oldType))e.setCancelled(true);
+return;
+}
 int current=lives(equippedItem);
 boolean can=t.lives>0&&current>0;
 if(t==Talisman.POSEIDON)can&=(p.isInWater()||isRaining(p));
@@ -479,6 +513,16 @@ List<Player> victims=new ArrayList<>();
 if(t==Talisman.HADES){
 for(Player v:p.getWorld().getPlayers())if(v!=p&&v.getLocation().distanceSquared(p.getLocation())<=12*12)victims.add(v);
 can&=!victims.isEmpty();
+}
+if(t==Talisman.JOKER){
+if(random.nextBoolean()){
+can=true;
+}else{
+can=false;
+unequip(p,slot);
+p.sendMessage("§cДжокер проиграл: талисман исчез, спасения нет.");
+p.getWorld().playSound(p.getLocation(),Sound.ENTITY_VILLAGER_NO,1.0f,.7f);
+}
 }
 if(!can){e.setCancelled(true);return;}
 e.setCancelled(false);
@@ -497,7 +541,13 @@ v.getWorld().spawnParticle(Particle.SOUL,v.getLocation().add(0,1,0),20,.5,.5,.5,
 }
 p.setFoodLevel(Math.min(20,p.getFoodLevel()+hunger));
 }
-if(t==Talisman.LIFE)cleanse(p);
+if(t==Talisman.JOKER){
+p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,6000,1,false,true,true));
+p.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH,6000,1,false,true,true));
+p.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE,6000,0,false,true,true));
+jokerFangs(p);
+p.sendMessage("§d§lДЖОКЕР! §aТы выиграл: пять минут усилений и волна клыков.");
+}
 reviveParticles(p.getLocation(),t);
 p.sendMessage("§dТалисман спас тебя! §7Осталось спасений: §e"+(current-1));
 });
@@ -551,13 +601,6 @@ d.getWorld().spawnParticle(Particle.SPLASH,d.getLocation(),4,.3,.3,.3,.02);
 }
 }
 private boolean isRaining(Player p){return p.getWorld().getEnvironment()==World.Environment.NORMAL&&p.getWorld().hasStorm();}
-private void cleanse(Player p){
-for(PotionEffect fx:new ArrayList<>(p.getActivePotionEffects())){
-PotionEffectType t=fx.getType();
-if(t==PotionEffectType.POISON||t==PotionEffectType.WITHER||t==PotionEffectType.WEAKNESS||t==PotionEffectType.SLOWNESS||t==PotionEffectType.MINING_FATIGUE||t==PotionEffectType.HUNGER||t==PotionEffectType.BLINDNESS||t==PotionEffectType.NAUSEA||t==PotionEffectType.DARKNESS||t==PotionEffectType.LEVITATION)p.removePotionEffect(t);
-}
-p.getWorld().spawnParticle(Particle.HAPPY_VILLAGER,p.getLocation().add(0,1,0),16,.4,.5,.4,.02);
-}
 private void refresh(){
 long now=System.currentTimeMillis();
 for(Player p:Bukkit.getOnlinePlayers()){
@@ -574,7 +617,7 @@ switch(t){
 case MAIMING -> p.addPotionEffect(new PotionEffect(PotionEffectType.HUNGER,80,0,true,false,true));
 case WRATH -> p.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH,80,1,true,false,true));
 case DEFIANCE -> {if(!p.hasPotionEffect(PotionEffectType.ABSORPTION))p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION,1_000_000,1,true,false,true));}
-case LIFE -> {Long last=cleansed.get(p.getUniqueId());if(last==null||now-last>=30_000){cleansed.put(p.getUniqueId(),now);cleanse(p);}}
+case JOKER -> {}
 case POSEIDON -> {if(p.isInWater()||isRaining(p)){
 p.addPotionEffect(new PotionEffect(PotionEffectType.WATER_BREATHING,100,0,true,false,true));
 p.addPotionEffect(new PotionEffect(PotionEffectType.DOLPHINS_GRACE,100,0,true,false,true));
@@ -606,11 +649,11 @@ if(pulses%2==0)ambient(a);
 }
 private Talisman roll(){
 double x=random.nextDouble();
-if(x<.27)return Talisman.LIFE;
-if(x<.52)return Talisman.DEFIANCE;
-if(x<.70)return Talisman.WRATH;
-if(x<.83)return Talisman.POSEIDON;
-if(x<.93)return Talisman.HADES;
+if(x<.15)return Talisman.JOKER;
+if(x<.40)return Talisman.DEFIANCE;
+if(x<.65)return Talisman.WRATH;
+if(x<.80)return Talisman.POSEIDON;
+if(x<.92)return Talisman.HADES;
 return Talisman.AGES;
 }
 private void showHologram(Altar a){
@@ -642,7 +685,7 @@ Particle kind=switch(t){
 case MAIMING -> Particle.DRAGON_BREATH;
 case WRATH -> Particle.FLAME;
 case DEFIANCE -> Particle.END_ROD;
-case LIFE -> Particle.TOTEM_OF_UNDYING;
+case JOKER -> Particle.WITCH;
 case POSEIDON -> Particle.SPLASH;
 case HADES -> Particle.SOUL_FIRE_FLAME;
 case AGES -> Particle.ENCHANT;
@@ -654,7 +697,7 @@ w.playSound(loc,Sound.ENTITY_PLAYER_LEVELUP,1,1.3f);
 private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
-sender.sendMessage("§dTalismanForge 2.2 §7| /tf give <ник> <maiming|wrath|defiance|life|poseidon|hades|ages|end|chest>");
+sender.sendMessage("§dTalismanForge 2.3 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|chest>");
 sender.sendMessage("§7Рецепт сундука: 7 аметистов + тотем + обсидиан снизу. Талисманы в любой руке.");return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
@@ -667,10 +710,10 @@ give(p,i);sender.sendMessage("§aВыдано игроку "+p.getName());return
 @Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] args){
 if(args.length==1)return List.of("give");
 if(args.length==2)return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
-if(args.length==3)return List.of("maiming","wrath","defiance","life","poseidon","hades","ages","end","chest");
+if(args.length==3)return List.of("maiming","wrath","defiance","joker","poseidon","hades","ages","end","chest");
 return List.of();
 }
 @EventHandler public void quit(PlayerQuitEvent e){
-UUID id=e.getPlayer().getUniqueId();active.remove(id);cleansed.remove(id);safeLocations.remove(id);ghastCooldowns.remove(id);
+UUID id=e.getPlayer().getUniqueId();active.remove(id);safeLocations.remove(id);ghastCooldowns.remove(id);
 }
 }
