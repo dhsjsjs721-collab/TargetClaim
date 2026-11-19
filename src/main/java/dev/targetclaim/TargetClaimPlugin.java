@@ -38,8 +38,9 @@ private final Map<UUID,UUID> membership = new HashMap<>();
 private final Map<UUID,Invite> invites = new HashMap<>();
 private final Map<UUID,Viewer> viewers = new HashMap<>();
 private final Map<UUID,org.bukkit.scheduler.BukkitTask> pendingDeletion = new HashMap<>();
+private final Map<UUID,Integer> lastKeyUseTick = new HashMap<>();
 private final Random random = new Random();
-private NamespacedKey targetKey,displayKey;
+private NamespacedKey targetKey,displayKey,raidKey;
 private File dataFile;
 
 private static final class Claim {
@@ -73,6 +74,7 @@ boolean borders=true;
 @Override public void onEnable(){
 targetKey=new NamespacedKey(this,"claim_target");
 displayKey=new NamespacedKey(this,"display_owner");
+raidKey=new NamespacedKey(this,"chest_key");
 dataFile=new File(getDataFolder(),"data.yml");getDataFolder().mkdirs();
 loadAll();
 for(Claim claim:claims.values())indexClaim(claim);
@@ -82,6 +84,12 @@ recipe.shape("PPP","AAA","AAA");
 recipe.setIngredient('P',Material.PAPER);
 recipe.setIngredient('A',Material.AMETHYST_SHARD);
 Bukkit.addRecipe(recipe);
+ShapedRecipe keyRecipe=new ShapedRecipe(new NamespacedKey(this,"chest_key_recipe"),specialChestKey());
+keyRecipe.shape(" G "," A "," I ");
+keyRecipe.setIngredient('G',Material.GOLD_INGOT);
+keyRecipe.setIngredient('A',Material.AMETHYST_SHARD);
+keyRecipe.setIngredient('I',Material.IRON_INGOT);
+Bukkit.addRecipe(keyRecipe);
 Objects.requireNonNull(getCommand("p")).setExecutor(this);
 Objects.requireNonNull(getCommand("team")).setExecutor(this);
 Objects.requireNonNull(getCommand("p")).setTabCompleter(this);
@@ -91,7 +99,7 @@ for(Group g:groups.values())updateScoreboard(g);
 for(World w:Bukkit.getWorlds())for(Chunk ch:w.getLoadedChunks())cleanupDisplays(ch);
 for(Claim c:claims.values())ensureDisplay(c);
 Bukkit.getScheduler().runTaskTimer(this,this::visualTick,15L,15L);
-getLogger().info("TargetClaim 1.4.3: "+claims.size()+" claims, "+groups.size()+" teams");
+getLogger().info("TargetClaim 1.5.0: "+claims.size()+" claims, "+groups.size()+" teams");
 }
 @Override public void onDisable(){saveAll();}
 
@@ -102,6 +110,18 @@ meta.setLore(List.of("§7Особая мишень территории","§7Л�
 meta.getPersistentDataContainer().set(targetKey,PersistentDataType.BYTE,(byte)1);item.setItemMeta(meta);return item;
 }
 private boolean isSpecial(ItemStack item){return item!=null&&item.getType()==Material.TARGET&&item.hasItemMeta()&&Byte.valueOf((byte)1).equals(item.getItemMeta().getPersistentDataContainer().get(targetKey,PersistentDataType.BYTE));}
+private ItemStack specialChestKey(){
+ItemStack key=new ItemStack(Material.TRIPWIRE_HOOK,1);
+ItemMeta meta=key.getItemMeta();
+meta.setDisplayName("§6§lКлюч сундука");
+meta.setLore(List.of("§7Одноразовый ключ для сундуков","§7в чужих приватах.","§eПКМ по сундуку: §f1 случайный предмет","§8На одну попытку расходуется один ключ."));
+meta.getPersistentDataContainer().set(raidKey,PersistentDataType.BYTE,(byte)1);
+key.setItemMeta(meta);
+return key;
+}
+private boolean isChestKey(ItemStack item){
+return item!=null&&item.getType()==Material.TRIPWIRE_HOOK&&item.hasItemMeta()&&Byte.valueOf((byte)1).equals(item.getItemMeta().getPersistentDataContainer().get(raidKey,PersistentDataType.BYTE));
+}
 
 private void loadAll(){
 File sourceFile=dataFile.isFile()?dataFile:new File(getDataFolder(),"claims.yml");
@@ -217,6 +237,13 @@ private void tell(CommandSender sender,String message){sender.sendMessage(PREFIX
 
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(command.getName().equalsIgnoreCase("team"))return teamCommand(sender,args);
+if(args.length>0&&args[0].equalsIgnoreCase("givekey")){
+if(!sender.hasPermission("targetclaim.admin")){tell(sender,"§cНет прав.");return true;}
+if(args.length<2){tell(sender,"§e/p givekey <ник>");return true;}
+Player recipient=Bukkit.getPlayerExact(args[1]);if(recipient==null){tell(sender,"§cИгрок не найден.");return true;}
+for(ItemStack rest:recipient.getInventory().addItem(specialChestKey()).values())recipient.getWorld().dropItemNaturally(recipient.getLocation(),rest);
+tell(sender,"§aКлюч выдан игроку "+recipient.getName());return true;
+}
 if(args.length>0&&args[0].equalsIgnoreCase("give")){
 if(!sender.hasPermission("targetclaim.admin")){tell(sender,"§cНет прав.");return true;}
 if(args.length<2){tell(sender,"§e/p give <ник>");return true;}
@@ -246,7 +273,7 @@ default -> showClaimDialog(p,c);
 return true;
 }
 @Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] args){
-if(args.length==1)return starts(cmd.getName().equalsIgnoreCase("p")?List.of("upgrade","border","remove","cancel","info","give"):List.of("create","invite","accept","deny","leave","kick","disband","pvp","info","menu"),args[0]);
+if(args.length==1)return starts(cmd.getName().equalsIgnoreCase("p")?List.of("upgrade","border","remove","cancel","info","give","givekey"):List.of("create","invite","accept","deny","leave","kick","disband","pvp","info","menu"),args[0]);
 if(args.length==2&&cmd.getName().equalsIgnoreCase("team")&&(args[0].equalsIgnoreCase("invite")||args[0].equalsIgnoreCase("kick")))return starts(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(),args[1]);
 if(args.length==2&&args[0].equalsIgnoreCase("pvp"))return starts(List.of("on","off"),args[1]);
 if(args.length==2&&args[0].equalsIgnoreCase("border"))return starts(List.of("on","off"),args[1]);
@@ -377,11 +404,66 @@ if(e.getPlayer().isSneaking()&&e.getPlayer().getUniqueId().equals(core.owner)&&c
 showClaimDialog(e.getPlayer(),core);return;
 }
 Claim c=claimAt(b.getLocation());if(c==null)return;
+if(e.getAction()==Action.RIGHT_CLICK_BLOCK&&e.getHand()==EquipmentSlot.HAND
+&&isChestKey(e.getPlayer().getInventory().getItemInMainHand())
+&&(b.getType()==Material.CHEST||b.getType()==Material.TRAPPED_CHEST)
+&&!canUse(e.getPlayer(),c)){
+e.setCancelled(true);e.setUseInteractedBlock(Event.Result.DENY);e.setUseItemInHand(Event.Result.DENY);
+stealOneFromChest(e.getPlayer(),b,c);
+return;
+}
 if(!canUse(e.getPlayer(),c)){
 if(e.getAction()==Action.RIGHT_CLICK_BLOCK){
 e.setCancelled(true);e.setUseInteractedBlock(Event.Result.DENY);e.setUseItemInHand(Event.Result.DENY);
 }else if(e.getAction()==Action.PHYSICAL)e.setCancelled(true);
 }
+}
+private void stealOneFromChest(Player player,Block b,Claim c){
+if(player.getGameMode()==GameMode.CREATIVE||player.getGameMode()==GameMode.SPECTATOR){
+tell(player,"§cКлюч работает только в выживании или приключении.");return;
+}
+int tick=Bukkit.getCurrentTick();
+if(Objects.equals(lastKeyUseTick.get(player.getUniqueId()),tick))return;
+ItemStack held=player.getInventory().getItemInMainHand();
+if(!isChestKey(held)||held.getAmount()<1||claims.get(c.owner)!=c)return;
+if(!(b.getState() instanceof org.bukkit.block.Chest chest))return;
+Inventory inventory=chest.getInventory();
+if(inventory.getHolder() instanceof org.bukkit.block.DoubleChest doubleChest){
+InventoryHolder left=doubleChest.getLeftSide(),right=doubleChest.getRightSide();
+if(!(left instanceof org.bukkit.block.Chest lc&&right instanceof org.bukkit.block.Chest rc)
+||claimAt(lc.getLocation())!=c||claimAt(rc.getLocation())!=c)
+inventory=chest.getBlockInventory();
+}
+int total=0;
+for(ItemStack item:inventory.getContents())if(item!=null&&item.getType()!=Material.AIR&&item.getAmount()>0)total+=item.getAmount();
+if(total<=0){tell(player,"§7Сундук пуст. Ключ не израсходован.");return;}
+int roll=random.nextInt(total),slot=-1;
+for(int i=0;i<inventory.getSize();i++){
+ItemStack item=inventory.getItem(i);
+if(item==null||item.getType()==Material.AIR||item.getAmount()<=0)continue;
+roll-=item.getAmount();
+if(roll<0){slot=i;break;}
+}
+if(slot<0)return;
+ItemStack original=inventory.getItem(slot);
+if(original==null||original.getAmount()<=0)return;
+ItemStack one=original.clone();one.setAmount(1);
+ItemStack rest=original.clone();rest.setAmount(original.getAmount()-1);
+ItemStack heldBefore=held.clone();
+lastKeyUseTick.put(player.getUniqueId(),tick);
+inventory.setItem(slot,rest.getAmount()==0?null:rest);
+if(heldBefore.getAmount()==1)player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
+else{ItemStack reduced=heldBefore.clone();reduced.setAmount(heldBefore.getAmount()-1);player.getInventory().setItemInMainHand(reduced);}
+try{
+b.getWorld().dropItemNaturally(b.getLocation().add(.5,1.2,.5),one);
+}catch(RuntimeException ex){
+inventory.setItem(slot,original);
+player.getInventory().setItemInMainHand(heldBefore);
+getLogger().warning("Could not drop chest-key loot: "+ex.getMessage());
+tell(player,"§cНе удалось получить предмет. Ключ возвращён.");
+return;
+}
+tell(player,"§aКлюч сработал: §f1 предмет §7из сундука.");
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void preventBlockDamage(BlockDamageEvent e){
