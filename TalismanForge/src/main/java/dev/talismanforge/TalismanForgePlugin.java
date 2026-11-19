@@ -17,6 +17,7 @@ import org.bukkit.event.block.*;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.inventory.*;
 import org.bukkit.event.player.*;
+import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.inventory.*;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
@@ -51,6 +52,7 @@ private final Map<String,Altar> altars=new HashMap<>();
 private final Map<UUID,UUID> holograms=new HashMap<>();
 
 private final Map<UUID,Talisman> active=new HashMap<>();
+private final Set<UUID> trackedDrops=new HashSet<>();
 private final Map<UUID,Location> safeLocations=new HashMap<>();
 private final Map<UUID,UUID> thrownEggs=new HashMap<>();
 private final Map<UUID,Long> ghostDolphins=new HashMap<>();
@@ -98,17 +100,28 @@ craftedTag.addIngredient(Material.STRING);
 Bukkit.addRecipe(craftedTag);
 PluginCommand c=getCommand("talismanforge");if(c!=null){c.setExecutor(this);c.setTabCompleter(this);}
 Bukkit.getPluginManager().registerEvents(this,this);
+for(World world:Bukkit.getWorlds())for(Item item:world.getEntitiesByClass(Item.class))trackTalismanDrop(item);
 hookListener=new GrapplingHookListener(this);
 Bukkit.getPluginManager().registerEvents(hookListener,this);
 Bukkit.getScheduler().runTaskTimer(this,this::quarterTick,5L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::tick,20L,20L);
-getLogger().info("TalismanForge 2.5.3: "+altars.size()+" ritual chests");
+getLogger().info("TalismanForge 2.5.4: "+altars.size()+" ritual chests");
 }
 @Override public void onDisable(){
 if(hookListener!=null)hookListener.shutdown();
 for(UUID id:holograms.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 for(UUID id:ghostDolphins.keySet()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
-holograms.clear();ghostDolphins.clear();saveAltars();
+holograms.clear();ghostDolphins.clear();trackedDrops.clear();
+for(Player p:Bukkit.getOnlinePlayers()){
+Talisman t=active.get(p.getUniqueId());
+if(t==Talisman.MAIMING)p.removePotionEffect(PotionEffectType.HUNGER);
+if(t==Talisman.WRATH)p.removePotionEffect(PotionEffectType.STRENGTH);
+if(t==Talisman.DEFIANCE||t==Talisman.HADES)p.removePotionEffect(PotionEffectType.ABSORPTION);
+if(t==Talisman.POSEIDON){p.removePotionEffect(PotionEffectType.WATER_BREATHING);p.removePotionEffect(PotionEffectType.DOLPHINS_GRACE);p.removePotionEffect(PotionEffectType.SPEED);}
+if(t==Talisman.AGES)p.removePotionEffect(PotionEffectType.FIRE_RESISTANCE);
+if(t==Talisman.END)p.removePotionEffect(PotionEffectType.INVISIBILITY);
+}
+active.clear();saveAltars();
 for(Pad pad:new ArrayList<>(pads.values()))restorePad(pad);
 pads.clear();savePads();
 }
@@ -162,6 +175,39 @@ private Talisman itemType(ItemStack i){
 if(i==null||i.getType()!=Material.TOTEM_OF_UNDYING||!i.hasItemMeta())return null;
 String k=i.getItemMeta().getPersistentDataContainer().get(typeKey,PersistentDataType.STRING);
 return k==null?null:Talisman.parse(k);
+}
+private void trackTalismanDrop(Item item){
+if(itemType(item.getItemStack())!=null)trackedDrops.add(item.getUniqueId());
+}
+@EventHandler(ignoreCancelled=true)public void talismanSpawn(ItemSpawnEvent e){trackTalismanDrop(e.getEntity());}
+@EventHandler public void talismanEntitiesLoaded(EntitiesLoadEvent e){
+for(Entity entity:e.getEntities())if(entity instanceof Item item)trackTalismanDrop(item);
+}
+private void moveDroppedTalismans(){
+Iterator<UUID> iterator=trackedDrops.iterator();
+while(iterator.hasNext()){
+Entity entity=Bukkit.getEntity(iterator.next());
+if(!(entity instanceof Item item)||!item.isValid()){iterator.remove();continue;}
+Talisman type=itemType(item.getItemStack());
+if(type==null){iterator.remove();continue;}
+Vector velocity=item.getVelocity();
+if(type==Talisman.POSEIDON){
+if(item.isInWater()&&velocity.getY()<.12)item.setVelocity(new Vector(velocity.getX(),.12,velocity.getZ()));
+continue;
+}
+if(item.getFireTicks()>0)item.setFireTicks(0);
+if(item.isInLava()){
+if(velocity.getY()<.14)item.setVelocity(new Vector(velocity.getX(),.14,velocity.getZ()));
+}else if(item.isInWater()){
+if(velocity.getY()>-.16)item.setVelocity(new Vector(velocity.getX(),-.16,velocity.getZ()));
+}
+}
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void talismanCombust(EntityCombustEvent e){
+if(e.getEntity() instanceof Item item){
+Talisman t=itemType(item.getItemStack());
+if(t!=null&&t!=Talisman.POSEIDON){e.setCancelled(true);item.setFireTicks(0);}
+}
 }
 private int lives(ItemStack i){
 if(i==null||!i.hasItemMeta())return 0;
@@ -413,6 +459,7 @@ if(e.getPlayer().getWorld().getEnvironment()!=World.Environment.THE_END)return;
 thrownEggs.put(e.getItemDrop().getUniqueId(),e.getPlayer().getUniqueId());
 }
 private void quarterTick(){
+moveDroppedTalismans();
 if(!thrownEggs.isEmpty())for(World w:Bukkit.getWorlds())if(w.getEnvironment()==World.Environment.THE_END){
 for(Item i:w.getEntitiesByClass(Item.class)){
 if(i.getItemStack().getType()!=Material.DRAGON_EGG||i.getLocation().getY()>w.getMinHeight()+6)continue;
@@ -450,7 +497,7 @@ if(p.isOnGround()&&p.getLocation().getBlock().isPassable()&&p.getLocation().subt
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void shield(PlayerShieldDisableEvent e){if(held(e.getPlayer())==Talisman.DEFIANCE)e.setCancelled(true);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void damage(EntityDamageEvent e){
-if(e.getEntity() instanceof Item item&&itemType(item.getItemStack())==Talisman.HADES){
+if(e.getEntity() instanceof Item item&&itemType(item.getItemStack())!=null&&itemType(item.getItemStack())!=Talisman.POSEIDON){
 switch(e.getCause()){
 case FIRE,FIRE_TICK,LAVA,HOT_FLOOR -> {e.setCancelled(true);return;}
 default -> {}
@@ -670,6 +717,16 @@ d.getWorld().spawnParticle(Particle.SPLASH,d.getLocation(),4,.3,.3,.3,.02);
 }
 }
 private boolean isRaining(Player p){return p.getWorld().getEnvironment()==World.Environment.NORMAL&&p.getWorld().hasStorm();}
+private void maintainAbsorption(Player p,int amplifier){
+PotionEffect previous=p.getPotionEffect(PotionEffectType.ABSORPTION);
+if(previous!=null&&previous.getAmplifier()>amplifier)return;
+if(previous!=null&&previous.getAmplifier()==amplifier&&previous.getDuration()>=40&&previous.getDuration()<=200)return;
+double remaining=p.getAbsorptionAmount();
+boolean renewing=previous!=null&&previous.getAmplifier()==amplifier&&previous.getDuration()<=200;
+if(previous!=null)p.removePotionEffect(PotionEffectType.ABSORPTION);
+p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION,100,amplifier,true,false,true));
+if(renewing&&p.getAbsorptionAmount()>remaining)p.setAbsorptionAmount(remaining);
+}
 private void refresh(){
 long now=System.currentTimeMillis();
 for(Player p:Bukkit.getOnlinePlayers()){
@@ -679,20 +736,25 @@ if(old==Talisman.MAIMING)p.removePotionEffect(PotionEffectType.HUNGER);
 if(old==Talisman.WRATH)p.removePotionEffect(PotionEffectType.STRENGTH);
 if(old==Talisman.DEFIANCE||old==Talisman.HADES)p.removePotionEffect(PotionEffectType.ABSORPTION);
 if(old==Talisman.POSEIDON){p.removePotionEffect(PotionEffectType.WATER_BREATHING);p.removePotionEffect(PotionEffectType.DOLPHINS_GRACE);p.removePotionEffect(PotionEffectType.SPEED);}
+if(old==Talisman.AGES)p.removePotionEffect(PotionEffectType.FIRE_RESISTANCE);
 if(old==Talisman.END)p.removePotionEffect(PotionEffectType.INVISIBILITY);
 }
 if(t==null){active.remove(p.getUniqueId());continue;}active.put(p.getUniqueId(),t);
 switch(t){
 case MAIMING -> p.addPotionEffect(new PotionEffect(PotionEffectType.HUNGER,80,0,true,false,true));
 case WRATH -> p.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH,80,1,true,false,true));
-case DEFIANCE -> {if(!p.hasPotionEffect(PotionEffectType.ABSORPTION))p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION,1_000_000,1,true,false,true));}
+case DEFIANCE -> maintainAbsorption(p,1);
 case JOKER -> {}
 case POSEIDON -> {if(p.isInWater()||isRaining(p)){
 p.addPotionEffect(new PotionEffect(PotionEffectType.WATER_BREATHING,100,0,true,false,true));
 p.addPotionEffect(new PotionEffect(PotionEffectType.DOLPHINS_GRACE,100,0,true,false,true));
 p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,100,0,true,false,true));
+}else{
+p.removePotionEffect(PotionEffectType.WATER_BREATHING);
+p.removePotionEffect(PotionEffectType.DOLPHINS_GRACE);
+p.removePotionEffect(PotionEffectType.SPEED);
 }}
-case HADES -> {if(!p.hasPotionEffect(PotionEffectType.ABSORPTION))p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION,1_000_000,2,true,false,true));}
+case HADES -> maintainAbsorption(p,2);
 case AGES -> p.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE,100,0,true,false,true));
 case END -> p.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY,100,0,true,false,true));
 }
@@ -766,7 +828,7 @@ w.playSound(loc,Sound.ENTITY_PLAYER_LEVELUP,1,1.3f);
 private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
-sender.sendMessage("§dTalismanForge 2.5.3 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|chest|hook>");
+sender.sendMessage("§dTalismanForge 2.5.4 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|chest|hook>");
 sender.sendMessage("§7Рецепт сундука: 7 аметистов + тотем + обсидиан снизу. Талисманы в любой руке.");return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
