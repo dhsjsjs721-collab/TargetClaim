@@ -674,32 +674,31 @@ private String on(boolean value){return value?"ВКЛ":"ВЫКЛ";}
 private void showRemoveDialog(Player player,Claim c){
 if(!player.getUniqueId().equals(c.owner)){tell(player,"§cТолько владелец может удалить приват.");return;}
 if(pendingDeletion.containsKey(c.owner)){showPendingDeletionDialog(player);return;}
-dialog(player,"ПОДТВЕРДИТЬ УДАЛЕНИЕ",List.of(message("Приват удалится через 10 секунд после подтверждения."),message("Отмена доступна командой /p cancel."),message("После удаления выпадут только 3 бумаги; улучшения не возвращаются.")),List.of(action("Подтвердить удаление","Запустить отсчёт 10 секунд","claim_delete_confirm",NamedTextColor.RED),action("Отмена","Оставить приват на месте","claim_open",NamedTextColor.GREEN)));
+dialog(player,"УДАЛИТЬ ПРИВАТ?",List.of(message("Через 10 сек. выпадут только 3 бумаги."),message("Отмена: кнопка или /p cancel")),List.of(action("Удалить","Запустить отсчёт","claim_delete_confirm",NamedTextColor.RED),action("Назад","Не удалять","claim_open",NamedTextColor.GRAY)));
 }
 private void showPendingDeletionDialog(Player player){
-dialog(player,"УДАЛЕНИЕ ЗАПЛАНИРОВАНО",List.of(message("Удаление произойдёт через 10 секунд после подтверждения."),message("Нажми кнопку ниже или введи /p cancel, чтобы сохранить приват.")),List.of(action("Отменить удаление","Приват останется на месте","claim_delete_cancel",NamedTextColor.GREEN),action("Закрыть","Отсчёт продолжится","claim_close",NamedTextColor.GRAY)));
+dialog(player,"УДАЛЕНИЕ ЗАПУЩЕНО",List.of(message("10 секунд на отмену • /p cancel")),List.of(action("Отменить","Сохранить приват","claim_delete_cancel",NamedTextColor.GREEN),action("Закрыть","Продолжить отсчёт","claim_close",NamedTextColor.GRAY)));
 }
 private void showTeamDialog(Player player){
-Group g=groupOf(player.getUniqueId());List<DialogBody> body=new ArrayList<>();List<ActionButton> actions=new ArrayList<>();
+Group g=groupOf(player.getUniqueId());
+List<DialogBody> body=new ArrayList<>();
+List<ActionButton> actions=new ArrayList<>();
 if(g==null){
-body.add(stat("КОМАНДА","Пока не создана",NamedTextColor.GRAY));
-body.add(stat("ЛИМИТ","3 игрока, случайный цвет",NamedTextColor.AQUA));
-body.add(message("Создать: /team create Название    |    Принять: /team accept"));
-actions.add(action("ПРИНЯТЬ ПРИГЛАШЕНИЕ","Подтвердить последнее приглашение","team_accept",NamedTextColor.GREEN));
+body.add(message("Нет команды • максимум 3 игрока"));
+body.add(message("Создать: /team create название"));
+actions.add(action("Принять","Приглашение в команду","team_accept",NamedTextColor.GREEN));
 }else{
-body.add(stat("КОМАНДА",g.name,NamedTextColor.LIGHT_PURPLE));
-body.add(stat("СОСТАВ",g.members.size()+" / 3  •  Цвет: "+g.color.name(),NamedTextColor.AQUA));
+body.add(stat("КОМАНДА",g.name+"  •  "+g.members.size()+"/3",NamedTextColor.LIGHT_PURPLE));
 for(UUID id:g.members){
-String name=Bukkit.getOfflinePlayer(id).getName();
-body.add(stat(id.equals(g.leader)?"ЛИДЕР":"УЧАСТНИК",(name==null?id.toString():name)+"  •  PvP "+on(g.pvpOn.contains(id)),id.equals(g.leader)?NamedTextColor.GOLD:NamedTextColor.GRAY));
+String nick=Bukkit.getOfflinePlayer(id).getName();
+body.add(message((id.equals(g.leader)?"Лидер: ":"Игрок: ")+(nick==null?id:nick)+"  ·  PvP "+on(g.pvpOn.contains(id))));
 }
-body.add(message("PvP между союзниками — только по взаимному согласию."));
-actions.add(action("МОЙ PvP   "+on(g.pvpOn.contains(player.getUniqueId())),"Разрешить или запретить бой с союзниками","team_pvp",NamedTextColor.RED));
-if(g.leader.equals(player.getUniqueId()))body.add(message("Пригласить: /team invite Ник  |  Исключить: /team kick Ник  |  /team disband"));
-actions.add(action("ВЫЙТИ ИЗ КОМАНДЫ","Если ты лидер, лидерство перейдёт дальше","team_leave",NamedTextColor.YELLOW));
+actions.add(action("PvP: "+on(g.pvpOn.contains(player.getUniqueId())),"Оба игрока должны включить","team_pvp",NamedTextColor.RED));
+actions.add(action("Выйти","Покинуть команду","team_leave",NamedTextColor.YELLOW));
+if(g.leader.equals(player.getUniqueId()))body.add(message("Пригласить: /team invite ник"));
 }
-actions.add(action("НАЗАД К ПРИВАТУ","Открыть основное меню","claim_open",NamedTextColor.GRAY));
-dialog(player,"TARGETCLAIM  /  КОМАНДА",body,actions);
+actions.add(action("Назад","К привату","claim_open",NamedTextColor.GRAY));
+dialog(player,"КОМАНДА",body,actions);
 }
 @EventHandler public void dialogAction(PlayerCustomClickEvent e){
 if(!e.getIdentifier().namespace().equals("targetclaim"))return;
