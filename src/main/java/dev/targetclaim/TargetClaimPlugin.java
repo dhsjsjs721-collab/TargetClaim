@@ -91,7 +91,7 @@ for(Group g:groups.values())updateScoreboard(g);
 for(World w:Bukkit.getWorlds())for(Chunk ch:w.getLoadedChunks())cleanupDisplays(ch);
 for(Claim c:claims.values())ensureDisplay(c);
 Bukkit.getScheduler().runTaskTimer(this,this::visualTick,15L,15L);
-getLogger().info("TargetClaim 1.4.2: "+claims.size()+" claims, "+groups.size()+" teams");
+getLogger().info("TargetClaim 1.4.3: "+claims.size()+" claims, "+groups.size()+" teams");
 }
 @Override public void onDisable(){saveAll();}
 
@@ -206,7 +206,7 @@ return world!=null&&minY(c,level)>=world.getMinHeight()&&maxY(c,level)<world.get
 private boolean overlap(Claim c){return wouldOverlap(c,c.level);}
 private Group groupOf(UUID player){UUID id=membership.get(player);return id==null?null:groups.get(id);}
 private boolean allies(UUID a,UUID b){if(a.equals(b))return true;UUID x=membership.get(a);return x!=null&&x.equals(membership.get(b));}
-private boolean owner(Player player,Claim c){return player.getUniqueId().equals(c.owner)||player.hasPermission("targetclaim.admin");}
+private boolean owner(Player player,Claim c){return player.getUniqueId().equals(c.owner);}
 private boolean canUse(Player player,Claim c){return canBuild(player,c);}
 private boolean canBuild(Player player,Claim c){return owner(player,c)||(c.teamBuild&&allies(player.getUniqueId(),c.owner));}
 private boolean friendlyDamageBlocked(Player attacker,Player victim){
@@ -374,8 +374,39 @@ if(e.getPlayer().isSneaking()&&e.getPlayer().getUniqueId().equals(core.owner)&&e
 showClaimDialog(e.getPlayer(),core);return;
 }
 Claim c=claimAt(b.getLocation());if(c==null)return;
-if(e.getAction()==Action.RIGHT_CLICK_BLOCK&&!canUse(e.getPlayer(),c))e.setCancelled(true);
-if(e.getAction()==Action.PHYSICAL&&!canUse(e.getPlayer(),c))e.setCancelled(true);
+if(!canUse(e.getPlayer(),c)){
+if(e.getAction()==Action.RIGHT_CLICK_BLOCK){
+e.setCancelled(true);e.setUseInteractedBlock(Event.Result.DENY);e.setUseItemInHand(Event.Result.DENY);
+}else if(e.getAction()==Action.PHYSICAL)e.setCancelled(true);
+}
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void preventBlockDamage(BlockDamageEvent e){
+Claim c=claimAt(e.getBlock().getLocation());
+if(c!=null&&!canBuild(e.getPlayer(),c))e.setCancelled(true);
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void preventBucketEmpty(PlayerBucketEmptyEvent e){
+Block placed=e.getBlockClicked().getRelative(e.getBlockFace());
+Claim c=claimAt(placed.getLocation());
+if(c!=null&&!canBuild(e.getPlayer(),c))e.setCancelled(true);
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void preventBucketFill(PlayerBucketFillEvent e){
+Claim c=claimAt(e.getBlockClicked().getLocation());
+if(c!=null&&!canBuild(e.getPlayer(),c))e.setCancelled(true);
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void preventIgnite(BlockIgniteEvent e){
+Player player=e.getPlayer();
+if(player==null)return;
+Claim c=claimAt(e.getBlock().getLocation());
+if(c!=null&&!canBuild(player,c))e.setCancelled(true);
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void preventArmorStand(PlayerArmorStandManipulateEvent e){
+Claim c=claimAt(e.getRightClicked().getLocation());
+if(c!=null&&!canUse(e.getPlayer(),c))e.setCancelled(true);
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void openInventory(InventoryOpenEvent e){if(!(e.getPlayer() instanceof Player p))return;Location loc=e.getInventory().getLocation();Claim c=claimAt(loc);if(c!=null&&!canUse(p,c))e.setCancelled(true);}
