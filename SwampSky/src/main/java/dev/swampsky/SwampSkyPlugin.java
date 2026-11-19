@@ -3,6 +3,7 @@ package dev.swampsky;
 import org.bukkit.*;
 import org.bukkit.attribute.*;
 import org.bukkit.block.Biome;
+import org.bukkit.block.Block;
 import org.bukkit.command.*;
 import org.bukkit.entity.*;
 import org.bukkit.event.*;
@@ -10,6 +11,7 @@ import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInputEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.world.*;
 import org.bukkit.inventory.*;
 import org.bukkit.inventory.meta.*;
@@ -34,6 +36,9 @@ private NamespacedKey flyingKey, ownerKey, giantKey, itemKey, displayKey;
 private final Set<UUID> wings=new HashSet<>(), frogs=new HashSet<>(), ground=new HashSet<>();
 private final Map<UUID,List<UUID>> displays=new HashMap<>();
 private final Map<UUID,Input> inputCache=new HashMap<>();
+private final Set<UUID> airborne=new HashSet<>();
+private final Map<UUID,Double> fallSpeed=new HashMap<>(),bounceEnergy=new HashMap<>();
+private final Map<UUID,Integer> groundedTicks=new HashMap<>();
 private final Map<UUID,Long> leap=new HashMap<>(),hit=new HashMap<>(),tongue=new HashMap<>(),bounce=new HashMap<>();
 private final Random random=new Random();
 private long tick=0;
@@ -51,6 +56,9 @@ if(c!=null){c.setExecutor(this);c.setTabCompleter(this);}
 recipes();
 for(World w:Bukkit.getWorlds())for(Chunk ch:w.getLoadedChunks())scan(ch);
 Bukkit.getScheduler().runTaskTimer(this,this::step,5L,3L);
+Bukkit.getScheduler().runTaskTimer(this,this::bounceStep,1L,1L);
+Bukkit.getScheduler().runTaskTimer(this,this::populateNearby,120L,160L);
+Bukkit.getScheduler().runTaskTimer(this,this::upgradeOnlineEquipment,40L,100L);
 }
 @Override public void onDisable(){
 for(UUID id:new ArrayList<>(displays.keySet()))pigClear(id);
@@ -85,6 +93,7 @@ if(hp!=null)hp.setBaseValue(getConfig().getDouble("frog-health",60));
 AttributeInstance size=f.getAttribute(Attribute.SCALE);
 if(size!=null)size.setBaseValue(getConfig().getDouble("frog-scale",2.8));
 if(hp!=null)f.setHealth(hp.getValue());
+f.setAI(true);f.setAware(false);
 f.setCustomName(null);f.setCustomNameVisible(false);
 f.setRemoveWhenFarAway(false);
 frogs.add(f.getUniqueId());
@@ -102,7 +111,7 @@ if(owner(p)!=null)p.setCustomNameVisible(false);
 }
 }
 if(e instanceof Frog f && marked(f,giantKey)){
-frogs.add(f.getUniqueId());f.setCustomName(null);f.setCustomNameVisible(false);
+frogs.add(f.getUniqueId());f.setCustomName(null);f.setCustomNameVisible(false);f.setAI(true);f.setAware(false);
 }
 if(e instanceof ItemDisplay && marked(e,displayKey))e.remove();
 }
@@ -111,7 +120,11 @@ if(e instanceof ItemDisplay && marked(e,displayKey))e.remove();
 public void spawn(CreatureSpawnEvent e){
 if(e.getSpawnReason()!=CreatureSpawnEvent.SpawnReason.NATURAL&&e.getSpawnReason()!=CreatureSpawnEvent.SpawnReason.CHUNK_GEN)return;
 if(e.getEntity() instanceof Pig p){
-if(random.nextDouble()<getConfig().getDouble("flying-chance",.17))Bukkit.getScheduler().runTask(this,()->{if(p.isValid())flyingPig(p);});
+Biome pigBiome=p.getLocation().getBlock().getBiome();
+if(allowedPigBiome(pigBiome)){
+double chance=getConfig().getDouble(pigBiome==Biome.MUSHROOM_FIELDS?"mushroom-pig-chance":"flying-chance",pigBiome==Biome.MUSHROOM_FIELDS?.80:.28);
+if(random.nextDouble()<chance)Bukkit.getScheduler().runTask(this,()->{if(p.isValid())flyingPig(p);});
+}
 else ground.add(p.getUniqueId());
 }
 if(e.getEntity() instanceof Frog f){
@@ -241,6 +254,7 @@ Location ahead=pig.getLocation().clone().add(v.clone().setY(0).normalize());
 if(!ahead.getBlock().isPassable()&&ahead.clone().add(0,1,0).getBlock().isPassable()&&pig.isOnGround())v.setY(.44);
 }
 pig.setVelocity(v);
+faceVector(pig,v);
 }
 private void ride(Pig pig,Player p,boolean fly){
 pig.setAI(true);pig.setAware(false);pig.setGravity(!fly);
@@ -290,9 +304,12 @@ if(d<dist){dist=d;nearest=p;}
 }
 if(nearest==null)return;
 Player p=nearest;UUID id=f.getUniqueId();
+// Keep the frog's head pointed at its target while jumping and attacking.
+faceVector(f,p.getLocation().toVector().subtract(f.getLocation().toVector()));
 if(dist>8&&ready(leap,id,38)){
 Vector v=p.getLocation().toVector().subtract(f.getLocation().toVector()).setY(0);
 if(v.lengthSquared()>.1){
+faceVector(f,v);
 v.normalize().multiply(Math.min(.78,Math.sqrt(dist)/18+.34));
 v.setY(.87);f.setVelocity(v);
 f.getWorld().playSound(f.getLocation(),Sound.ENTITY_FROG_LONG_JUMP,.8f,.65f);
@@ -335,7 +352,11 @@ default->List.of();
 if(m instanceof LeatherArmorMeta leather)leather.setColor(Color.fromRGB(75,171,80));
 if(kind.equals("boots")||kind.equals("leggings")||kind.equals("wings")){
 EquippableComponent equip=m.getEquippable();
-if(equip!=null){equip.setModel(new NamespacedKey("swampsky",kind.equals("wings")?"frog_wings":"frog_armor"));m.setEquippable(equip);}
+if(equip!=null){
+equip.setSlot(kind.equals("wings")?EquipmentSlot.CHEST:kind.equals("leggings")?EquipmentSlot.LEGS:EquipmentSlot.FEET);
+equip.setModel(new NamespacedKey("swampsky",kind.equals("wings")?"frog_wings":"frog_armor"));
+m.setEquippable(equip);
+}
 }
 it.setItemMeta(m);return it;
 }
@@ -359,16 +380,145 @@ p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,45,0,true,false,true))
 if(p.getVelocity().lengthSquared()>.05)p.getWorld().spawnParticle(Particle.ITEM_SLIME,p.getLocation(),2,.2,0,.2,.01);
 }
 }
+private void upgradeOnlineEquipment(){
+for(Player player:Bukkit.getOnlinePlayers()){
+if(player.isDead())continue;
+// Re-apply the proper equipment slot on older SwampSky items without replacing them.
+ItemStack boots=player.getInventory().getBoots();
+ItemStack legs=player.getInventory().getLeggings();
+ItemStack chest=player.getInventory().getChestplate();
+if(is(boots,"boots"))fixEquipment(boots,"boots");
+if(is(legs,"leggings"))fixEquipment(legs,"leggings");
+if(is(chest,"wings"))fixEquipment(chest,"wings");
+}
+}
+private void fixEquipment(ItemStack stack,String kind){
+if(stack==null||!stack.hasItemMeta())return;
+ItemMeta meta=stack.getItemMeta();
+EquippableComponent equip=meta.getEquippable();
+if(equip==null)return;
+EquipmentSlot slot=kind.equals("wings")?EquipmentSlot.CHEST:kind.equals("leggings")?EquipmentSlot.LEGS:EquipmentSlot.FEET;
+NamespacedKey model=new NamespacedKey("swampsky",kind.equals("wings")?"frog_wings":"frog_armor");
+if(equip.getSlot()==slot&&model.equals(equip.getModel()))return;
+equip.setSlot(slot);equip.setModel(model);
+meta.setEquippable(equip);
+stack.setItemMeta(meta);
+}
+@EventHandler public void joined(PlayerJoinEvent event){
+Bukkit.getScheduler().runTaskLater(this,()->{if(event.getPlayer().isOnline())upgradeOnlineEquipment();},20L);
+}
+private void bounceStep(){
+for(Player p:Bukkit.getOnlinePlayers()){
+UUID id=p.getUniqueId();
+if(p.isDead()||p.isInsideVehicle()||p.isGliding()||p.isFlying()||p.isSwimming()||!is(p.getInventory().getBoots(),"boots")){
+airborne.remove(id);fallSpeed.remove(id);bounceEnergy.remove(id);groundedTicks.remove(id);continue;
+}
+if(!p.isOnGround()){
+airborne.add(id);
+groundedTicks.remove(id);
+fallSpeed.merge(id,Math.max(0,-p.getVelocity().getY()),Math::max);
+continue;
+}
+if(!airborne.remove(id)){
+int grounded=groundedTicks.getOrDefault(id,0)+1;
+groundedTicks.put(id,grounded);
+if(grounded>10){bounceEnergy.remove(id);fallSpeed.remove(id);}
+continue;
+}
+groundedTicks.put(id,0);
+double descent=fallSpeed.getOrDefault(id,0.0);
+fallSpeed.remove(id);
+if(p.isSneaking()){bounceEnergy.remove(id);continue;}
+double prior=bounceEnergy.getOrDefault(id,0.0);
+double power=prior>0?Math.min(1.10,Math.max(.18,prior*.72)):Math.min(1.10,Math.max(.42,descent*.94));
+if(prior>0&&power<.23){bounceEnergy.remove(id);continue;}
+bounceEnergy.put(id,power);
+// This runs on landing, not on fall-damage events: even a low drop onto grass,
+// stone, dirt or any other surface bounces just like a slime block.
+Vector v=p.getVelocity();
+p.setVelocity(new Vector(v.getX(),power,v.getZ()));
+p.setFallDistance(0);
+p.getWorld().playSound(p.getLocation(),Sound.BLOCK_SLIME_BLOCK_FALL,.65f,1.0f);
+p.getWorld().spawnParticle(Particle.ITEM_SLIME,p.getLocation(),9,.26,.08,.26,.045);
+}
+}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void fall(EntityDamageEvent e){
-if(!(e.getEntity() instanceof Player p)||e.getCause()!=EntityDamageEvent.DamageCause.FALL||!is(p.getInventory().getBoots(),"boots"))return;
+if(e.getEntity() instanceof Player p && e.getCause()==EntityDamageEvent.DamageCause.FALL && is(p.getInventory().getBoots(),"boots"))
 e.setCancelled(true);
-if(ready(bounce,p.getUniqueId(),15)){
-p.setVelocity(p.getVelocity().setY(Math.min(1.05,.45+p.getFallDistance()*.07)));
-p.getWorld().playSound(p.getLocation(),Sound.BLOCK_SLIME_BLOCK_FALL,.8f,1);
-p.getWorld().spawnParticle(Particle.ITEM_SLIME,p.getLocation(),15,.3,.2,.3,.05);
+}
+private void faceVector(Entity entity,Vector vector){
+Vector flat=vector.clone().setY(0);
+if(flat.lengthSquared()<.003)return;
+Location looking=entity.getLocation();
+looking.setDirection(flat);
+float target=looking.getYaw();
+float current=entity.getLocation().getYaw();
+float delta=(float)Math.IEEEremainder(target-current,360.0);
+// Smooth turning, never flying or jumping backwards.
+float step=Math.max(-26f,Math.min(26f,delta));
+entity.setRotation(current+step,0);
+}
+private boolean swamp(Biome b){return b==Biome.SWAMP||b==Biome.MANGROVE_SWAMP;}
+private boolean allowedPigBiome(Biome b){
+String id=b.name();
+return !id.contains("DESERT")&&!id.contains("BADLANDS")
+&&!id.contains("SNOW")&&!id.contains("FROZEN")
+&&!id.contains("ICE")&&!id.contains("PEAK")&&!id.contains("GROVE");
+}
+private void populateNearby(){
+for(Player p:Bukkit.getOnlinePlayers()){
+if(p.getGameMode()==GameMode.SPECTATOR||p.isDead())continue;
+World w=p.getWorld();
+if(w.getEnvironment()!=World.Environment.NORMAL)continue;
+Location center=p.getLocation();
+int nearbyFrogs=0,nearbyPigs=0;
+for(Entity e:w.getNearbyEntities(center,72,36,72)){
+if(e instanceof Frog && marked(e,giantKey))nearbyFrogs++;
+if(e instanceof Pig && marked(e,flyingKey))nearbyPigs++;
+}
+int targetFrogs=Math.max(2,Math.min(3,getConfig().getInt("swamp-giant-frog-target",3)));
+if(nearbyFrogs<targetFrogs){
+for(int i=0;i<20;i++){
+Location spawn=surfaceCandidate(w,center,24,68);
+if(spawn==null||!swamp(spawn.getBlock().getBiome()))continue;
+if(nearbyFrogs==2 && random.nextDouble()>.45)break;
+Frog frog=w.spawn(spawn,Frog.class);
+giantFrog(frog);
+break;
 }
 }
+if(nearbyPigs>=Math.max(1,getConfig().getInt("flying-pig-nearby-cap",5)))continue;
+for(int i=0;i<14;i++){
+Location spawn=surfaceCandidate(w,center,22,66);
+if(spawn==null)continue;
+Biome biome=spawn.getBlock().getBiome();
+if(!allowedPigBiome(biome))continue;
+double chance=biome==Biome.MUSHROOM_FIELDS?
+getConfig().getDouble("mushroom-pig-spawn-chance",.90):
+getConfig().getDouble("flying-pig-spawn-chance",.45);
+if(random.nextDouble()>chance)break;
+Pig pig=w.spawn(spawn,Pig.class);
+flyingPig(pig);
+break;
+}
+}
+}
+private Location surfaceCandidate(World w,Location center,int minRadius,int maxRadius){
+double angle=random.nextDouble()*Math.PI*2;
+double radius=minRadius+random.nextDouble()*(maxRadius-minRadius);
+int x=(int)Math.floor(center.getX()+Math.cos(angle)*radius);
+int z=(int)Math.floor(center.getZ()+Math.sin(angle)*radius);
+if(!w.isChunkLoaded(x>>4,z>>4))return null;
+int y=w.getHighestBlockYAt(x,z,HeightMap.MOTION_BLOCKING_NO_LEAVES);
+if(y<=w.getMinHeight()+1||y+2>=w.getMaxHeight())return null;
+Block below=w.getBlockAt(x,y-1,z);
+Block feet=w.getBlockAt(x,y,z);
+Block head=w.getBlockAt(x,y+1,z);
+if(!below.getType().isSolid()||below.isLiquid()||!feet.isPassable()||!head.isPassable()||feet.isLiquid()||head.isLiquid())return null;
+return new Location(w,x+.5,y,z+.5);
+}
+
 private void pigClear(UUID id){
 List<UUID> ds=displays.remove(id);
 if(ds!=null)for(UUID d:ds){Entity e=Bukkit.getEntity(d);if(e!=null)e.remove();}
@@ -421,7 +571,7 @@ new Quaternionf()
 }
 }
 @EventHandler public void playerInput(PlayerInputEvent e){inputCache.put(e.getPlayer().getUniqueId(),e.getInput());}
-@EventHandler public void quit(PlayerQuitEvent e){inputCache.remove(e.getPlayer().getUniqueId());}
+@EventHandler public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();inputCache.remove(id);airborne.remove(id);fallSpeed.remove(id);bounceEnergy.remove(id);groundedTicks.remove(id);}
 @Override public boolean onCommand(CommandSender sender,Command cmd,String label,String[] a){
 if(a.length==0||a[0].equalsIgnoreCase("help")){
 sender.sendMessage("§aSwampSky §7| /swampsky spawn <flying_pig|giant_frog>");
