@@ -118,11 +118,11 @@ def textures():
     assert Image.open(io.BytesIO(worn)).size==(64,32)
     files["assets/swampsky/textures/entity/equipment/wings/frog_wings.png"]=worn
 
-    files["assets/swampsky/equipment/frog_armor.json"]=json.dumps({
+    files["assets/swampsky/models/equipment/frog_armor.json"]=json.dumps({
       "layers":{"humanoid":[{"texture":"swampsky:frog_armor"}],
                 "humanoid_leggings":[{"texture":"swampsky:frog_armor_legs"}]}
     }).encode("utf-8")
-    files["assets/swampsky/equipment/frog_wings.json"]=json.dumps({
+    files["assets/swampsky/models/equipment/frog_wings.json"]=json.dumps({
       "layers":{"wings":[{"texture":"swampsky:frog_wings","use_player_texture":False}]}
     }).encode("utf-8")
 
@@ -134,7 +134,7 @@ def textures():
     return files
 
 def mcmeta():
-    return json.dumps({"pack":{"description":"TalismanForge + SwampSky 1.2.1 | compact ivory pig wings",
+    return json.dumps({"pack":{"description":"TalismanForge + SwampSky 1.3.0 | biome spawns and repaired equipment textures",
                                 "min_format":[97,1],"max_format":[97,1]}}).encode("utf-8")
 
 def write_zip(path,entries):
