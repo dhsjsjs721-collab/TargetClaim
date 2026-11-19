@@ -222,8 +222,10 @@ if(!player.isSneaking()||!pig.getPassengers().isEmpty()||player.isInsideVehicle(
 Bukkit.getScheduler().runTask(this,()->{
 if(!pig.isValid()||!player.isOnline()||player.isInsideVehicle()||!owned(pig,player)||!pig.getPassengers().isEmpty())return;
 pig.setAI(true);pig.setAware(false);
-pig.setSaddle(false);
-pig.addPassenger(player);
+// Saddle is enabled only for the ride so vanilla accepts the passenger;
+// normal right-click is still cancelled unless the player is sneaking.
+pig.setSaddle(true);
+if(!pig.addPassenger(player))pig.setSaddle(false);
 });
 }
 private void breedWingedPigs(){
@@ -274,6 +276,9 @@ if(!(e.getEntity() instanceof Player player)||!(e.getDismounted() instanceof Pig
 UUID id=player.getUniqueId();
 long until=tick+240;
 dismountFall.put(id,until);
+Bukkit.getScheduler().runTask(this,()->{
+if(pig.isValid()&&pig.getPassengers().isEmpty())pig.setSaddle(false);
+});
 Bukkit.getScheduler().runTaskLater(this,()->{
 if(dismountFall.getOrDefault(id,0L)==until)dismountFall.remove(id);
 },240L);
@@ -304,7 +309,7 @@ private void step(){
 tick+=3;
 for(UUID id:new ArrayList<>(wings)){
 Entity e=Bukkit.getEntity(id);
-if(!(e instanceof Pig p)||!p.isValid()){wings.remove(id);pigClear(id);continue;}
+if(!(e instanceof Pig p)||!p.isValid()){wings.remove(id);pigClear(id);aggro.remove(id);aggroUntil.remove(id);attackCooldown.remove(id);hitWindow.remove(id);hitCount.remove(id);flightVectors.remove(id);knockbackUntil.remove(id);continue;}
 movePig(p,true);drawWings(p);
 }
 for(UUID id:new ArrayList<>(ground)){
