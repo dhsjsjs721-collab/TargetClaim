@@ -239,7 +239,7 @@ target.setFallDistance(0);
 
 private BlockDisplay chainDisplay(World world,Location at){
 return world.spawn(at,BlockDisplay.class,d->{
-d.setBlock(Bukkit.createBlockData(Material.CHAIN));
+d.setBlock(Bukkit.createBlockData(Material.IRON_CHAIN));
 d.setBillboard(Display.Billboard.FIXED);
 d.setGravity(false);
 d.setInvulnerable(true);
