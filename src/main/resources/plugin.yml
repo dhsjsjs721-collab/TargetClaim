@@ -6,7 +6,7 @@ author: TargetClaim
 commands:
   p:
     description: Territory protection and Dialog menu
-    usage: /p [upgrade|border|remove|info|give]
+    usage: /p [upgrade|border|remove|cancel|info|give]
     aliases: [claim, privat]
   team:
     description: Color teams (3 members maximum)
