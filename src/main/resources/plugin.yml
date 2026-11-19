@@ -1,14 +1,18 @@
 name: TargetClaim
-version: 1.2.0
+version: 1.3.0
 main: dev.targetclaim.TargetClaimPlugin
 api-version: '26.3'
 author: TargetClaim
 commands:
   p:
-    description: Territory protection
-    usage: /p [border|remove|give]
+    description: Territory protection and Dialog menu
+    usage: /p [upgrade|border|remove|info|give]
     aliases: [claim, privat]
+  team:
+    description: Color teams (3 members maximum)
+    usage: /team [create|invite|accept|leave|kick|disband|pvp|info|menu]
+    aliases: [tc]
 permissions:
   targetclaim.admin:
-    description: Admin permissions
+    description: May give claim cores
     default: op
