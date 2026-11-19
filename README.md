@@ -1,4 +1,4 @@
-# TargetClaim 1.4.2 (development test)
+# TargetClaim 1.4.3 (development test)
 
 Minecraft Paper 26.3, Java 25. One claim per player.
 
@@ -17,7 +17,8 @@ Minecraft Paper 26.3, Java 25. One claim per player.
 - The Upgrade inventory page shows current size, next size, maximum size, upgrade cost, and whether the resources in the main hand are sufficient.
 - Teams: /team create <name>; /team invite <nick>; /team accept; /team leave; /team pvp on|off; /team menu.
 - Teams limited to 3 people; randomized assigned color; PvP between teammates requires BOTH players to consent.
-- Claims default to owner-only building and interactions; owners can switch between only owner and owner + team in the claim dialog.
+- Claims default to owner-only building and interactions; owners can switch between only owner and owner + team in the inventory menu.
+- Strict protection: non-owners cannot place, break, open containers or use doors, buttons, switches or other blocks. Protection applies to OP users too. Only the claim owner and explicitly-enabled team members may build and interact. The targetclaim.admin permission is for /p give ONLY, not a bypass. Buckets, ignition, armor-stand manipulation and block damage are also guarded.
 - Territory PvP is always on (except consensual team friendly-fire rules).
 - TNT, creepers, pistons, fire, liquids and other environmental mechanics are vanilla. Only the claim core itself is protected against explosion and piston movement.
 - Performance: 3D chunk-based claim lookup; bounded particle counts per player; nearby-only beam rendering (72-block horizontal range), vertical beam segments around each viewer; no extra beacon block or beam entity. Viewer border preferences are stored in data.yml.
