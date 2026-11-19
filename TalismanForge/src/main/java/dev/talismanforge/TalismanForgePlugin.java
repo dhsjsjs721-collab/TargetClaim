@@ -50,6 +50,16 @@ private final Map<String,Pad> pads=new HashMap<>();
 private boolean padsChanged=false;
 private final Map<String,Altar> altars=new HashMap<>();
 private final Map<UUID,UUID> holograms=new HashMap<>();
+private final Map<UUID,UUID> relicDisplays=new HashMap<>();
+private final Map<UUID,Integer> wrathStreak=new HashMap<>();
+private final Map<UUID,Long> wrathLastCrit=new HashMap<>();
+private final Map<UUID,Long> agesInvulnerableUntil=new HashMap<>();
+private final Map<UUID,ShieldRing> shieldRings=new HashMap<>();
+private static final class ShieldRing {
+int index=0;double health=4.0;
+final List<UUID> visuals=new ArrayList<>();
+}
+
 
 private final Map<UUID,Talisman> active=new HashMap<>();
 private final Set<UUID> trackedDrops=new HashSet<>();
@@ -71,6 +81,7 @@ private static final long WATER_DURATION=3200L,LAVA_DURATION=4200L;
 private static final class Altar {
 UUID id=UUID.randomUUID(),owner,world;
 int x,y,z;
+Material base=Material.CHEST;
 long due;
 boolean ready;
 String index(){return world+":"+x+":"+y+":"+z;}
@@ -105,11 +116,14 @@ hookListener=new GrapplingHookListener(this);
 Bukkit.getPluginManager().registerEvents(hookListener,this);
 Bukkit.getScheduler().runTaskTimer(this,this::quarterTick,5L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::tick,20L,20L);
-getLogger().info("TalismanForge 2.5.4: "+altars.size()+" ritual chests");
+getLogger().info("TalismanForge 2.5.5: "+altars.size()+" relics");
 }
 @Override public void onDisable(){
 if(hookListener!=null)hookListener.shutdown();
 for(UUID id:holograms.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
+for(UUID id:relicDisplays.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
+for(ShieldRing ring:shieldRings.values())removeShieldVisuals(ring);
+shieldRings.clear();relicDisplays.clear();agesInvulnerableUntil.clear();wrathStreak.clear();wrathLastCrit.clear();
 for(UUID id:ghostDolphins.keySet()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 holograms.clear();ghostDolphins.clear();trackedDrops.clear();
 for(Player p:Bukkit.getOnlinePlayers()){
@@ -136,13 +150,13 @@ lore.add("§8Работает в любой руке");
 lore.add(t.lives==0?"§cНе спасает от обычной смерти":"§7Спасений от смерти: §e"+lives+"/"+t.lives);
 lore.add(t==Talisman.POSEIDON?"§cНе спасает от бездны":t==Talisman.END?"§bБесконечное спасение от бездны":"§bСпасает от бездны, но исчезает");
 switch(t){
-case MAIMING -> {lore.add("§c−0.5 сердца, Голод I");lore.add("§5Удары: Иссушение I, 5 секунд");}
-case WRATH -> {lore.add("§c−2 сердца, без воскрешения");lore.add("§6Сила II, +30% скорость атаки");lore.add("§c+35% прямого урона оружием");}
-case DEFIANCE -> {lore.add("§c−2 сердца, Поглощение II");lore.add("§bЩит невозможно временно отключить");}
+case MAIMING -> {lore.add("§c−0.5 сердца, Голод I");lore.add("§5Удары: Иссушение I, 5 секунд");lore.add("§8Крит: Слабость I на 3 секунды");}
+case WRATH -> {lore.add("§c−2 сердца, без воскрешения");lore.add("§6Сила II, +30% скорость атаки");lore.add("§c+35% прямого урона оружием");lore.add("§6Серия критов: износ брони до ×1.5");}
+case DEFIANCE -> {lore.add("§c−2 сердца, Поглощение II");lore.add("§bЩит невозможно временно отключить");lore.add("§bПосле последнего спасения: три защитных щита");}
 case JOKER -> {lore.add("§dОдин шанс: 50% спастись от смерти");lore.add("§7Неудача: талисман исчезнет");lore.add("§aУдача: 1–3 случайных усиления");lore.add("§7Скорость II / Сила II / Сопротивление I");lore.add("§7Каждый эффект длится 20 сек. – 5 минут");lore.add("§5Клыки призывателя атакуют существ рядом");}
 case POSEIDON -> {lore.add("§3Вода / дождь: дыхание, скорость");lore.add("§bСпасение только в воде или под дождём");lore.add("§cСухая смерть: гроза и призрачный дельфин");}
 case HADES -> {lore.add("§c−4 сердца, Поглощение III");lore.add("§7Мобы игнорируют, пока их не тревожат");lore.add("§4Возрождение только рядом с игроками");}
-case AGES -> {lore.add("§eТри спасения, шипы на всех атаках");lore.add("§6Платформа радиусом 3 блока на воде и лаве");lore.add("§eПоднимает на поверхность жидкости");lore.add("§6Защита от огня и лавы");}
+case AGES -> {lore.add("§eТри спасения, шипы на всех атаках");lore.add("§6Разные виды мха / породы над водой и лавой");lore.add("§eВозвращает водоросли после исчезновения тропы");lore.add("§6Второе спасение: 3 сек. защиты и свечения");lore.add("§6Защита от огня и лавы");}
 case END -> {lore.add("§5Невидимость, эндермены нейтральны");lore.add("§dОтражение дальних атак");lore.add("§6Крит по мобу: молния +1 сердце урона");}
 }
 m.setLore(lore);
@@ -215,14 +229,15 @@ Integer n=i.getItemMeta().getPersistentDataContainer().get(usesKey,PersistentDat
 return n==null?0:n;
 }
 private ItemStack chestItem(){
-ItemStack i=new ItemStack(Material.CHEST);ItemMeta m=i.getItemMeta();
-m.setDisplayName("§5§lСундук талисманов");
-m.setLore(List.of("§7Открой ритуал на улице с видом на небо","§dСветящийся луч и таймер: 03:00","§7После открытия награда ближайшему игроку","§7Ломать может только поставивший"));
+ItemStack i=new ItemStack(Material.BARRIER);ItemMeta m=i.getItemMeta();
+m.setDisplayName("§3§lРеликварий");
+m.setItemModel(new NamespacedKey("talismanforge","reliquary"));
+m.setLore(List.of("§7Древний магический блок","§bСветящийся луч без настоящего маяка","§7Пробуждение через §b03:00","§7Награда ближайшему игроку, ставить может каждый"));
 m.getPersistentDataContainer().set(chestKey,PersistentDataType.BYTE,(byte)1);
 i.setItemMeta(m);return i;
 }
 private boolean specialChest(ItemStack i){
-if(i==null||i.getType()!=Material.CHEST||!i.hasItemMeta())return false;
+if(i==null||(i.getType()!=Material.CHEST&&i.getType()!=Material.BARRIER)||!i.hasItemMeta())return false;
 return Byte.valueOf((byte)1).equals(i.getItemMeta().getPersistentDataContainer().get(chestKey,PersistentDataType.BYTE))||
 Byte.valueOf((byte)1).equals(i.getItemMeta().getPersistentDataContainer().get(new NamespacedKey(this,"talisman_chest"),PersistentDataType.BYTE));
 }
@@ -280,17 +295,38 @@ try{b.setBlockData(Bukkit.createBlockData(pad.original),false);return true;}catc
 private void addPad(World w,int x,int y,int z){
 Block b=w.getBlockAt(x,y,z);String k=w.getUID()+":"+x+":"+y+":"+z;
 Pad existing=pads.get(k);
-if(existing!=null){existing.expire=System.currentTimeMillis()+(existing.replacement==Material.MOSS_BLOCK?WATER_DURATION:LAVA_DURATION);return;}
+if(existing!=null){existing.expire=System.currentTimeMillis()+(wasWater(existing.original)?WATER_DURATION:LAVA_DURATION);return;}
 if(pads.size()>=MAX_PADS)return;
-Material fluid=b.getType();if(fluid!=Material.WATER&&fluid!=Material.LAVA)return;
-BlockData original=b.getBlockData();if(!(original instanceof org.bukkit.block.data.Levelled lvl)||lvl.getLevel()!=0)return;
+Material fluid=b.getType();boolean water=fluid==Material.WATER||waterPlant(fluid);
+if(!water&&fluid!=Material.LAVA)return;
+BlockData original=b.getBlockData();
+if(!waterPlant(fluid)&&(!(original instanceof org.bukkit.block.data.Levelled lvl)||lvl.getLevel()!=0))return;
 Pad pad=new Pad();pad.world=w.getUID();pad.x=x;pad.y=y;pad.z=z;pad.original=original.getAsString();
-pad.replacement=fluid==Material.WATER?Material.MOSS_BLOCK:Material.SOUL_SOIL;
-pad.expire=System.currentTimeMillis()+(fluid==Material.WATER?WATER_DURATION:LAVA_DURATION);
+pad.replacement=water?randomMoss():lavaStone(w,x,y,z);
+pad.expire=System.currentTimeMillis()+(water?WATER_DURATION:LAVA_DURATION);
 b.setType(pad.replacement,false);pads.put(pad.key(),pad);padsChanged=true;
+}
+private boolean waterPlant(Material type){
+return type==Material.KELP||type==Material.KELP_PLANT||type==Material.SEAGRASS||type==Material.TALL_SEAGRASS;
+}
+private boolean wasWater(String original){
+return original.contains("water")||original.contains("kelp")||original.contains("seagrass");
+}
+private Material randomMoss(){
+Material[] variants={Material.MOSS_BLOCK,Material.MOSS_BLOCK,Material.MOSSY_COBBLESTONE,Material.MOSSY_STONE_BRICKS,Material.PALE_MOSS_BLOCK,Material.ROOTED_DIRT};
+return variants[random.nextInt(variants.length)];
+}
+private Material lavaStone(World world,int x,int y,int z){
+Block[] nearby={world.getBlockAt(x,y-1,z),world.getBlockAt(x+1,y,z),world.getBlockAt(x-1,y,z),world.getBlockAt(x,y,z+1),world.getBlockAt(x,y,z-1)};
+for(Block b:nearby){
+Material m=b.getType();
+if(m==Material.BASALT||m==Material.SMOOTH_BASALT||m==Material.BLACKSTONE||m==Material.POLISHED_BLACKSTONE||m==Material.DEEPSLATE||m==Material.COBBLED_DEEPSLATE||m==Material.TUFF||m==Material.SOUL_SOIL||m==Material.MAGMA_BLOCK)return m==Material.MAGMA_BLOCK?Material.BASALT:m;
+}
+return random.nextBoolean()?Material.BLACKSTONE:Material.BASALT;
 }
 private boolean sourceLiquid(Block b){
 Material type=b.getType();
+if(waterPlant(type))return true;
 if(type!=Material.WATER&&type!=Material.LAVA)return false;
 return b.getBlockData() instanceof org.bukkit.block.data.Levelled level&&level.getLevel()==0;
 }
@@ -315,7 +351,7 @@ if(p.isFlying()||p.getGameMode()==GameMode.SPECTATOR||to.getWorld()==null)return
 World w=to.getWorld();
 int y=surfaceUnder(to);
 if(y==Integer.MIN_VALUE){
-if(to.getBlock().isLiquid()){
+if(to.getBlock().isLiquid()||waterPlant(to.getBlock().getType())){
 Vector velocity=p.getVelocity();
 if(velocity.getY()<.82)p.setVelocity(new Vector(velocity.getX(),.82,velocity.getZ()));
 }
@@ -358,6 +394,7 @@ for(String id:c.getKeys(false))try{
 String p="chests."+id+".";Altar a=new Altar();
 a.id=UUID.fromString(id);a.owner=UUID.fromString(y.getString(p+"owner"));a.world=UUID.fromString(y.getString(p+"world"));
 a.x=y.getInt(p+"x");a.y=y.getInt(p+"y");a.z=y.getInt(p+"z");a.due=y.getLong(p+"due");a.ready=y.getBoolean(p+"ready");
+a.base=Material.matchMaterial(y.getString(p+"base","CHEST"));if(a.base==null)a.base=Material.CHEST;
 altars.put(a.index(),a);
 }catch(Exception ex){getLogger().warning("Invalid ritual chest "+id+" "+ex);}
 }
@@ -366,23 +403,25 @@ YamlConfiguration y=new YamlConfiguration();
 for(Altar a:altars.values()){
 String p="chests."+a.id+".";
 y.set(p+"owner",a.owner.toString());y.set(p+"world",a.world.toString());
-y.set(p+"x",a.x);y.set(p+"y",a.y);y.set(p+"z",a.z);y.set(p+"due",a.due);y.set(p+"ready",a.ready);
+y.set(p+"x",a.x);y.set(p+"y",a.y);y.set(p+"z",a.z);y.set(p+"due",a.due);y.set(p+"ready",a.ready);y.set(p+"base",a.base.name());
 }
 try{y.save(saveFile);}catch(IOException e){getLogger().severe("Could not save ritual chests: "+e);}
 }
 private void removeAltar(Altar a){
 if(altars.remove(a.index())==null)return;
 UUID id=holograms.remove(a.id);if(id!=null){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
+UUID visual=relicDisplays.remove(a.id);if(visual!=null){Entity e=Bukkit.getEntity(visual);if(e!=null)e.remove();}
 saveAltars();
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void place(BlockPlaceEvent e){
 if(protectedAltar(e.getBlockPlaced())!=null){e.setCancelled(true);return;}
 if(!specialChest(e.getItemInHand()))return;
 Block b=e.getBlockPlaced();Player p=e.getPlayer();
-if(!canBeam(b)){e.setCancelled(true);p.sendMessage("§cНедостаточно места над сундуком.");return;}
-Altar a=new Altar();a.owner=p.getUniqueId();a.world=b.getWorld().getUID();a.x=b.getX();a.y=b.getY();a.z=b.getZ();a.due=System.currentTimeMillis()+OPEN_DELAY;
+if(!canBeam(b)){e.setCancelled(true);p.sendMessage("§cНедостаточно места над Реликварием.");return;}
+Altar a=new Altar();a.owner=p.getUniqueId();a.world=b.getWorld().getUID();a.x=b.getX();a.y=b.getY();a.z=b.getZ();a.base=b.getType();a.due=System.currentTimeMillis()+OPEN_DELAY;
 altars.put(a.index(),a);saveAltars();
-p.sendMessage("§d✦ Сундук установлен! §7Координаты: "+a.x+", "+a.y+", "+a.z);
+p.sendMessage("§b✦ Реликварий установлен! §7Координаты: "+a.x+", "+a.y+", "+a.z);
+showRelicBlock(a);
 p.sendMessage("§7Светящийся луч без блока маяка. Открытие через §d03:00§7.");
 b.getWorld().playSound(b.getLocation(),Sound.BLOCK_BEACON_ACTIVATE,1,.8f);
 }
@@ -404,7 +443,7 @@ if(e.getBlocks().stream().anyMatch(b->pads.containsKey(index(b.getLocation()))))
 Altar a=protectedAltar(e.getBlock());if(a==null)return;
 e.setCancelled(true);e.setDropItems(false);e.setExpToDrop(0);
 if(!a.index().equals(index(e.getBlock().getLocation()))){e.getPlayer().sendMessage("§cМагический маяк нельзя ломать отдельно.");return;}
-if(!a.owner.equals(e.getPlayer().getUniqueId())){e.getPlayer().sendMessage("§cСундук может сломать только его владелец.");return;}
+if(!a.owner.equals(e.getPlayer().getUniqueId())){e.getPlayer().sendMessage("§cРеликварий может сломать только его владелец.");return;}
 Location loc=a.location();removeAltar(a);e.getBlock().setType(Material.AIR,false);
 give(e.getPlayer(),new ItemStack(Material.TOTEM_OF_UNDYING));give(e.getPlayer(),new ItemStack(Material.AMETHYST_SHARD,2+random.nextInt(4)));
 e.getPlayer().sendMessage("§eРитуал отменён: возвращён тотем и 2–5 аметистов.");
@@ -415,7 +454,7 @@ Block b=e.getClickedBlock();if(b==null||e.getAction()!=Action.RIGHT_CLICK_BLOCK)
 Altar a=protectedAltar(b);if(a==null)return;e.setCancelled(true);
 if(e.getHand()!=EquipmentSlot.HAND)return;
 long s=Math.max(0,(a.due-System.currentTimeMillis()+999)/1000);
-e.getPlayer().sendMessage(a.ready?"§aРитуал завершён. Подойди к сундуку за наградой.":"§dДо открытия: §f"+String.format("%02d:%02d",s/60,s%60));
+e.getPlayer().sendMessage(a.ready?"§aРитуал завершён. Подойди к Реликварию за наградой.":"§dДо пробуждения: §f"+String.format("%02d:%02d",s/60,s%60));
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void entityExplosion(EntityExplodeEvent e){e.blockList().removeIf(b->protectedAltar(b)!=null);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void blockExplosion(BlockExplodeEvent e){e.blockList().removeIf(b->protectedAltar(b)!=null);}
@@ -459,7 +498,7 @@ if(e.getPlayer().getWorld().getEnvironment()!=World.Environment.THE_END)return;
 thrownEggs.put(e.getItemDrop().getUniqueId(),e.getPlayer().getUniqueId());
 }
 private void quarterTick(){
-moveDroppedTalismans();
+moveDroppedTalismans();moveShieldVisuals();
 if(!thrownEggs.isEmpty())for(World w:Bukkit.getWorlds())if(w.getEnvironment()==World.Environment.THE_END){
 for(Item i:w.getEntitiesByClass(Item.class)){
 if(i.getItemStack().getType()!=Material.DRAGON_EGG||i.getLocation().getY()>w.getMinHeight()+6)continue;
@@ -475,6 +514,86 @@ if(voidSlot(p)!=null&&p.getLocation().getY()<=p.getWorld().getMinHeight()+6)void
 }
 dolphinTick();
 for(Player p:Bukkit.getOnlinePlayers())if(held(p)==Talisman.AGES)spawnPath(p,p.getLocation(),null);
+}
+private void removeShieldVisuals(ShieldRing ring){
+for(UUID id:ring.visuals){if(id==null)continue;Entity entity=Bukkit.getEntity(id);if(entity!=null)entity.remove();}
+}
+private void createShieldRing(Player p){
+ShieldRing existing=shieldRings.remove(p.getUniqueId());if(existing!=null)removeShieldVisuals(existing);
+ShieldRing ring=new ShieldRing();
+for(int i=0;i<3;i++){
+ItemDisplay d=p.getWorld().spawn(p.getLocation().clone().add(0,1.2,0),ItemDisplay.class,display->{
+display.setItemStack(new ItemStack(Material.SHIELD));display.setBillboard(Display.Billboard.CENTER);display.setPersistent(false);display.setInvulnerable(true);
+display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+});
+ring.visuals.add(d.getUniqueId());
+}
+shieldRings.put(p.getUniqueId(),ring);
+p.getWorld().playSound(p.getLocation(),Sound.ITEM_SHIELD_BLOCK,1,.65f);
+p.sendMessage("§bТалисман рассыпался: три призрачных щита защищают от ударов.");
+}
+private void moveShieldVisuals(){
+for(Iterator<Map.Entry<UUID,ShieldRing>> it=shieldRings.entrySet().iterator();it.hasNext();){
+Map.Entry<UUID,ShieldRing> entry=it.next();Player p=Bukkit.getPlayer(entry.getKey());ShieldRing ring=entry.getValue();
+if(p==null||!p.isOnline()||p.isDead()){removeShieldVisuals(ring);it.remove();continue;}
+double phase=System.currentTimeMillis()/850.0;
+for(int i=ring.index;i<3;i++){
+Entity entity=Bukkit.getEntity(ring.visuals.get(i));if(!(entity instanceof ItemDisplay display))continue;
+double a=phase+i*Math.PI*2/3;
+Location loc=p.getLocation().clone().add(Math.cos(a)*.95,1.12+Math.sin(phase*2+i)*.08,Math.sin(a)*.95);
+display.teleport(loc);
+}
+}
+}
+private boolean absorbByShield(Player p,EntityDamageEvent e){
+ShieldRing ring=shieldRings.get(p.getUniqueId());
+if(ring==null||e.getFinalDamage()<=0)return false;
+if(e.getCause()==EntityDamageEvent.DamageCause.VOID||e.getCause()==EntityDamageEvent.DamageCause.KILL)return false;
+double amount=e.getFinalDamage();e.setCancelled(true);
+ring.health-=amount;
+p.getWorld().playSound(p.getLocation(),Sound.ITEM_SHIELD_BLOCK,.8f,1.15f);
+p.getWorld().spawnParticle(Particle.END_ROD,p.getLocation().clone().add(0,1,0),6,.45,.3,.45,.01);
+if(ring.health<=0){
+UUID id=ring.visuals.get(ring.index);Entity display=Bukkit.getEntity(id);if(display!=null)display.remove();
+ring.index++;ring.health=4.0;
+p.getWorld().playSound(p.getLocation(),Sound.ITEM_SHIELD_BREAK,.85f,1.4f);
+if(ring.index>=3){shieldRings.remove(p.getUniqueId());p.sendMessage("§7Последний призрачный щит разрушен.");}
+}
+return true;
+}
+private void wrathCritical(Player attacker,Player victim,boolean critical){
+UUID id=attacker.getUniqueId();if(!critical){wrathStreak.remove(id);wrathLastCrit.remove(id);return;}
+long now=System.currentTimeMillis();
+int count=now-wrathLastCrit.getOrDefault(id,0L)>8000?1:wrathStreak.getOrDefault(id,0)+1;
+wrathStreak.put(id,Math.min(count,6));wrathLastCrit.put(id,now);
+double chance=Math.min(.5,Math.max(0,(count-1)*.10));
+if(random.nextDouble()>=chance)return;
+Bukkit.getScheduler().runTask(this,()->{
+if(!victim.isValid()||victim.isDead()||victim.getEquipment()==null)return;
+for(EquipmentSlot slot:new EquipmentSlot[]{EquipmentSlot.HEAD,EquipmentSlot.CHEST,EquipmentSlot.LEGS,EquipmentSlot.FEET}){
+ItemStack armor=victim.getEquipment().getItem(slot);
+if(armor==null||armor.getType().isAir()||armor.getType().getMaxDurability()==0||!armor.hasItemMeta())continue;
+ItemMeta meta=armor.getItemMeta();if(meta.isUnbreakable()||!(meta instanceof org.bukkit.inventory.meta.Damageable damaged))continue;
+int amount=damaged.getDamage()+1;
+if(amount>=armor.getType().getMaxDurability())victim.getEquipment().setItem(slot,new ItemStack(Material.AIR));
+else{damaged.setDamage(amount);armor.setItemMeta(meta);victim.getEquipment().setItem(slot,armor);}
+}
+});
+}
+private void agesFinale(Player p){
+Location loc=p.getLocation();World w=p.getWorld();
+for(int i=0;i<4;i++){
+final int step=i;
+Allay allay=w.spawn(loc.clone().add(Math.cos(i*Math.PI/2)*.9,1.1,Math.sin(i*Math.PI/2)*.9),Allay.class,a->{
+a.setAI(false);a.setSilent(true);a.setInvulnerable(true);a.setPersistent(false);a.setGravity(false);
+});
+Bukkit.getScheduler().runTaskLater(this,()->{if(allay.isValid())allay.remove();},50L);
+}
+for(Player other:w.getPlayers())if(other!=p&&other.getLocation().distanceSquared(loc)<=25){
+other.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA,40,0,true,false,true));
+}
+w.spawnParticle(Particle.HAPPY_VILLAGER,loc.clone().add(0,1,0),45,1,1,1,.06);
+w.playSound(loc,Sound.ENTITY_ALLAY_AMBIENT_WITH_ITEM,1,1.2f);
 }
 private void voidRescue(Player p){
 EquipmentSlot slot=voidSlot(p);if(slot==null)return;
@@ -505,6 +624,8 @@ default -> {}
 }
 if(!(e.getEntity() instanceof Player p))return;
 if(e.getCause()==EntityDamageEvent.DamageCause.VOID&&voidSlot(p)!=null){e.setCancelled(true);voidRescue(p);return;}
+if(System.currentTimeMillis()<agesInvulnerableUntil.getOrDefault(p.getUniqueId(),0L)&&e.getCause()!=EntityDamageEvent.DamageCause.VOID&&e.getCause()!=EntityDamageEvent.DamageCause.KILL){e.setCancelled(true);return;}
+if(absorbByShield(p,e))return;
 if(held(p)==Talisman.HADES){
 switch(e.getCause()){
 case FIRE,FIRE_TICK,HOT_FLOOR -> {e.setCancelled(true);p.setFireTicks(0);return;}
@@ -543,10 +664,10 @@ Bukkit.getScheduler().runTask(this,()->{if(attacker.isValid()&&!attacker.isDead(
 }
 if(!(e.getDamager() instanceof Player attacker))return;
 Talisman t=held(attacker);if(t==null)return;
-if(t==Talisman.WRATH)e.setDamage(e.getDamage()*1.35);
+if(t==Talisman.WRATH){e.setDamage(e.getDamage()*1.35);if(e.getEntity() instanceof Player armorVictim)wrathCritical(attacker,armorVictim,critical(attacker));else if(!critical(attacker)){wrathStreak.remove(attacker.getUniqueId());wrathLastCrit.remove(attacker.getUniqueId());}}
 if(t==Talisman.HADES&&e.getEntity() instanceof LivingEntity victim)ghastAssist(attacker,victim);
 if(e.getEntity() instanceof LivingEntity victim){
-if(t==Talisman.MAIMING)victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER,100,0));
+if(t==Talisman.MAIMING){victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER,100,0));if(critical(attacker))victim.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,60,0));}
 if(t==Talisman.POSEIDON&&isRaining(attacker)&&victim.getHealth()<=victim.getAttribute(Attribute.MAX_HEALTH).getValue()*.5)victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,70,1));
 if(t==Talisman.END&&!(victim instanceof Player)&&critical(attacker)){
 Bukkit.getScheduler().runTask(this,()->{if(victim.isValid()&&!victim.isDead()){
@@ -664,6 +785,13 @@ if(t==Talisman.JOKER){
 jokerBonuses(p);
 jokerFangs(p);
 }
+if(t==Talisman.AGES&&current==2){
+agesInvulnerableUntil.put(p.getUniqueId(),System.currentTimeMillis()+3000L);
+p.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING,60,0,true,false,true));
+p.getWorld().playSound(p.getLocation(),Sound.BLOCK_AMETHYST_BLOCK_RESONATE,1,1.2f);
+}
+if(t==Talisman.AGES&&current==1)agesFinale(p);
+if(t==Talisman.DEFIANCE&&current==1)createShieldRing(p);
 reviveParticles(p.getLocation(),t);
 p.sendMessage("§dТалисман спас тебя! §7Осталось спасений: §e"+(current-1));
 });
@@ -765,14 +893,15 @@ pulses++;refresh();cleanupPads();
 for(Altar a:new ArrayList<>(altars.values())){
 Location loc=a.location();if(loc==null||!loc.getWorld().isChunkLoaded(a.x>>4,a.z>>4))continue;
 World w=loc.getWorld();Block b=w.getBlockAt(a.x,a.y,a.z);
-if(b.getType()!=Material.CHEST){removeAltar(a);continue;}
+if(b.getType()!=a.base){removeAltar(a);continue;}
+showRelicBlock(a);
 if(!a.ready&&System.currentTimeMillis()>=a.due){a.ready=true;saveAltars();w.playSound(loc,Sound.BLOCK_END_PORTAL_SPAWN,1,1.6f);w.spawnParticle(Particle.TOTEM_OF_UNDYING,loc,70,1,1,1,.1);}
 showHologram(a);beamParticles(a);
 if(a.ready){
 Player nearest=null;double best=25*25;
 for(Player p:w.getPlayers()){double d=p.getLocation().distanceSquared(loc);if(d<best){nearest=p;best=d;}}
 if(nearest!=null){Talisman t=roll();give(nearest,talisman(t,t.lives));nearest.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,1200,1));
-nearest.sendMessage("§d✦ Сундук открыт: "+t.name+" §b| Скорость II на 60 сек.");
+nearest.sendMessage("§b✦ Реликварий пробудился: "+t.name+" §b| Скорость II на 60 сек.");
 reviveParticles(loc,t);removeAltar(a);b.setType(Material.AIR,false);continue;}
 }
 if(pulses%2==0)ambient(a);
@@ -787,6 +916,17 @@ if(x<.80)return Talisman.POSEIDON;
 if(x<.92)return Talisman.HADES;
 return Talisman.AGES;
 }
+private void showRelicBlock(Altar a){
+if(a.base!=Material.BARRIER)return;
+UUID id=relicDisplays.get(a.id);Entity e=id==null?null:Bukkit.getEntity(id);
+if(e instanceof ItemDisplay&&e.isValid())return;
+Location loc=a.location();if(loc==null)return;
+ItemDisplay display=loc.getWorld().spawn(loc,ItemDisplay.class,d->{
+d.setItemStack(chestItem());d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+d.setBillboard(Display.Billboard.FIXED);d.setPersistent(false);d.setInvulnerable(true);
+});
+relicDisplays.put(a.id,display.getUniqueId());
+}
 private void showHologram(Altar a){
 Location loc=a.location();if(loc==null)return;
 UUID uuid=holograms.get(a.id);Entity entity=uuid==null?null:Bukkit.getEntity(uuid);
@@ -797,7 +937,7 @@ t.setBillboard(Display.Billboard.CENTER);t.setSeeThrough(true);t.setShadowed(tru
 t.getPersistentDataContainer().set(displayKey,PersistentDataType.STRING,a.id.toString());
 });holograms.put(a.id,d.getUniqueId());}
 long s=Math.max(0,(a.due-System.currentTimeMillis()+999)/1000);
-d.text(Component.text("✦ СУНДУК ТАЛИСМАНОВ ✦\n",NamedTextColor.LIGHT_PURPLE).append(Component.text(a.ready?"НАГРАДА ГОТОВА":"Открытие через "+String.format("%02d:%02d",s/60,s%60),a.ready?NamedTextColor.GREEN:NamedTextColor.WHITE)));
+d.text(Component.text("✦ РЕЛИКВАРИЙ ✦\n",NamedTextColor.AQUA).append(Component.text(a.ready?"НАГРАДА ГОТОВА":"Открытие через "+String.format("%02d:%02d",s/60,s%60),a.ready?NamedTextColor.GREEN:NamedTextColor.WHITE)));
 }
 private void ambient(Altar a){
 Location loc=a.location();if(loc==null)return;World w=loc.getWorld();
@@ -828,23 +968,25 @@ w.playSound(loc,Sound.ENTITY_PLAYER_LEVELUP,1,1.3f);
 private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
-sender.sendMessage("§dTalismanForge 2.5.4 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|chest|hook>");
-sender.sendMessage("§7Рецепт сундука: 7 аметистов + тотем + обсидиан снизу. Талисманы в любой руке.");return true;
+sender.sendMessage("§dTalismanForge 2.5.5 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|reliquary|hook>");
+sender.sendMessage("§7Реликварий: 7 аметистов + тотем + обсидиан снизу. Луч без маяка.");return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
 if(args.length<3){sender.sendMessage("§cИспользуй: /tf give <ник> <тип>");return true;}
 Player p=Bukkit.getPlayerExact(args[1]);if(p==null){sender.sendMessage("§cИгрок не найден.");return true;}
-Talisman t=Talisman.parse(args[2]);ItemStack i=args[2].equalsIgnoreCase("chest")?chestItem():args[2].equalsIgnoreCase("hook")?hookListener.createHookItem():t==null?null:talisman(t,t.lives);
+Talisman t=Talisman.parse(args[2]);ItemStack i=(args[2].equalsIgnoreCase("chest")||args[2].equalsIgnoreCase("reliquary"))?chestItem():args[2].equalsIgnoreCase("hook")?hookListener.createHookItem():t==null?null:talisman(t,t.lives);
 if(i==null){sender.sendMessage("§cНеизвестный тип.");return true;}
 give(p,i);sender.sendMessage("§aВыдано игроку "+p.getName());return true;
 }
 @Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] args){
 if(args.length==1)return List.of("give");
 if(args.length==2)return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
-if(args.length==3)return List.of("maiming","wrath","defiance","joker","poseidon","hades","ages","end","chest","hook");
+if(args.length==3)return List.of("maiming","wrath","defiance","joker","poseidon","hades","ages","end","reliquary","hook");
 return List.of();
 }
 @EventHandler public void quit(PlayerQuitEvent e){
 UUID id=e.getPlayer().getUniqueId();active.remove(id);safeLocations.remove(id);ghastCooldowns.remove(id);pathCenters.remove(id);pathRefresh.remove(id);
+wrathStreak.remove(id);wrathLastCrit.remove(id);agesInvulnerableUntil.remove(id);
+ShieldRing ring=shieldRings.remove(id);if(ring!=null)removeShieldVisuals(ring);
 }
 }
