@@ -1,11 +1,11 @@
 name: TargetClaim
-version: 1.4.1
+version: 1.4.2
 main: dev.targetclaim.TargetClaimPlugin
 api-version: '26.3'
 author: TargetClaim
 commands:
   p:
-    description: Territory protection and Dialog menu
+    description: Territory protection and inventory menu
     usage: /p [upgrade|border|remove|cancel|info|give]
     aliases: [claim, privat]
   team:
