@@ -1,4 +1,4 @@
-# TargetClaim 1.4.3 (development test)
+# TargetClaim 1.4.4 (development test)
 
 Minecraft Paper 26.3, Java 25. One claim per player.
 
@@ -22,7 +22,7 @@ Minecraft Paper 26.3, Java 25. One claim per player.
 - Territory PvP is always on (except consensual team friendly-fire rules).
 - TNT, creepers, pistons, fire, liquids and other environmental mechanics are vanilla. Only the claim core itself is protected against explosion and piston movement.
 - Performance: 3D chunk-based claim lookup; bounded particle counts per player; nearby-only beam rendering (72-block horizontal range), vertical beam segments around each viewer; no extra beacon block or beam entity. Viewer border preferences are stored in data.yml.
-- Claim deletion requires confirmation, waits 10 seconds, and can be cancelled in the dialog or using /p cancel. Data is saved in plugins/TargetClaim/data.yml.
+- Clicking Delete in the claim inventory starts the 10-second (200-tick) deletion countdown immediately, without a confirmation page; the inventory closes. During the countdown, the owner can right-click their claim core again to cancel immediately. /p remove starts the countdown, /p cancel cancels it, and attempting to break the core also starts the countdown. Only 3 paper drop upon completion. All claim data lives in plugins/TargetClaim/data.yml.
 
 **Important:** This is a test build. Back up the world and database before replacing an older TargetClaim version. Test the claim's Y bounds, arrows/potions, doors, item frames and piston interaction on a staging server.
 
