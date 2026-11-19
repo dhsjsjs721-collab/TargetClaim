@@ -549,7 +549,7 @@ if(a.equals("claim_open")){showClaimDialog(p,c);return;}
 if(a.equals("claim_border")){showBorderDialog(p,c);return;}
 if(a.startsWith("border_")){
 Viewer v=viewer(p);
-switch(a){case "border_toggle"->v.borders=!v.borders;case "border_mode"->v.mode=(v.mode+1)%3;case "border_color"->v.color=(v.color+1)%4;default->{};}
+switch(a){case "border_toggle"->v.borders=!v.borders;case "border_mode"->v.mode=(v.mode+1)%3;case "border_color"->v.color=(v.color+1)%4;default->{} }
 saveAll();showBorderDialog(p,c);return;
 }
 if(!p.getUniqueId().equals(c.owner)){tell(p,"§cТолько владелец изменяет настройки.");return;}
