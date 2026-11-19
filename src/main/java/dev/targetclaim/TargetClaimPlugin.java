@@ -86,6 +86,7 @@ targetKey=new NamespacedKey(this,"claim_target");
 displayKey=new NamespacedKey(this,"display_owner");
 dataFile=new File(getDataFolder(),"data.yml");getDataFolder().mkdirs();
 loadAll();
+if(!dataFile.isFile()&&new File(getDataFolder(),"claims.yml").isFile()){saveAll();getLogger().info("Migrated legacy claims.yml to data.yml");}
 ShapedRecipe recipe=new ShapedRecipe(new NamespacedKey(this,"target_recipe"),specialTarget());
 recipe.shape("PPP","AAA","AAA");
 recipe.setIngredient('P',Material.PAPER);
@@ -112,7 +113,8 @@ meta.getPersistentDataContainer().set(targetKey,PersistentDataType.BYTE,(byte)1)
 private boolean isSpecial(ItemStack item){return item!=null&&item.getType()==Material.TARGET&&item.hasItemMeta()&&Byte.valueOf((byte)1).equals(item.getItemMeta().getPersistentDataContainer().get(targetKey,PersistentDataType.BYTE));}
 
 private void loadAll(){
-YamlConfiguration y=YamlConfiguration.loadConfiguration(dataFile);
+File sourceFile=dataFile.isFile()?dataFile:new File(getDataFolder(),"claims.yml");
+YamlConfiguration y=YamlConfiguration.loadConfiguration(sourceFile);
 ConfigurationSection claimsSection=y.getConfigurationSection("claims");
 if(claimsSection!=null)for(String id:claimsSection.getKeys(false))try{
 UUID owner=UUID.fromString(id);
