@@ -1,5 +1,5 @@
 name: SwampSky
-version: 1.3.0
+version: 1.4.0
 main: dev.swampsky.SwampSkyPlugin
 api-version: '26.3'
 author: SwampSky

@@ -134,7 +134,7 @@ def textures():
     return files
 
 def mcmeta():
-    return json.dumps({"pack":{"description":"TalismanForge + SwampSky 1.3.0 | biome spawns and repaired equipment textures",
+    return json.dumps({"pack":{"description":"TalismanForge + SwampSky 1.4.0 | balanced glider and single slime bounce",
                                 "min_format":[97,1],"max_format":[97,1]}}).encode("utf-8")
 
 def write_zip(path,entries):

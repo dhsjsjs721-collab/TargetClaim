@@ -16,3 +16,10 @@ frog-damage: 7.0
 pig-speed: 0.43
 slope-multiplier: 1.45
 snow-multiplier: 0.35
+
+# Frog wing flight (blocks per tick horizontal); vanilla Elytra can go faster
+frog-wings-glide-speed: 0.65
+# Rain sustains a gentle ascent at this lower horizontal speed
+frog-wings-rain-speed: 0.58
+# Water is the only propulsion boost; fireworks are blocked
+frog-wings-water-speed: 0.95
