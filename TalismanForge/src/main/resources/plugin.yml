@@ -1,5 +1,5 @@
 name: TalismanForge
-version: 2.5.2
+version: 2.5.3
 main: dev.talismanforge.TalismanForgePlugin
 api-version: '26.3'
 author: TalismanForge

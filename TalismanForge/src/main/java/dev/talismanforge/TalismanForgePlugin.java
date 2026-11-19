@@ -55,13 +55,16 @@ private final Map<UUID,Location> safeLocations=new HashMap<>();
 private final Map<UUID,UUID> thrownEggs=new HashMap<>();
 private final Map<UUID,Long> ghostDolphins=new HashMap<>();
 private final Map<UUID,Long> ghastCooldowns=new HashMap<>();
+private final Map<UUID,String> pathCenters=new HashMap<>();
+private final Map<UUID,Long> pathRefresh=new HashMap<>();
 private final Random random=new Random();
 private int pulses=0;
 private static final class Pad {
 UUID world;int x,y,z;String original;Material replacement;long expire;
 String key(){return world+":"+x+":"+y+":"+z;}
 }
-private static final int MAX_PADS=150;
+private static final int MAX_PADS=900;
+private static final int PATH_RADIUS=3;
 private static final long WATER_DURATION=3200L,LAVA_DURATION=4200L;
 private static final class Altar {
 UUID id=UUID.randomUUID(),owner,world;
@@ -99,7 +102,7 @@ hookListener=new GrapplingHookListener(this);
 Bukkit.getPluginManager().registerEvents(hookListener,this);
 Bukkit.getScheduler().runTaskTimer(this,this::quarterTick,5L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::tick,20L,20L);
-getLogger().info("TalismanForge 2.5.2: "+altars.size()+" ritual chests");
+getLogger().info("TalismanForge 2.5.3: "+altars.size()+" ritual chests");
 }
 @Override public void onDisable(){
 if(hookListener!=null)hookListener.shutdown();
@@ -123,10 +126,10 @@ switch(t){
 case MAIMING -> {lore.add("§c−0.5 сердца, Голод I");lore.add("§5Удары: Иссушение I, 5 секунд");}
 case WRATH -> {lore.add("§c−2 сердца, без воскрешения");lore.add("§6Сила II, +30% скорость атаки");lore.add("§c+35% прямого урона оружием");}
 case DEFIANCE -> {lore.add("§c−2 сердца, Поглощение II");lore.add("§bЩит невозможно временно отключить");}
-case JOKER -> {lore.add("§dОдин шанс: 50% спастись от смерти");lore.add("§7Неудача: талисман исчезнет");lore.add("§aУдача: Скорость II, Сила II, Сопротивление I на 5 минут");lore.add("§5Клыки призывателя атакуют существ рядом");}
+case JOKER -> {lore.add("§dОдин шанс: 50% спастись от смерти");lore.add("§7Неудача: талисман исчезнет");lore.add("§aУдача: 1–3 случайных усиления");lore.add("§7Скорость II / Сила II / Сопротивление I");lore.add("§7Каждый эффект длится 20 сек. – 5 минут");lore.add("§5Клыки призывателя атакуют существ рядом");}
 case POSEIDON -> {lore.add("§3Вода / дождь: дыхание, скорость");lore.add("§bСпасение только в воде или под дождём");lore.add("§cСухая смерть: гроза и призрачный дельфин");}
 case HADES -> {lore.add("§c−4 сердца, Поглощение III");lore.add("§7Мобы игнорируют, пока их не тревожат");lore.add("§4Возрождение только рядом с игроками");}
-case AGES -> {lore.add("§eТри спасения, шипы на всех атаках");lore.add("§6Хождение по воде и лаве, защита от огня");}
+case AGES -> {lore.add("§eТри спасения, шипы на всех атаках");lore.add("§6Платформа радиусом 3 блока на воде и лаве");lore.add("§eПоднимает на поверхность жидкости");lore.add("§6Защита от огня и лавы");}
 case END -> {lore.add("§5Невидимость, эндермены нейтральны");lore.add("§dОтражение дальних атак");lore.add("§6Крит по мобу: молния +1 сердце урона");}
 }
 m.setLore(lore);
@@ -240,15 +243,61 @@ pad.replacement=fluid==Material.WATER?Material.MOSS_BLOCK:Material.SOUL_SOIL;
 pad.expire=System.currentTimeMillis()+(fluid==Material.WATER?WATER_DURATION:LAVA_DURATION);
 b.setType(pad.replacement,false);pads.put(pad.key(),pad);padsChanged=true;
 }
-private void spawnPath(Player p,Location to){
-if(p.isFlying()||p.isSneaking()||p.getGameMode()==GameMode.SPECTATOR)return;
-World w=to.getWorld();if(w==null)return;int y=(int)Math.floor(to.getY()-.20);
-if(y<w.getMinHeight()||y>=w.getMaxHeight())return;
-int x=to.getBlockX(),z=to.getBlockZ();addPad(w,x,y,z);
-Vector v=p.getVelocity();
-if(v.lengthSquared()>.035){int xx=(int)Math.floor(to.getX()+Math.max(-.75,Math.min(.75,v.getX()*2.5)));
-int zz=(int)Math.floor(to.getZ()+Math.max(-.75,Math.min(.75,v.getZ()*2.5)));
-if(xx!=x||zz!=z)addPad(w,xx,y,zz);}
+private boolean sourceLiquid(Block b){
+Material type=b.getType();
+if(type!=Material.WATER&&type!=Material.LAVA)return false;
+return b.getBlockData() instanceof org.bukkit.block.data.Levelled level&&level.getLevel()==0;
+}
+/** The top liquid layer (or one of our temporary pads), never a block inside the player. */
+private int surfaceUnder(Location to){
+World w=to.getWorld();if(w==null)return Integer.MIN_VALUE;
+int x=to.getBlockX(),z=to.getBlockZ(),feet=to.getBlockY();
+for(int y=Math.min(w.getMaxHeight()-3,feet+4);y>=Math.max(w.getMinHeight(),feet-5);y--){
+Block b=w.getBlockAt(x,y,z);
+Pad existing=pads.get(w.getUID()+":"+x+":"+y+":"+z);
+if(!sourceLiquid(b)&&(existing==null||b.getType()!=existing.replacement))continue;
+Block above=w.getBlockAt(x,y+1,z);
+Material upper=above.getType();
+if(upper==Material.WATER||upper==Material.LAVA)return Integer.MIN_VALUE;
+if(!above.isPassable()||!w.getBlockAt(x,y+2,z).isPassable())continue;
+return y;
+}
+return Integer.MIN_VALUE;
+}
+private void spawnPath(Player p,Location to,PlayerMoveEvent movement){
+if(p.isFlying()||p.getGameMode()==GameMode.SPECTATOR||to.getWorld()==null)return;
+World w=to.getWorld();
+int y=surfaceUnder(to);
+if(y==Integer.MIN_VALUE){
+if(to.getBlock().isLiquid()){
+Vector velocity=p.getVelocity();
+if(velocity.getY()<.82)p.setVelocity(new Vector(velocity.getX(),.82,velocity.getZ()));
+}
+return;
+}
+// Do not create a platform while high above the water.
+if(to.getY()>y+3.2)return;
+int x=to.getBlockX(),z=to.getBlockZ();
+String key=w.getUID()+":"+x+":"+y+":"+z;
+long now=System.currentTimeMillis();
+if(!key.equals(pathCenters.get(p.getUniqueId()))||now-pathRefresh.getOrDefault(p.getUniqueId(),0L)>=550L){
+for(int dx=-PATH_RADIUS;dx<=PATH_RADIUS;dx++)for(int dz=-PATH_RADIUS;dz<=PATH_RADIUS;dz++){
+if(dx*dx+dz*dz>PATH_RADIUS*PATH_RADIUS)continue;
+addPad(w,x+dx,y,z+dz);
+}
+pathCenters.put(p.getUniqueId(),key);
+pathRefresh.put(p.getUniqueId(),now);
+}
+// Lift just once when feet are actually below the new solid surface; don't interfere with jumps.
+double top=y+1.0;
+if(to.getY()<top-.035){
+Location raised=to.clone();raised.setY(top+.04);
+p.setFallDistance(0);
+if(movement!=null)movement.setTo(raised);
+else p.teleport(raised);
+Vector velocity=p.getVelocity();
+if(velocity.getY()<.12)p.setVelocity(new Vector(velocity.getX(),.12,velocity.getZ()));
+}
 }
 private void cleanupPads(){
 long time=System.currentTimeMillis();
@@ -378,6 +427,7 @@ for(Player p:Bukkit.getOnlinePlayers()){
 if(voidSlot(p)!=null&&p.getLocation().getY()<=p.getWorld().getMinHeight()+6)voidRescue(p);
 }
 dolphinTick();
+for(Player p:Bukkit.getOnlinePlayers())if(held(p)==Talisman.AGES)spawnPath(p,p.getLocation(),null);
 }
 private void voidRescue(Player p){
 EquipmentSlot slot=voidSlot(p);if(slot==null)return;
@@ -393,7 +443,7 @@ p.getWorld().spawnParticle(Particle.PORTAL,p.getLocation(),90,.7,1,.7,.25);
 }
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)public void moved(PlayerMoveEvent e){
 Player p=e.getPlayer();if(e.getTo()==null||held(p)==null)return;
-if(held(p)==Talisman.AGES)spawnPath(p,e.getTo());
+if(held(p)==Talisman.AGES)spawnPath(p,e.getTo(),e);
 if(e.getTo().getY()<p.getWorld().getMinHeight()+6){if(voidSlot(p)!=null)voidRescue(p);return;}
 if(e.getTo().getY()<p.getWorld().getMinHeight()+12)return;
 if(p.isOnGround()&&p.getLocation().getBlock().isPassable()&&p.getLocation().subtract(0,1,0).getBlock().getType().isSolid())safeLocations.put(p.getUniqueId(),p.getLocation().clone());
@@ -474,6 +524,24 @@ fired++;if(fired>=2)break;
 }
 if(fired>0)ghastCooldowns.put(owner.getUniqueId(),now);
 }
+private void jokerBonuses(Player player){
+List<PotionEffectType> choices=new ArrayList<>(List.of(
+PotionEffectType.SPEED,PotionEffectType.STRENGTH,PotionEffectType.RESISTANCE
+));
+Collections.shuffle(choices,random);
+int count=1+random.nextInt(choices.size());
+List<String> descriptions=new ArrayList<>();
+for(int i=0;i<count;i++){
+PotionEffectType type=choices.get(i);
+int seconds=20+random.nextInt(281);
+int level=type==PotionEffectType.RESISTANCE?0:1;
+player.addPotionEffect(new PotionEffect(type,seconds*20,level,false,true,true));
+String title=type==PotionEffectType.SPEED?"Скорость II":type==PotionEffectType.STRENGTH?"Сила II":"Сопротивление I";
+descriptions.add("§a"+title+" §7("+seconds+" сек.)");
+}
+player.sendMessage("§d§lДЖОКЕР! §7Случайные бонусы: §f"+count);
+for(String description:descriptions)player.sendMessage(description);
+}
 private void jokerFangs(Player owner){
 UUID id=owner.getUniqueId();
 for(int wave=0;wave<3;wave++){
@@ -546,11 +614,8 @@ v.getWorld().spawnParticle(Particle.SOUL,v.getLocation().add(0,1,0),20,.5,.5,.5,
 p.setFoodLevel(Math.min(20,p.getFoodLevel()+hunger));
 }
 if(t==Talisman.JOKER){
-p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,6000,1,false,true,true));
-p.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH,6000,1,false,true,true));
-p.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE,6000,0,false,true,true));
+jokerBonuses(p);
 jokerFangs(p);
-p.sendMessage("§d§lДЖОКЕР! §aТы выиграл: пять минут усилений и волна клыков.");
 }
 reviveParticles(p.getLocation(),t);
 p.sendMessage("§dТалисман спас тебя! §7Осталось спасений: §e"+(current-1));
@@ -701,7 +766,7 @@ w.playSound(loc,Sound.ENTITY_PLAYER_LEVELUP,1,1.3f);
 private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
-sender.sendMessage("§dTalismanForge 2.5.2 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|chest|hook>");
+sender.sendMessage("§dTalismanForge 2.5.3 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|chest|hook>");
 sender.sendMessage("§7Рецепт сундука: 7 аметистов + тотем + обсидиан снизу. Талисманы в любой руке.");return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
@@ -718,6 +783,6 @@ if(args.length==3)return List.of("maiming","wrath","defiance","joker","poseidon"
 return List.of();
 }
 @EventHandler public void quit(PlayerQuitEvent e){
-UUID id=e.getPlayer().getUniqueId();active.remove(id);safeLocations.remove(id);ghastCooldowns.remove(id);
+UUID id=e.getPlayer().getUniqueId();active.remove(id);safeLocations.remove(id);ghastCooldowns.remove(id);pathCenters.remove(id);pathRefresh.remove(id);
 }
 }
