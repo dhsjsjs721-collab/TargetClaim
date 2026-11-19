@@ -1,6 +1,8 @@
 package dev.enchantmentforge;
 
 import org.bukkit.Bukkit;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -239,25 +241,14 @@ add(pool,Material.BLAZE_POWDER,32,18,4);
 add(pool,Material.GUNPOWDER,32,12,5);
 add(pool,Material.BONE_MEAL,64,5,7);
 
-// All supported high-demand vanilla enchantments are real enchanted books.
-addBook(pool,Enchantment.MENDING,1,30);
-addBook(pool,Enchantment.UNBREAKING,3,24);
-addBook(pool,Enchantment.EFFICIENCY,5,32);
-addBook(pool,Enchantment.FORTUNE,3,34);
-addBook(pool,Enchantment.SILK_TOUCH,1,30);
-addBook(pool,Enchantment.PROTECTION,4,28);
-addBook(pool,Enchantment.SHARPNESS,5,32);
-addBook(pool,Enchantment.LOOTING,3,34);
-addBook(pool,Enchantment.FEATHER_FALLING,4,26);
-addBook(pool,Enchantment.POWER,5,28);
-addBook(pool,Enchantment.INFINITY,1,32);
-addBook(pool,Enchantment.RESPIRATION,3,24);
-addBook(pool,Enchantment.AQUA_AFFINITY,1,18);
-addBook(pool,Enchantment.DEPTH_STRIDER,3,26);
-addBook(pool,Enchantment.FIRE_ASPECT,2,22);
-addBook(pool,Enchantment.SWIFT_SNEAK,3,42);
-addBook(pool,Enchantment.SOUL_SPEED,3,36);
-addBook(pool,Enchantment.RIPTIDE,3,32);
+// Every non-curse vanilla enchantment gets a genuine maximum-level book.
+// Read the server registry to include new enchantments added in future 26.3 updates.
+for (Enchantment enchant:RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT)) {
+if (!"minecraft".equals(enchant.getKey().getNamespace()) || enchant.isCursed()) continue;
+int level=enchant.getMaxLevel();
+int price=Math.min(58,18+level*3+(enchant.isTreasure()?10:0));
+addBook(pool,enchant,level,price);
+}
 
 // Spawn eggs use vanilla item types, no unsafe hard-coded NBT.
 addEgg(pool,"COW_SPAWN_EGG",22);
