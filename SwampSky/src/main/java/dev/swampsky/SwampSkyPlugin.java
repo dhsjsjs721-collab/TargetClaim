@@ -8,6 +8,8 @@ import org.bukkit.entity.*;
 import org.bukkit.event.*;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerInputEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.*;
 import org.bukkit.inventory.*;
 import org.bukkit.inventory.meta.*;
@@ -31,6 +33,7 @@ public final class SwampSkyPlugin extends JavaPlugin implements Listener, Comman
 private NamespacedKey flyingKey, ownerKey, giantKey, itemKey, displayKey;
 private final Set<UUID> wings=new HashSet<>(), frogs=new HashSet<>(), ground=new HashSet<>();
 private final Map<UUID,List<UUID>> displays=new HashMap<>();
+private final Map<UUID,Input> inputCache=new HashMap<>();
 private final Map<UUID,Long> leap=new HashMap<>(),hit=new HashMap<>(),tongue=new HashMap<>(),bounce=new HashMap<>();
 private final Random random=new Random();
 private long tick=0;
@@ -51,10 +54,10 @@ Bukkit.getScheduler().runTaskTimer(this,this::step,5L,3L);
 }
 @Override public void onDisable(){
 for(UUID id:new ArrayList<>(displays.keySet()))pigClear(id);
-for(UUID id:ground){Entity e=Bukkit.getEntity(id);if(e instanceof Pig p)p.setAI(true);}
+for(UUID id:ground){Entity e=Bukkit.getEntity(id);if(e instanceof Pig p){p.setAI(true);p.setAware(true);}}
 for(UUID id:wings){
 Entity e=Bukkit.getEntity(id);
-if(e instanceof Pig p){p.setAI(true);p.setGravity(true);}
+if(e instanceof Pig p){p.setAI(true);p.setAware(true);p.setGravity(true);}
 }
 }
 private boolean marked(Entity e,NamespacedKey k){return e.getPersistentDataContainer().has(k,PersistentDataType.BYTE);}
@@ -69,8 +72,8 @@ private boolean isSnow(Material m){return m==Material.SNOW||m==Material.SNOW_BLO
 
 private void flyingPig(Pig p){
 if(marked(p,flyingKey))return;
-mark(p,flyingKey);p.setGravity(false);p.setAI(false);
-p.setCustomName("§dКрылатая свинья");p.setCustomNameVisible(true);
+mark(p,flyingKey);ground.remove(p.getUniqueId());p.setGravity(false);p.setAI(true);p.setAware(false);
+p.setCustomName(null);p.setCustomNameVisible(false);
 p.setRemoveWhenFarAway(false);wings.add(p.getUniqueId());
 p.getWorld().spawnParticle(Particle.CLOUD,p.getLocation(),22,.6,.5,.6,.02);
 }
@@ -82,14 +85,22 @@ if(hp!=null)hp.setBaseValue(getConfig().getDouble("frog-health",60));
 AttributeInstance size=f.getAttribute(Attribute.SCALE);
 if(size!=null)size.setBaseValue(getConfig().getDouble("frog-scale",2.8));
 if(hp!=null)f.setHealth(hp.getValue());
-f.setCustomName("§2§lГигантская болотная жаба");f.setCustomNameVisible(true);
+f.setCustomName(null);f.setCustomNameVisible(false);
 f.setRemoveWhenFarAway(false);
 frogs.add(f.getUniqueId());
 }
 private void scan(Chunk chunk){
 for(Entity e:chunk.getEntities()){
-if(e instanceof Pig p && marked(p,flyingKey)){wings.add(p.getUniqueId());p.setGravity(false);p.setAI(false);}
-if(e instanceof Pig p && !marked(p,flyingKey) && owner(p)!=null){ground.add(p.getUniqueId());if(p.getPassengers().isEmpty())p.setAI(true);}
+if(e instanceof Pig p){
+if(marked(p,flyingKey)){
+wings.add(p.getUniqueId());p.setGravity(false);p.setAI(true);p.setAware(false);
+p.setCustomName(null);p.setCustomNameVisible(false);
+}else{
+ground.add(p.getUniqueId());p.setAI(true);
+if(owner(p)!=null && p.getCustomName()!=null && (p.getCustomName().contains("свинья")||p.getCustomName().contains("Свинья")))p.setCustomName(null);
+if(owner(p)!=null)p.setCustomNameVisible(false);
+}
+}
 if(e instanceof Frog f && marked(f,giantKey))frogs.add(f.getUniqueId());
 if(e instanceof ItemDisplay && marked(e,displayKey))e.remove();
 }
@@ -97,8 +108,10 @@ if(e instanceof ItemDisplay && marked(e,displayKey))e.remove();
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)
 public void spawn(CreatureSpawnEvent e){
 if(e.getSpawnReason()!=CreatureSpawnEvent.SpawnReason.NATURAL&&e.getSpawnReason()!=CreatureSpawnEvent.SpawnReason.CHUNK_GEN)return;
-if(e.getEntity() instanceof Pig p && random.nextDouble()<getConfig().getDouble("flying-chance",.17))
-Bukkit.getScheduler().runTask(this,()->{if(p.isValid())flyingPig(p);});
+if(e.getEntity() instanceof Pig p){
+if(random.nextDouble()<getConfig().getDouble("flying-chance",.17))Bukkit.getScheduler().runTask(this,()->{if(p.isValid())flyingPig(p);});
+else ground.add(p.getUniqueId());
+}
 if(e.getEntity() instanceof Frog f){
 Biome b=f.getLocation().getBlock().getBiome();
 if((b==Biome.SWAMP||b==Biome.MANGROVE_SWAMP)&&random.nextDouble()<getConfig().getDouble("giant-chance",.24))
@@ -109,7 +122,10 @@ Bukkit.getScheduler().runTask(this,()->{if(f.isValid())giantFrog(f);});
 Bukkit.getScheduler().runTask(this,()->{if(e.getChunk().isLoaded())scan(e.getChunk());});
 }
 @EventHandler public void unloaded(ChunkUnloadEvent e){
-for(Entity entity:e.getChunk().getEntities())if(entity instanceof Pig)pigClear(entity.getUniqueId());
+for(Entity entity:e.getChunk().getEntities())if(entity instanceof Pig){
+pigClear(entity.getUniqueId());
+if(!marked(entity,flyingKey))ground.remove(entity.getUniqueId());
+}
 }
 @EventHandler public void dead(EntityDeathEvent e){
 Entity entity=e.getEntity();
@@ -130,10 +146,7 @@ Player player=e.getPlayer();
 ItemStack held=player.getInventory().getItemInMainHand();
 String owner=owner(p);
 if(owner==null){
-if(!food(held)){
-if(marked(p,flyingKey))player.sendMessage("§eДля приручения нужны тыква или тыквенный пирог.");
-return;
-}
+if(!food(held))return;
 e.setCancelled(true);
 double chance=held.getType()==Material.PUMPKIN_PIE?.78:.52;
 if(player.getGameMode()!=GameMode.CREATIVE)held.setAmount(held.getAmount()-1);
@@ -142,14 +155,12 @@ if(random.nextDouble()<chance){
 p.getPersistentDataContainer().set(ownerKey,PersistentDataType.STRING,player.getUniqueId().toString());
 p.setSaddle(true);
 if(!marked(p,flyingKey))ground.add(p.getUniqueId());
-p.setCustomName(marked(p,flyingKey)?"§aВаша летающая свинья":"§aВаша свинья");
-p.setCustomNameVisible(true);
-player.sendMessage("§aСвинья приручена! §7ПКМ — сесть, WASD — ехать, Space — прыгать или взлетать.");
-}else player.sendMessage("§7Ей понравилось. Попробуй покормить ещё.");
+p.setCustomName(null);p.setCustomNameVisible(false);
+}else p.getWorld().spawnParticle(Particle.SMOKE,p.getLocation().add(0,.9,0),3,.25,.2,.25,.01);
 return;
 }
 e.setCancelled(true);
-if(!owned(p,player)){player.sendMessage("§cСвинья принадлежит другому игроку.");return;}
+if(!owned(p,player))return;
 if(food(held)){
 if(player.getGameMode()!=GameMode.CREATIVE)held.setAmount(held.getAmount()-1);
 AttributeInstance max=p.getAttribute(Attribute.MAX_HEALTH);
@@ -157,7 +168,13 @@ p.setHealth(Math.min(max==null?10:max.getValue(),p.getHealth()+3));
 p.getWorld().spawnParticle(Particle.HEART,p.getLocation().add(0,.9,0),5,.3,.3,.3,0);
 return;
 }
-if(p.getPassengers().isEmpty()){p.setSaddle(true);p.setAI(false);p.addPassenger(player);}
+if(p.getPassengers().isEmpty()){
+Bukkit.getScheduler().runTask(this,()->{
+if(!p.isValid()||!player.isOnline()||player.isInsideVehicle()||!owned(p,player)||!p.getPassengers().isEmpty())return;
+p.setSaddle(true);p.setAI(true);p.setAware(false);
+p.addPassenger(player);
+});
+}
 }
 private void step(){
 tick+=3;
@@ -169,10 +186,7 @@ movePig(p,true);drawWings(p);
 for(UUID id:new ArrayList<>(ground)){
 Entity e=Bukkit.getEntity(id);
 if(!(e instanceof Pig pig)||!pig.isValid()){ground.remove(id);continue;}
-Player rider=null;
-for(Entity passenger:pig.getPassengers())if(passenger instanceof Player p){rider=p;break;}
-if(rider!=null && owned(pig,rider))movePig(pig,false);
-else if(!pig.hasAI())pig.setAI(true);
+movePig(pig,false);
 }
 if(tick%21==0)for(Player p:Bukkit.getOnlinePlayers())armor(p);
 for(UUID id:new ArrayList<>(frogs)){
@@ -185,8 +199,7 @@ private void movePig(Pig pig,boolean fly){
 Player rider=null;
 for(Entity passenger:pig.getPassengers())if(passenger instanceof Player p){rider=p;break;}
 if(rider!=null&&owned(pig,rider)){ride(pig,rider,fly);return;}
-if(!fly){pig.setAI(true);pig.setGravity(true);return;}
-pig.setAI(false);pig.setGravity(false);
+pig.setAI(true);pig.setGravity(!fly);
 Player lure=null;double best=14*14;
 for(Player p:pig.getWorld().getPlayers()){
 if(!food(p.getInventory().getItemInMainHand())&&!food(p.getInventory().getItemInOffHand()))continue;
@@ -194,23 +207,39 @@ double d=p.getLocation().distanceSquared(pig.getLocation());
 if(d<best){best=d;lure=p;}
 }
 Vector v;
+if(lure==null&&!fly){
+pig.setAware(true);
+return;
+}
+pig.setAware(false);
 if(lure!=null){
-Vector delta=lure.getLocation().add(0,1.5,0).toVector().subtract(pig.getLocation().toVector());
-v=delta.lengthSquared()>2?delta.normalize().multiply(.20):new Vector();
+Vector delta=lure.getLocation().clone().add(0,fly?1.4:0,0).toVector().subtract(pig.getLocation().toVector());
+if(!fly)delta.setY(0);
+double speed=fly?.28:.23;
+if(snow(pig.getLocation()))speed*=.35;
+v=delta.lengthSquared()>3.5?delta.normalize().multiply(speed):new Vector();
+if(!fly)v.setY(pig.getVelocity().getY());
 }else{
 double a=tick/35.0+(pig.getUniqueId().hashCode()%150);
-v=new Vector(Math.sin(a)*.08,Math.sin(tick/22.0)*.04,Math.cos(a)*.08);
+v=new Vector(Math.sin(a)*.09,Math.sin(tick/22.0)*.04,Math.cos(a)*.09);
 int ground=0;
 for(int i=1;i<7;i++)if(!pig.getLocation().clone().subtract(0,i,0).getBlock().isPassable()){ground=i;break;}
-if(ground>0&&ground<3)v.setY(.12);
-if(ground==0)v.setY(-.05);
+if(ground>0&&ground<3)v.setY(.14);
+if(ground==0)v.setY(-.06);
 }
+if(fly){
+Location ahead=pig.getLocation().clone().add(v.clone().multiply(3));
+if(!ahead.getBlock().isPassable()||!ahead.clone().add(0,1,0).getBlock().isPassable())v.setY(.28);
 if(snow(pig.getLocation()))v.setY(.22);
+}else if(v.lengthSquared()>.04){
+Location ahead=pig.getLocation().clone().add(v.clone().setY(0).normalize());
+if(!ahead.getBlock().isPassable()&&ahead.clone().add(0,1,0).getBlock().isPassable()&&pig.isOnGround())v.setY(.44);
+}
 pig.setVelocity(v);
 }
 private void ride(Pig pig,Player p,boolean fly){
-pig.setAI(false);pig.setGravity(!fly);
-Input in=p.getCurrentInput();
+pig.setAI(true);pig.setAware(false);pig.setGravity(!fly);
+Input in=inputCache.getOrDefault(p.getUniqueId(),p.getCurrentInput());
 Vector forward=p.getLocation().getDirection().setY(0);
 if(forward.lengthSquared()<.01)forward.setX(0).setZ(1);
 forward.normalize();
@@ -368,6 +397,8 @@ loc.setYaw(at.getYaw()+(float)(90*side));
 d.teleport(loc);
 }
 }
+@EventHandler public void playerInput(PlayerInputEvent e){inputCache.put(e.getPlayer().getUniqueId(),e.getInput());}
+@EventHandler public void quit(PlayerQuitEvent e){inputCache.remove(e.getPlayer().getUniqueId());}
 @Override public boolean onCommand(CommandSender sender,Command cmd,String label,String[] a){
 if(a.length==0||a[0].equalsIgnoreCase("help")){
 sender.sendMessage("§aSwampSky §7| /swampsky spawn <flying_pig|giant_frog>");
