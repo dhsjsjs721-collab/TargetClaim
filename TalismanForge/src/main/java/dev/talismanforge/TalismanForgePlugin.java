@@ -53,6 +53,7 @@ private final Map<UUID,Talisman> active=new HashMap<>();
 private final Map<UUID,Location> safeLocations=new HashMap<>();
 private final Map<UUID,UUID> thrownEggs=new HashMap<>();
 private final Map<UUID,Long> ghostDolphins=new HashMap<>();
+private final Map<UUID,Long> ghastCooldowns=new HashMap<>();
 private final Random random=new Random();
 private int pulses=0;
 private static final class Pad {
@@ -86,7 +87,7 @@ PluginCommand c=getCommand("talismanforge");if(c!=null){c.setExecutor(this);c.se
 Bukkit.getPluginManager().registerEvents(this,this);
 Bukkit.getScheduler().runTaskTimer(this,this::quarterTick,5L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::tick,20L,20L);
-getLogger().info("TalismanForge 2.1.0: "+altars.size()+" ritual chests");
+getLogger().info("TalismanForge 2.2.0: "+altars.size()+" ritual chests");
 }
 @Override public void onDisable(){
 for(UUID id:holograms.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
@@ -102,9 +103,9 @@ m.setItemModel(new NamespacedKey("talismanforge",t.key));
 m.getPersistentDataContainer().set(typeKey,PersistentDataType.STRING,t.key);
 m.getPersistentDataContainer().set(usesKey,PersistentDataType.INTEGER,Math.max(0,Math.min(t.lives,lives)));
 List<String> lore=new ArrayList<>();
-lore.add("§8Работает только во второй руке");
+lore.add("§8Работает в любой руке");
 lore.add(t.lives==0?"§cНе спасает от обычной смерти":"§7Спасений от смерти: §e"+lives+"/"+t.lives);
-lore.add("§bСпасает от падения в бездну");
+lore.add(t==Talisman.POSEIDON?"§cНе спасает от бездны":t==Talisman.END?"§bБесконечное спасение от бездны":"§bСпасает от бездны, но исчезает");
 switch(t){
 case MAIMING -> {lore.add("§c−0.5 сердца, Голод I");lore.add("§5Удары: Иссушение I, 5 секунд");}
 case WRATH -> {lore.add("§c−2 сердца, без воскрешения");lore.add("§6Сила II, +30% скорость атаки");lore.add("§c+35% прямого урона оружием");}
@@ -124,9 +125,23 @@ if(t==Talisman.HADES)attribute(m,"hades_health",Attribute.MAX_HEALTH,-8,Attribut
 i.setItemMeta(m);return i;
 }
 private void attribute(ItemMeta m,String id,Attribute a,double amount,AttributeModifier.Operation op){
-m.addAttributeModifier(a,new AttributeModifier(new NamespacedKey(this,id),amount,op,EquipmentSlotGroup.OFFHAND));
+m.addAttributeModifier(a,new AttributeModifier(new NamespacedKey(this,id),amount,op,EquipmentSlotGroup.HAND));
 }
-private Talisman held(Player p){return itemType(p.getInventory().getItemInOffHand());}
+private Talisman held(Player p){
+Talisman off=itemType(p.getInventory().getItemInOffHand());
+return off!=null?off:itemType(p.getInventory().getItemInMainHand());
+}
+private EquipmentSlot voidSlot(Player p){
+Talisman off=itemType(p.getInventory().getItemInOffHand());
+Talisman main=itemType(p.getInventory().getItemInMainHand());
+if(off==Talisman.END)return EquipmentSlot.OFF_HAND;
+if(main==Talisman.END)return EquipmentSlot.HAND;
+if(off!=null&&off!=Talisman.POSEIDON)return EquipmentSlot.OFF_HAND;
+if(main!=null&&main!=Talisman.POSEIDON)return EquipmentSlot.HAND;
+return null;
+}
+private ItemStack equipped(Player p,EquipmentSlot slot){return slot==EquipmentSlot.HAND?p.getInventory().getItemInMainHand():p.getInventory().getItemInOffHand();}
+private void unequip(Player p,EquipmentSlot slot){if(slot==EquipmentSlot.HAND)p.getInventory().setItemInMainHand(new ItemStack(Material.AIR));else p.getInventory().setItemInOffHand(new ItemStack(Material.AIR));}
 private Talisman itemType(ItemStack i){
 if(i==null||i.getType()!=Material.TOTEM_OF_UNDYING||!i.hasItemMeta())return null;
 String k=i.getItemMeta().getPersistentDataContainer().get(typeKey,PersistentDataType.STRING);
@@ -347,23 +362,26 @@ w.strikeLightningEffect(i.getLocation());
 }
 }
 for(Player p:Bukkit.getOnlinePlayers()){
-if(held(p)==null)continue;
-if(p.getLocation().getY()<=p.getWorld().getMinHeight()+6)voidRescue(p);
+if(voidSlot(p)!=null&&p.getLocation().getY()<=p.getWorld().getMinHeight()+6)voidRescue(p);
 }
+dolphinTick();
 }
 private void voidRescue(Player p){
+EquipmentSlot slot=voidSlot(p);if(slot==null)return;
+Talisman t=itemType(equipped(p,slot));if(t==null)return;
+if(t!=Talisman.END)unequip(p,slot);
 Location target=safeLocations.get(p.getUniqueId());
 if(target==null||target.getWorld()==null)target=Bukkit.getWorlds().get(0).getSpawnLocation().clone().add(0,2,0);
 if(!target.getChunk().isLoaded())target.getChunk().load();
 p.teleport(target);p.setFallDistance(0);p.setVelocity(new Vector(0,0,0));p.setNoDamageTicks(50);
 p.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING,100,0,true,false,true));
-p.sendMessage("§dТалисман перенёс тебя из бездны!");
+p.sendMessage(t==Talisman.END?"§dЗевс перенёс тебя из бездны без расхода талисмана!":"§dТалисман спас тебя из бездны, но был уничтожен.");
 p.getWorld().spawnParticle(Particle.PORTAL,p.getLocation(),90,.7,1,.7,.25);
 }
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)public void moved(PlayerMoveEvent e){
 Player p=e.getPlayer();if(e.getTo()==null||held(p)==null)return;
 if(held(p)==Talisman.AGES)spawnPath(p,e.getTo());
-if(e.getTo().getY()<p.getWorld().getMinHeight()+6){voidRescue(p);return;}
+if(e.getTo().getY()<p.getWorld().getMinHeight()+6){if(voidSlot(p)!=null)voidRescue(p);return;}
 if(e.getTo().getY()<p.getWorld().getMinHeight()+12)return;
 if(p.isOnGround()&&p.getLocation().getBlock().isPassable()&&p.getLocation().subtract(0,1,0).getBlock().getType().isSolid())safeLocations.put(p.getUniqueId(),p.getLocation().clone());
 }
@@ -376,6 +394,13 @@ default -> {}
 }
 }
 if(!(e.getEntity() instanceof Player p))return;
+if(e.getCause()==EntityDamageEvent.DamageCause.VOID&&voidSlot(p)!=null){e.setCancelled(true);voidRescue(p);return;}
+if(held(p)==Talisman.HADES){
+switch(e.getCause()){
+case FIRE,FIRE_TICK,HOT_FLOOR -> {e.setCancelled(true);p.setFireTicks(0);return;}
+default -> {}
+}
+}
 if(held(p)==Talisman.AGES){
 switch(e.getCause()){
 case FIRE,FIRE_TICK,LAVA,HOT_FLOOR -> {e.setCancelled(true);p.setFireTicks(0);}
@@ -384,6 +409,13 @@ default -> {}
 }
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void byEntity(EntityDamageByEntityEvent e){
+if(e.getEntity() instanceof Player hades&&held(hades)==Talisman.HADES){
+if(e.getDamager() instanceof Fireball fireball&&fireball.getShooter() instanceof Ghast){e.setCancelled(true);return;}
+LivingEntity threat=null;
+if(e.getDamager() instanceof LivingEntity direct)threat=direct;
+else if(e.getDamager() instanceof Projectile shot&&shot.getShooter() instanceof LivingEntity ranged)threat=ranged;
+if(threat!=null&&threat!=hades)ghastAssist(hades,threat);
+}
 if(e.getEntity() instanceof Player target&&held(target)==Talisman.END&&e.getDamager() instanceof Projectile projectile){
 e.setCancelled(true);ProjectileSource shooter=projectile.getShooter();
 if(shooter instanceof LivingEntity source&&source!=target&&source.isValid())source.damage(Math.min(20,Math.max(1,e.getFinalDamage())),target);
@@ -401,6 +433,7 @@ Bukkit.getScheduler().runTask(this,()->{if(attacker.isValid()&&!attacker.isDead(
 if(!(e.getDamager() instanceof Player attacker))return;
 Talisman t=held(attacker);if(t==null)return;
 if(t==Talisman.WRATH)e.setDamage(e.getDamage()*1.35);
+if(t==Talisman.HADES&&e.getEntity() instanceof LivingEntity victim)ghastAssist(attacker,victim);
 if(e.getEntity() instanceof LivingEntity victim){
 if(t==Talisman.MAIMING)victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER,100,0));
 if(t==Talisman.POSEIDON&&isRaining(attacker)&&victim.getHealth()<=victim.getAttribute(Attribute.MAX_HEALTH).getValue()*.5)victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,70,1));
@@ -411,16 +444,35 @@ victim.getWorld().strikeLightningEffect(victim.getLocation());victim.setHealth(M
 }
 }
 }
+private void ghastAssist(Player owner,LivingEntity enemy){
+if(enemy==owner||!enemy.isValid()||enemy.isDead()||!owner.getWorld().equals(enemy.getWorld()))return;
+long now=System.currentTimeMillis();
+if(now-ghastCooldowns.getOrDefault(owner.getUniqueId(),0L)<3500L)return;
+int fired=0;
+for(Ghast ghast:owner.getWorld().getEntitiesByClass(Ghast.class)){
+if(!ghast.isValid()||ghast.isDead()||ghast.getLocation().distanceSquared(owner.getLocation())>32*32||ghast.getLocation().distanceSquared(enemy.getLocation())>42*42)continue;
+Vector direction=enemy.getEyeLocation().toVector().subtract(ghast.getEyeLocation().toVector());
+if(direction.lengthSquared()<.001)continue;
+LargeFireball shot=ghast.launchProjectile(LargeFireball.class,direction.normalize());
+shot.setIsIncendiary(false);shot.setYield(0f);
+ghast.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME,ghast.getEyeLocation(),8,.3,.3,.3,.03);
+fired++;if(fired>=2)break;
+}
+if(fired>0)ghastCooldowns.put(owner.getUniqueId(),now);
+}
 private boolean critical(Player p){return p.getFallDistance()>0&&!p.isOnGround()&&!p.isInWater()&&!p.isClimbing()&&!p.hasPotionEffect(PotionEffectType.BLINDNESS);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void hostileTarget(EntityTargetLivingEntityEvent e){
 if(!(e.getTarget() instanceof Player p))return;
 if(held(p)==Talisman.END&&e.getEntityType()==EntityType.ENDERMAN){e.setCancelled(true);return;}
+if(held(p)==Talisman.HADES&&e.getEntityType()==EntityType.GHAST){e.setCancelled(true);return;}
 if(held(p)==Talisman.HADES&&e.getEntity() instanceof Monster&&!e.getReason().name().contains("ATTACKED"))e.setCancelled(true);
 }
 @EventHandler(priority=EventPriority.HIGHEST)public void resurrect(EntityResurrectEvent e){
-if(!(e.getEntity() instanceof Player p)||e.getHand()!=EquipmentSlot.OFF_HAND)return;
-ItemStack held=p.getInventory().getItemInOffHand();Talisman t=itemType(held);if(t==null)return;
-int current=lives(held);
+if(!(e.getEntity() instanceof Player p))return;
+EquipmentSlot slot=e.getHand();
+if(slot!=EquipmentSlot.OFF_HAND&&slot!=EquipmentSlot.HAND)return;
+ItemStack equippedItem=equipped(p,slot);Talisman t=itemType(equippedItem);if(t==null)return;
+int current=lives(equippedItem);
 boolean can=t.lives>0&&current>0;
 if(t==Talisman.POSEIDON)can&=(p.isInWater()||isRaining(p));
 List<Player> victims=new ArrayList<>();
@@ -433,8 +485,8 @@ e.setCancelled(false);
 final List<Player> nearby=List.copyOf(victims);
 Bukkit.getScheduler().runTask(this,()->{
 if(!p.isOnline())return;
-if(current>1){ItemStack next=talisman(t,current-1);ItemStack off=p.getInventory().getItemInOffHand();
-if(off.getType()==Material.AIR||off.getAmount()==0)p.getInventory().setItemInOffHand(next);else give(p,next);
+if(current>1){ItemStack next=talisman(t,current-1);ItemStack nowItem=equipped(p,slot);
+if(nowItem.getType()==Material.AIR||nowItem.getAmount()==0){if(slot==EquipmentSlot.HAND)p.getInventory().setItemInMainHand(next);else p.getInventory().setItemInOffHand(next);}else give(p,next);
 }
 if(t==Talisman.HADES){
 org.bukkit.attribute.AttributeInstance max=p.getAttribute(Attribute.MAX_HEALTH);if(max!=null)p.setHealth(Math.max(1,max.getValue()));
@@ -480,17 +532,22 @@ for(var entry:new ArrayList<>(ghostDolphins.entrySet())){
 Entity raw=Bukkit.getEntity(entry.getKey());
 if(!(raw instanceof Dolphin d)||!raw.isValid()){ghostDolphins.remove(entry.getKey());continue;}
 if(System.currentTimeMillis()>entry.getValue()){ghostDolphins.remove(entry.getKey());d.remove();continue;}
-Player nearest=null;double best=16*16;
+Player nearest=null;double best=24*24;
 for(Player p:d.getWorld().getPlayers()){
-if(held(p)==Talisman.POSEIDON||p.isDead())continue;
-double distance=p.getLocation().distanceSquared(d.getLocation());if(distance<best){best=distance;nearest=p;}
+if(held(p)==Talisman.POSEIDON||p.isDead()||p.getGameMode()==GameMode.SPECTATOR)continue;
+double distance=p.getEyeLocation().distanceSquared(d.getLocation());
+if(distance<best){best=distance;nearest=p;}
 }
 if(nearest!=null){
-Vector v=nearest.getEyeLocation().toVector().subtract(d.getLocation().toVector());
-if(v.lengthSquared()>.01)d.teleport(d.getLocation().add(v.normalize().multiply(.35)));
-if(best<2.25){nearest.damage(2.0,d);ghostDolphins.remove(d.getUniqueId());d.remove();continue;}
+Vector travel=nearest.getEyeLocation().toVector().subtract(d.getLocation().toVector());
+double distance=travel.length();
+if(distance>.05)d.teleport(d.getLocation().add(travel.normalize().multiply(Math.min(1.2,distance))));
+if(d.getLocation().distanceSquared(nearest.getEyeLocation())<2.3*2.3){
+nearest.damage(4.0,d);
+ghostDolphins.remove(d.getUniqueId());d.getWorld().spawnParticle(Particle.SPLASH,d.getLocation(),36,.5,.5,.5,.04);d.remove();continue;
 }
-d.getWorld().spawnParticle(Particle.SPLASH,d.getLocation(),3,.3,.3,.3,.02);
+}
+d.getWorld().spawnParticle(Particle.SPLASH,d.getLocation(),4,.3,.3,.3,.02);
 }
 }
 private boolean isRaining(Player p){return p.getWorld().getEnvironment()==World.Environment.NORMAL&&p.getWorld().hasStorm();}
@@ -530,7 +587,7 @@ case END -> p.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY,100
 }
 }
 private void tick(){
-pulses++;refresh();dolphinTick();cleanupPads();
+pulses++;refresh();cleanupPads();
 for(Altar a:new ArrayList<>(altars.values())){
 Location loc=a.location();if(loc==null||!loc.getWorld().isChunkLoaded(a.x>>4,a.z>>4))continue;
 World w=loc.getWorld();Block b=w.getBlockAt(a.x,a.y,a.z);
@@ -597,8 +654,8 @@ w.playSound(loc,Sound.ENTITY_PLAYER_LEVELUP,1,1.3f);
 private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
-sender.sendMessage("§dTalismanForge 2.0 §7| /tf give <ник> <maiming|wrath|defiance|life|poseidon|hades|ages|end|chest>");
-sender.sendMessage("§7Рецепт сундука: 7 аметистов + тотем + обсидиан снизу. Талисманы во второй руке.");return true;
+sender.sendMessage("§dTalismanForge 2.2 §7| /tf give <ник> <maiming|wrath|defiance|life|poseidon|hades|ages|end|chest>");
+sender.sendMessage("§7Рецепт сундука: 7 аметистов + тотем + обсидиан снизу. Талисманы в любой руке.");return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
 if(args.length<3){sender.sendMessage("§cИспользуй: /tf give <ник> <тип>");return true;}
@@ -614,6 +671,6 @@ if(args.length==3)return List.of("maiming","wrath","defiance","life","poseidon",
 return List.of();
 }
 @EventHandler public void quit(PlayerQuitEvent e){
-UUID id=e.getPlayer().getUniqueId();active.remove(id);cleansed.remove(id);safeLocations.remove(id);
+UUID id=e.getPlayer().getUniqueId();active.remove(id);cleansed.remove(id);safeLocations.remove(id);ghastCooldowns.remove(id);
 }
 }

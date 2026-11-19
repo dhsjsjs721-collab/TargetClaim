@@ -1,2 +1,10 @@
 # TalismanForge 2.1.0
 Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil on source lava, restores liquid automatically, protects paths from break, pistons, explosions, zero drops. Ritual chests show a particle beam without blocks or platform. Existing talisman mechanics preserved.
+
+
+## 2.2.0 update
+- Talismans activate in main hand and offhand (offhand priority for continuous effects if both occupied).
+- Void rescue: Poseidon does not save; End/Zeus saves infinitely; all other talismans are consumed on void rescue.
+- Hades is immune to fire and fire tick but **not** lava. Ghasts do not attack Hades wielders; nearby ghasts shoot zero-terrain-damage fireballs toward the wilder's combat target with a cooldown.
+- Poseidon spirit dolphin moves every five ticks, follows players faster and delivers 2 hearts of damage on contact before vanishing.
+- No resource pack changes are required for this update.
