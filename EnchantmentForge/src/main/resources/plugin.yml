@@ -1,12 +1,12 @@
 name: EnchantmentForge
-version: 1.0.1
+version: 1.1.0
 main: dev.enchantmentforge.EnchantmentForgePlugin
 api-version: '26.3'
 author: EnchantmentForge
-description: Custom Soulbound and Triple Shot enchantments
+description: Custom enchantments and diamond-based wandering traders
 commands:
   enchantmentforge:
-    description: Manage custom enchantment books
+    description: Custom enchantment books, inventory charm and traders
     aliases: [ce, enchants]
     usage: /ce help
 permissions:
