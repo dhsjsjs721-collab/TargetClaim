@@ -51,3 +51,10 @@ Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil o
 - Ages: temporary moss/soul soil forms a 3-block radius disk (up to 29 blocks), refreshed as the player walks. Uses a fixed liquid surface Y to eliminate jump jitter and lifting only when submerged. Lifts a submerged player onto solid surface and provides upward buoyancy for deeper immersion. Temporary blocks are restored to source liquids.
 - Ages pad cap increased to 900, platform updates throttled to 550ms per center and a quarter-tick safety refresh for players standing still. No resource pack changes.
 - Joker: on successful 50/50 death save, pick 1–3 distinct random buffs out of Speed II, Strength II, Resistance I, each with an independent random duration of 20–300 seconds. Previous fangs remain.
+
+
+## v2.5.4: short absorption effects and dropped-talisman fluids
+- Hades Absorption III and Defiance Absorption II now last five seconds and refresh before expiry while equipped, rather than granting extremely long effects. Refreshing a consumed absorption shield does not restore yellow hearts. Legacy long-duration absorption effects are replaced when a talisman is held.
+- Buffs are removed when a talisman is unequipped; Ages fire resistance is also removed and Poseidon water/rain buffs end when conditions are no longer met.
+- All dropped talismans except Poseidon resist fire/lava damage, float upward in lava and sink in water. Poseidon floats in water and retains vanilla lava vulnerability.
+- Dropped talismans are tracked on spawn and chunk entity load; an initial scan catches items already loaded when the plugin starts.
