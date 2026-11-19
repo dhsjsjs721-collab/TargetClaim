@@ -400,6 +400,17 @@ inventory.setHelmet(null);
 inventory.setChestplate(helmet);
 }else inventory.setHelmet(helmet);
 }
+// Existing items from previous releases can still be inside the inventory,
+// not equipped. Repair them too so right-click uses the correct slot.
+ItemStack[] storage=inventory.getStorageContents();
+for(int i=0;i<storage.length;i++){
+ItemStack stack=storage[i];
+String kind=is(stack,"wings")?"wings":is(stack,"boots")?"boots":is(stack,"leggings")?"leggings":null;
+if(kind!=null && fixEquipment(stack,kind))inventory.setItem(i,stack);
+}
+ItemStack off=inventory.getItemInOffHand();
+String offKind=is(off,"wings")?"wings":is(off,"boots")?"boots":is(off,"leggings")?"leggings":null;
+if(offKind!=null && fixEquipment(off,offKind))inventory.setItemInOffHand(off);
 }
 }
 private boolean fixEquipment(ItemStack stack,String kind){
