@@ -26,7 +26,13 @@ jobs:
           gradle-version: '9.2.1'
       - run: gradle -p SwampSky build --no-daemon
       - run: python3 -m pip install --disable-pip-version-check Pillow
+      - name: Read latest existing pack from main
+        run: |
+          git fetch origin main --depth=1
+          git show FETCH_HEAD:resourcepacks/TalismanForge-2.0.0-ResourcePack.zip > "${RUNNER_TEMP}/talismanforge-base.zip"
       - run: python3 SwampSky/tools/build_pack.py
+        env:
+          SWAMPSKY_BASE_PACK: ${{ runner.temp }}/talismanforge-base.zip
       - uses: actions/upload-artifact@v4
         with:
           name: SwampSky-Plugin-JAR
@@ -46,9 +52,10 @@ jobs:
           mkdir -p builds resourcepacks
           cp SwampSky/build/libs/SwampSky-1.2.0.jar builds/SwampSky-1.2.0.jar
           cp SwampSky/build/TalismanForge-SwampSky-Combined.zip resourcepacks/TalismanForge-SwampSky-Complete.zip
+          sha1sum resourcepacks/TalismanForge-SwampSky-Complete.zip | awk '{print $1}' > resourcepacks/TalismanForge-SwampSky-Complete.sha1
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add builds/SwampSky-1.2.0.jar resourcepacks/TalismanForge-SwampSky-Complete.zip
+          git add builds/SwampSky-1.2.0.jar resourcepacks/TalismanForge-SwampSky-Complete.zip resourcepacks/TalismanForge-SwampSky-Complete.sha1
           if ! git diff --cached --quiet; then
             git commit -m 'Publish SwampSky 1.2.0 jar and combined resourcepack [skip ci]'
             git push origin HEAD:feature/swampsky-creatures

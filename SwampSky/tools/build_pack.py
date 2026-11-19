@@ -149,7 +149,7 @@ def build():
     write_zip(BUILD/"SwampSky-ResourcePack.zip",standalone)
 
     # Merge with the existing user pack, preserving its files and only adding our namespace.
-    previous=REPO/"resourcepacks"/"TalismanForge-2.0.0-ResourcePack.zip"
+    previous=Path(__import__("os").environ.get("SWAMPSKY_BASE_PACK",str(REPO/"resourcepacks"/"TalismanForge-2.0.0-ResourcePack.zip")))
     if not previous.exists():
         raise FileNotFoundError(f"Cannot merge: missing existing resourcepack {previous}")
     merged={}
