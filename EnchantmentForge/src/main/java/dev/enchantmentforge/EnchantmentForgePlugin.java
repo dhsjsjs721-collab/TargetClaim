@@ -54,6 +54,7 @@ return null;
 private NamespacedKey bookKey;
 private NamespacedKey soulboundKey;
 private NamespacedKey tripleShotKey;
+private WanderingTraderFeature traderFeature;
 
 @Override public void onEnable() {
 saveDefaultConfig();
@@ -61,9 +62,11 @@ bookKey=new NamespacedKey(this,"enchanted_book_kind");
 soulboundKey=new NamespacedKey(this,"soulbound");
 tripleShotKey=new NamespacedKey(this,"triple_shot");
 Bukkit.getPluginManager().registerEvents(this,this);
+traderFeature=new WanderingTraderFeature(this,book(Enchant.SOULBOUND),book(Enchant.TRIPLE_SHOT));
+traderFeature.start();
 PluginCommand command=getCommand("enchantmentforge");
 if (command!=null) {command.setExecutor(this);command.setTabCompleter(this);}
-getLogger().info("EnchantmentForge active: Soulbound + Triple Shot");
+getLogger().info("EnchantmentForge active: Soulbound + Triple Shot + Diamond Wandering Trader");
 }
 
 private NamespacedKey key(Enchant enchant) {
@@ -210,18 +213,26 @@ for (PotionEffect effect:source.getCustomEffects()) copy.addCustomEffect(effect,
 
 @Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
 if (args.length==0 || "help".equalsIgnoreCase(args[0])) {
-sender.sendMessage("§6EnchantmentForge §7| §f/ce give <ник> <soulbound|triple_shot> [кол-во]");
+sender.sendMessage("§6EnchantmentForge §7| §f/ce give <ник> <soulbound|triple_shot|charm> [кол-во]");
 sender.sendMessage("§7/ce apply <soulbound|triple_shot> §8(предмет в руке, только OP)");
+sender.sendMessage("§7/ce trader §8(призвать торговца рядом с собой)");
 sender.sendMessage("§7Книгу можно наложить на предмет в наковальне.");
 return true;
 }
 if (!sender.hasPermission("enchantmentforge.admin")) {sender.sendMessage("§cНедостаточно прав.");return true;}
+if ("trader".equalsIgnoreCase(args[0])) {
+if (!(sender instanceof Player player)) {sender.sendMessage("§cКоманда только для игрока.");return true;}
+boolean spawned=traderFeature.spawnNear(player);
+sender.sendMessage(spawned?"§aТорговец появился неподалёку.":"§cНе удалось найти безопасное место в загруженных чанках.");
+return true;
+}
 if ("give".equalsIgnoreCase(args[0])) {
-if (args.length<3) {sender.sendMessage("§c/ce give <ник> <soulbound|triple_shot> [кол-во]");return true;}
+if (args.length<3) {sender.sendMessage("§c/ce give <ник> <soulbound|triple_shot|charm> [кол-во]");return true;}
 Player target=Bukkit.getPlayerExact(args[1]);
 if (target==null) {sender.sendMessage("§cИгрок не в сети.");return true;}
 Enchant enchant=Enchant.parse(args[2]);
-if (enchant==null) {sender.sendMessage("§cНеизвестное зачарование.");return true;}
+boolean charm="charm".equalsIgnoreCase(args[2]) || "inventory_charm".equalsIgnoreCase(args[2]);
+if (enchant==null && !charm) {sender.sendMessage("§cНеизвестный предмет.");return true;}
 int count=1;
 if (args.length>=4) {
 try {count=Integer.parseInt(args[3]);}
@@ -229,10 +240,10 @@ catch (NumberFormatException ex) {sender.sendMessage("§cУкажи число �
 }
 if (count<1 || count>64) {sender.sendMessage("§cУкажи число от 1 до 64.");return true;}
 for (int i=0;i<count;i++) {
-for (ItemStack leftover:target.getInventory().addItem(book(enchant)).values())
+for (ItemStack leftover:target.getInventory().addItem(charm?traderFeature.charm():book(enchant)).values())
 target.getWorld().dropItemNaturally(target.getLocation(),leftover);
 }
-sender.sendMessage("§aВыдано: "+enchant.id+" x"+count+" игроку "+target.getName());
+sender.sendMessage("§aВыдано: "+(charm?"charm":enchant.id)+" x"+count+" игроку "+target.getName());
 return true;
 }
 if ("apply".equalsIgnoreCase(args[0])) {
@@ -252,11 +263,11 @@ return true;
 }
 
 @Override public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-if (args.length==1) return List.of("give","apply","help");
+if (args.length==1) return List.of("give","apply","trader","help");
 if (!sender.hasPermission("enchantmentforge.admin")) return List.of();
 if (args.length==2 && "give".equalsIgnoreCase(args[0])) return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
 if (args.length==2 && "apply".equalsIgnoreCase(args[0])) return List.of("soulbound","triple_shot");
-if (args.length==3 && "give".equalsIgnoreCase(args[0])) return List.of("soulbound","triple_shot");
+if (args.length==3 && "give".equalsIgnoreCase(args[0])) return List.of("soulbound","triple_shot","charm");
 if (args.length==4 && "give".equalsIgnoreCase(args[0])) return List.of("1","2","4","8");
 return List.of();
 }
