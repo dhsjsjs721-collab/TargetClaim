@@ -101,7 +101,9 @@ if(owner(p)!=null && p.getCustomName()!=null && (p.getCustomName().contains("—Å–
 if(owner(p)!=null)p.setCustomNameVisible(false);
 }
 }
-if(e instanceof Frog f && marked(f,giantKey))frogs.add(f.getUniqueId());
+if(e instanceof Frog f && marked(f,giantKey)){
+frogs.add(f.getUniqueId());f.setCustomName(null);f.setCustomNameVisible(false);
+}
 if(e instanceof ItemDisplay && marked(e,displayKey))e.remove();
 }
 }
