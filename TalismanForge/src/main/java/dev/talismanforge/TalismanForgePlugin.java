@@ -130,7 +130,11 @@ m.setLore(List.of("§7Открой ритуал на улице с видом н
 m.getPersistentDataContainer().set(chestKey,PersistentDataType.BYTE,(byte)1);
 i.setItemMeta(m);return i;
 }
-private boolean specialChest(ItemStack i){return i!=null&&i.getType()==Material.CHEST&&i.hasItemMeta()&&Byte.valueOf((byte)1).equals(i.getItemMeta().getPersistentDataContainer().get(chestKey,PersistentDataType.BYTE));}
+private boolean specialChest(ItemStack i){
+if(i==null||i.getType()!=Material.CHEST||!i.hasItemMeta())return false;
+return Byte.valueOf((byte)1).equals(i.getItemMeta().getPersistentDataContainer().get(chestKey,PersistentDataType.BYTE))||
+Byte.valueOf((byte)1).equals(i.getItemMeta().getPersistentDataContainer().get(new NamespacedKey(this,"talisman_chest"),PersistentDataType.BYTE));
+}
 private String index(Location loc){return loc.getWorld().getUID()+":"+loc.getBlockX()+":"+loc.getBlockY()+":"+loc.getBlockZ();}
 private Altar altar(Block b){return altars.get(index(b.getLocation()));}
 private boolean beamPart(Altar a,Block b){
@@ -286,6 +290,7 @@ p.getWorld().spawnParticle(Particle.PORTAL,p.getLocation(),90,.7,1,.7,.25);
 }
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)public void moved(PlayerMoveEvent e){
 Player p=e.getPlayer();if(e.getTo()==null||held(p)==null)return;
+if(held(p)==Talisman.AGES)waterWalk(p);
 if(e.getTo().getY()<p.getWorld().getMinHeight()+6){voidRescue(p);return;}
 if(e.getTo().getY()<p.getWorld().getMinHeight()+12)return;
 if(p.isOnGround()&&p.getLocation().getBlock().isPassable()&&p.getLocation().subtract(0,1,0).getBlock().getType().isSolid())safeLocations.put(p.getUniqueId(),p.getLocation().clone());
@@ -312,8 +317,14 @@ e.setCancelled(true);ProjectileSource shooter=projectile.getShooter();
 if(shooter instanceof LivingEntity source&&source!=target&&source.isValid())source.damage(Math.min(20,Math.max(1,e.getFinalDamage())),target);
 target.getWorld().spawnParticle(Particle.PORTAL,target.getEyeLocation(),24,.3,.3,.3,.1);return;
 }
-if(e.getEntity() instanceof Player target&&held(target)==Talisman.AGES&&e.getDamager() instanceof LivingEntity attacker&&attacker!=target){
+if(e.getEntity() instanceof Player target&&held(target)==Talisman.AGES){
+LivingEntity thornsSource=null;
+if(e.getDamager() instanceof LivingEntity direct)thornsSource=direct;
+else if(e.getDamager() instanceof Projectile shot&&shot.getShooter() instanceof LivingEntity ranged)thornsSource=ranged;
+if(thornsSource!=null&&thornsSource!=target){
+final LivingEntity attacker=thornsSource;
 Bukkit.getScheduler().runTask(this,()->{if(attacker.isValid()&&!attacker.isDead())attacker.damage(2.0,target);});
+}
 }
 if(!(e.getDamager() instanceof Player attacker))return;
 Talisman t=held(attacker);if(t==null)return;
