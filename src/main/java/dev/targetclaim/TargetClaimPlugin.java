@@ -621,7 +621,7 @@ w.playSound(at,Sound.BLOCK_AMETHYST_BLOCK_CHIME,1.0f,1.3f);
 }
 
 private ActionButton action(String caption,String description,String command,NamedTextColor color){
-return ActionButton.create(Component.text(caption,color).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD),Component.text(description,NamedTextColor.GRAY),220,DialogAction.customClick(Key.key("targetclaim:"+command),null));
+return ActionButton.create(Component.text(caption,color).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD),Component.text(description,NamedTextColor.GRAY),148,DialogAction.customClick(Key.key("targetclaim:"+command),null));
 }
 private DialogBody message(String s){return DialogBody.plainMessage(Component.text(s,NamedTextColor.GRAY));}
 private DialogBody stat(String title,String value,NamedTextColor color){
@@ -629,7 +629,7 @@ return DialogBody.plainMessage(Component.text(title+"   ",color).decorate(net.ky
 }
 private String dimension(int level){return SIZE[level]+" × "+HEIGHT[level]+" × "+SIZE[level];}
 private void dialog(Player player,String heading,List<DialogBody> body,List<ActionButton> buttons){
-Dialog d=Dialog.create(b->b.empty().base(DialogBase.builder(Component.text(heading,NamedTextColor.LIGHT_PURPLE).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD)).body(body).canCloseWithEscape(true).build()).type(DialogType.multiAction(buttons).build()));
+Dialog d=Dialog.create(b->b.empty().base(DialogBase.builder(Component.text(heading,NamedTextColor.LIGHT_PURPLE).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD)).body(body).canCloseWithEscape(true).build()).type(DialogType.multiAction(buttons,null,2).build()));
 player.showDialog(d);
 }
 private Claim viewedClaim(Player p){UUID id=openedClaim.get(p.getUniqueId());return id==null?claims.get(p.getUniqueId()):claims.get(id);}
@@ -637,31 +637,38 @@ private void showClaimDialog(Player player,Claim c){
 if(!owner(player,c)&&!allies(player.getUniqueId(),c.owner)){tell(player,"§cЧужой приват.");return;}
 openedClaim.put(player.getUniqueId(),c.owner);
 boolean isOwner=player.getUniqueId().equals(c.owner);
-boolean ready=isOwner&&enoughInHand(player,c);
+Viewer v=viewer(player);
 List<DialogBody> body=new ArrayList<>();
-body.add(stat("ВЛАДЕЛЕЦ",c.ownerName,NamedTextColor.LIGHT_PURPLE));
-body.add(stat("СЕЙЧАС   "+c.level+"/4",dimension(c.level),NamedTextColor.RED));
-if(c.level<4){
-body.add(stat("СЛЕДУЮЩИЙ   "+(c.level+1)+"/4",dimension(c.level+1),NamedTextColor.AQUA));
-body.add(stat("СТОИМОСТЬ",AMOUNT[c.level]+" × "+russian(COST[c.level])+" в основной руке",NamedTextColor.YELLOW));
-if(isOwner){
-boolean allowed=ready&&validLevel(c,c.level+1);
-body.add(stat("ПРЕДПРОСМОТР",!ready?"Нужные ресурсы в руке":allowed?"ГОЛУБОЙ • можно улучшить":"ОРАНЖЕВЫЙ • пересечение/высота",allowed?NamedTextColor.GREEN:NamedTextColor.YELLOW));
-}
-}else body.add(stat("СТАТУС","Максимальный уровень достигнут",NamedTextColor.GOLD));
-body.add(stat("МАКСИМУМ",dimension(4),NamedTextColor.GOLD));
-body.add(stat("СТРОИТЕЛЬСТВО",c.teamBuild?"Владелец и команда":"Только владелец",NamedTextColor.YELLOW));
-body.add(stat("PvP","Всегда разрешено; у союзников — по согласию",NamedTextColor.GREEN));
+body.add(stat("УРОВЕНЬ  "+c.level+"/4",dimension(c.level),NamedTextColor.RED));
+body.add(message("Владелец: "+c.ownerName+"  •  PvP включено"));
 List<ActionButton> buttons=new ArrayList<>();
-if(isOwner&&c.level<4)buttons.add(action("УЛУЧШИТЬ",AMOUNT[c.level]+" × "+russian(COST[c.level])+"  •  "+dimension(c.level+1),"claim_upgrade",NamedTextColor.GREEN));
-buttons.add(action("КРАСНЫЕ ГРАНИЦЫ   "+on(viewer(player).borders),"Постоянный объёмный контур; предпросмотр отдельно","claim_border",NamedTextColor.RED));
+if(isOwner&&c.level<4)buttons.add(action("Улучшить","Стоимость и размер","claim_upgrade_menu",NamedTextColor.GREEN));
+buttons.add(action("Границы: "+on(v.borders),"Красный контур","claim_border",NamedTextColor.RED));
+buttons.add(action("Луч: "+on(v.beam),"Без блока маяка","claim_beam",NamedTextColor.AQUA));
+if(isOwner)buttons.add(action("Доступ: "+(c.teamBuild?"Команда":"Только я"),"Кто может строить","claim_build",NamedTextColor.YELLOW));
+buttons.add(action("Команда","Игроки и PvP","team_open",NamedTextColor.LIGHT_PURPLE));
 if(isOwner){
-buttons.add(action("СТРОИТЕЛЬСТВО   "+(c.teamBuild?"КОМАНДА":"ТОЛЬКО Я"),"Разрешения на блоки, двери, сундуки и механизмы","claim_build",NamedTextColor.YELLOW));
-if(pendingDeletion.containsKey(c.owner))buttons.add(action("ОТМЕНИТЬ УДАЛЕНИЕ","Вернуть приват из очереди удаления","claim_delete_cancel",NamedTextColor.GREEN));
-else buttons.add(action("УДАЛИТЬ ПРИВАТ","Подтверждение; 10 секунд на отмену; возврат 3 бумаги","claim_remove",NamedTextColor.RED));
+if(pendingDeletion.containsKey(c.owner))buttons.add(action("Отменить удаление","Сохранить приват","claim_delete_cancel",NamedTextColor.GREEN));
+else buttons.add(action("Удалить","Подтверждение, 10 сек.","claim_remove",NamedTextColor.RED));
 }
-buttons.add(action("МОЯ КОМАНДА","Участники, приглашения, PvP союзников","team_open",NamedTextColor.LIGHT_PURPLE));
-dialog(player,"TARGETCLAIM  /  УПРАВЛЕНИЕ",body,buttons);
+dialog(player,"TARGETCLAIM",body,buttons);
+}
+private void showUpgradeDialog(Player player,Claim c){
+if(!player.getUniqueId().equals(c.owner))return;
+openedClaim.put(player.getUniqueId(),c.owner);
+List<DialogBody> body=new ArrayList<>();
+body.add(stat("СЕЙЧАС",dimension(c.level),NamedTextColor.RED));
+if(c.level<4){
+body.add(stat("ДАЛЬШЕ",dimension(c.level+1),NamedTextColor.AQUA));
+body.add(stat("НУЖНО",AMOUNT[c.level]+" × "+russian(COST[c.level]),NamedTextColor.YELLOW));
+boolean ready=enoughInHand(player,c);
+body.add(message(ready?(validLevel(c,c.level+1)?"Ресурсы есть • голубые границы":"Расширение невозможно • оранжевые границы"):"Держи ресурсы в основной руке"));
+}else body.add(message("Максимальный уровень."));
+body.add(stat("МАКСИМУМ",dimension(4),NamedTextColor.GOLD));
+List<ActionButton> buttons=new ArrayList<>();
+if(c.level<4)buttons.add(action("Улучшить","Потратить ресурсы","claim_upgrade",NamedTextColor.GREEN));
+buttons.add(action("Назад","Основное меню","claim_open",NamedTextColor.GRAY));
+dialog(player,"УЛУЧШЕНИЕ",body,buttons);
 }
 private String on(boolean value){return value?"ВКЛ":"ВЫКЛ";}
 private void showRemoveDialog(Player player,Claim c){
@@ -711,9 +718,11 @@ if(!p.getUniqueId().equals(c.owner)&&!allies(p.getUniqueId(),c.owner)){tell(p,"�
 if(a.equals("claim_open")){showClaimDialog(p,c);return;}
 if(a.equals("claim_close")){p.closeDialog();return;}
 if(a.equals("claim_border")){Viewer v=viewer(p);v.borders=!v.borders;saveAll();showClaimDialog(p,c);return;}
+if(a.equals("claim_beam")){Viewer v=viewer(p);v.beam=!v.beam;saveAll();showClaimDialog(p,c);return;}
 if(!p.getUniqueId().equals(c.owner)){tell(p,"§cТолько владелец изменяет настройки.");return;}
 switch(a){
-case "claim_upgrade"->{upgrade(p,c);showClaimDialog(p,c);return;}
+case "claim_upgrade_menu"->{showUpgradeDialog(p,c);return;}
+case "claim_upgrade"->{upgrade(p,c);showUpgradeDialog(p,c);return;}
 case "claim_build"->c.teamBuild=!c.teamBuild;
 case "claim_remove"->{showRemoveDialog(p,c);return;}
 case "claim_delete_confirm"->{startDeletion(p,c);return;}
