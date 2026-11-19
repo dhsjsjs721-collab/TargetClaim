@@ -16,3 +16,11 @@ Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil o
 - Ordinary vanilla Totem of Undying crafting: 8 gold blocks around an emerald.
 - Alternative name tag crafting: one paper and one string (shapeless). Vanilla recipe remains available in 26.3.
 - Keeps dual-hand support, Hades ghast support and conditional void protections from 2.2.
+
+
+## 2.4.0: Grappling Hook
+- Right-click hook to pull a targeted player or mob towards the user (up to 36 blocks and clear line of sight).
+- Cooldown 15 seconds per player; rod loses 8 durability per successful hook (8 uses).
+- Craft: ISI / SNS / ITI, I iron ingot, S string, N iron nugget, T stick. No amethyst.
+- Resource pack model: talismanforge:grappling_hook, FISHING_ROD material.
+- Existing talismans, chests, and protections remain.

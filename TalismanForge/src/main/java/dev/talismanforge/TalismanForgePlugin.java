@@ -94,9 +94,10 @@ craftedTag.addIngredient(Material.STRING);
 Bukkit.addRecipe(craftedTag);
 PluginCommand c=getCommand("talismanforge");if(c!=null){c.setExecutor(this);c.setTabCompleter(this);}
 Bukkit.getPluginManager().registerEvents(this,this);
+Bukkit.getPluginManager().registerEvents(new GrapplingHookListener(this),this);
 Bukkit.getScheduler().runTaskTimer(this,this::quarterTick,5L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::tick,20L,20L);
-getLogger().info("TalismanForge 2.3.0: "+altars.size()+" ritual chests");
+getLogger().info("TalismanForge 2.4.0: "+altars.size()+" ritual chests");
 }
 @Override public void onDisable(){
 for(UUID id:holograms.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
@@ -697,7 +698,7 @@ w.playSound(loc,Sound.ENTITY_PLAYER_LEVELUP,1,1.3f);
 private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
-sender.sendMessage("§dTalismanForge 2.3 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|chest>");
+sender.sendMessage("§dTalismanForge 2.4 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|chest>");
 sender.sendMessage("§7Рецепт сундука: 7 аметистов + тотем + обсидиан снизу. Талисманы в любой руке.");return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
