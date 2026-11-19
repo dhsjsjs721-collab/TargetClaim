@@ -516,39 +516,75 @@ if(marker==null)continue;
 try{Claim c=claims.get(UUID.fromString(marker));if(c==null||!c.world.equals(e.getWorld().getUID())||e.getLocation().distanceSquared(new Location(e.getWorld(),c.x+.5,c.y+1.55,c.z+.5))>4)text.remove();else setDisplayText(text,c);}catch(Exception ignored){text.remove();}
 }
 }
-private void visualTick(){
-for(Player p:Bukkit.getOnlinePlayers()){
-Viewer view=viewer(p);
-for(Claim c:claims.values()){
-if(!c.world.equals(p.getWorld().getUID()))continue;
-double dx=p.getLocation().getX()-(c.x+.5),dz=p.getLocation().getZ()-(c.z+.5);
-if(Math.abs(dx)>SIZE[c.level]/2.+100||Math.abs(dz)>SIZE[c.level]/2.+100||Math.abs(p.getLocation().getY()-c.y)>HEIGHT[c.level]/2.+100)continue;
-ensureDisplay(c);
-if(!view.borders)continue;
-if(!p.getUniqueId().equals(c.owner)&&!(c.teamBuild&&allies(p.getUniqueId(),c.owner)))continue;
-particleBorder(p,c,view);
+private static final Particle.DustOptions BORDER_RED=new Particle.DustOptions(Color.fromRGB(255,35,48),1.9f);
+private static final Particle.DustOptions PREVIEW_CYAN=new Particle.DustOptions(Color.fromRGB(35,231,255),1.55f);
+private static final Particle.DustOptions MAX_GOLD=new Particle.DustOptions(Color.fromRGB(255,193,55),1.35f);
+private static final Particle.DustOptions BLOCKED_ORANGE=new Particle.DustOptions(Color.fromRGB(255,117,35),1.5f);
+private static final class ParticleBudget {
+int remaining;
+ParticleBudget(int max){remaining=max;}
 }
-}
+private boolean enoughInHand(Player p,Claim c){
+if(c.level>=4)return false;
+ItemStack held=p.getInventory().getItemInMainHand();
+return held.getType()==COST[c.level]&&held.getAmount()>=AMOUNT[c.level];
 }
 private Viewer viewer(Player p){return viewers.computeIfAbsent(p.getUniqueId(),id->new Viewer());}
-private static final Particle.DustOptions RED_BORDER=new Particle.DustOptions(Color.fromRGB(255,32,48),1.7f);
-private void redParticle(Player p,double x,double y,double z){
-p.spawnParticle(Particle.DUST,x,y,z,1,0,0,0,0,RED_BORDER);
+private void visualTick(){
+for(Player p:Bukkit.getOnlinePlayers()){
+Viewer settings=viewer(p);
+Claim own=claims.get(p.getUniqueId());
+boolean preview=own!=null&&enoughInHand(p,own);
+if(!settings.borders&&!preview)continue;
+Location pos=p.getLocation();
+ParticleBudget red=new ParticleBudget(190);
+ParticleBudget cyan=new ParticleBudget(125);
+ParticleBudget gold=new ParticleBudget(65);
+for(Claim c:regionClaims(p.getWorld().getUID(),pos.getBlockX()-96,pos.getBlockX()+96,pos.getBlockZ()-96,pos.getBlockZ()+96)){
+boolean self=c.owner.equals(p.getUniqueId());
+if(!self&&!(c.teamBuild&&allies(p.getUniqueId(),c.owner)))continue;
+if(Math.abs(pos.getX()-(c.x+.5))>SIZE[c.level]/2.+96||Math.abs(pos.getZ()-(c.z+.5))>SIZE[c.level]/2.+96||Math.abs(pos.getY()-(c.y+.5))>HEIGHT[c.level]/2.+120)continue;
+if(settings.borders&&red.remaining>0)drawBorder(p,c,c.level,BORDER_RED,2.6,96,red,true);
+if(self&&preview){
+boolean valid=validLevel(c,c.level+1);
+drawBorder(p,c,c.level+1,valid?PREVIEW_CYAN:BLOCKED_ORANGE,3.6,132,cyan,false);
+if(c.level+1<4)drawBorder(p,c,4,MAX_GOLD,8.0,150,gold,false);
 }
-private void particleBorder(Player p,Claim c,Viewer v){
-double minX=c.minX()+.5,maxX=c.maxX()+.5,minZ=c.minZ()+.5,maxZ=c.maxZ()+.5;
-double lower=c.minY()+.5,upper=c.maxY()+.5,eye=Math.max(lower,Math.min(upper,p.getLocation().getY()));
-int horizontal=Math.min(64,Math.max(16,SIZE[c.level]/2));
-int vertical=Math.min(64,Math.max(16,HEIGHT[c.level]/2));
-for(int i=0;i<=horizontal;i++){
-double t=i/(double)horizontal,x=minX+(maxX-minX)*t,z=minZ+(maxZ-minZ)*t;
-redParticle(p,x,lower,minZ);redParticle(p,x,lower,maxZ);redParticle(p,minX,lower,z);redParticle(p,maxX,lower,z);
-redParticle(p,x,upper,minZ);redParticle(p,x,upper,maxZ);redParticle(p,minX,upper,z);redParticle(p,maxX,upper,z);
-redParticle(p,x,eye,minZ);redParticle(p,x,eye,maxZ);redParticle(p,minX,eye,z);redParticle(p,maxX,eye,z);
 }
-for(int i=0;i<=vertical;i++){
-double y=lower+(upper-lower)*i/(double)vertical;
-redParticle(p,minX,y,minZ);redParticle(p,minX,y,maxZ);redParticle(p,maxX,y,minZ);redParticle(p,maxX,y,maxZ);
+}
+}
+private void particleLine(Player p,Particle.DustOptions dust,double x1,double y1,double z1,double x2,double y2,double z2,double spacing,double visibleRange,ParticleBudget budget){
+double dx=x2-x1,dy=y2-y1,dz=z2-z1;
+int steps=Math.max(1,(int)Math.ceil(Math.sqrt(dx*dx+dy*dy+dz*dz)/spacing));
+Location loc=p.getLocation();
+double maxDistance=visibleRange*visibleRange;
+for(int i=0;i<=steps&&budget.remaining>0;i++){
+double f=(double)i/steps;
+double x=x1+dx*f,y=y1+dy*f,z=z1+dz*f;
+double ax=x-loc.getX(),ay=y-loc.getY(),az=z-loc.getZ();
+if(ax*ax+ay*ay+az*az>maxDistance)continue;
+p.spawnParticle(Particle.DUST,x,y,z,1,0,0,0,0,dust);
+budget.remaining--;
+}
+}
+private void drawBorder(Player p,Claim c,int level,Particle.DustOptions dust,double spacing,double visibleRange,ParticleBudget budget,boolean slice){
+double x1=minX(c,level)+.5,x2=maxX(c,level)+.5;
+double z1=minZ(c,level)+.5,z2=maxZ(c,level)+.5;
+double y1=minY(c,level)+.5,y2=maxY(c,level)+.5;
+for(double y:new double[]{y1,y2}){
+particleLine(p,dust,x1,y,z1,x2,y,z1,spacing,visibleRange,budget);
+particleLine(p,dust,x1,y,z2,x2,y,z2,spacing,visibleRange,budget);
+particleLine(p,dust,x1,y,z1,x1,y,z2,spacing,visibleRange,budget);
+particleLine(p,dust,x2,y,z1,x2,y,z2,spacing,visibleRange,budget);
+}
+for(double x:new double[]{x1,x2})for(double z:new double[]{z1,z2})
+particleLine(p,dust,x,y1,z,x,y2,z,spacing,visibleRange,budget);
+if(slice){
+double y=Math.max(y1,Math.min(y2,p.getLocation().getY()));
+particleLine(p,dust,x1,y,z1,x2,y,z1,spacing,visibleRange,budget);
+particleLine(p,dust,x1,y,z2,x2,y,z2,spacing,visibleRange,budget);
+particleLine(p,dust,x1,y,z1,x1,y,z2,spacing,visibleRange,budget);
+particleLine(p,dust,x2,y,z1,x2,y,z2,spacing,visibleRange,budget);
 }
 }
 private void showUpgradeEffects(Claim c){World w=Bukkit.getWorld(c.world);if(w==null)return;
