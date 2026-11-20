@@ -562,7 +562,7 @@ return false;
 private void setSwordRetaliation(Player player,LivingEntity target){
 if(held(player)!=Talisman.END||target==player||friendly(player,target))return;
 swordTarget.put(player.getUniqueId(),target.getUniqueId());
-swordExpiry.put(player.getUniqueId(),System.currentTimeMillis()+8500L);
+swordExpiry.put(player.getUniqueId(),System.currentTimeMillis()+20_000L);
 }
 private void clearEndSwords(UUID id){
 List<UUID> displays=swordVisuals.remove(id);
