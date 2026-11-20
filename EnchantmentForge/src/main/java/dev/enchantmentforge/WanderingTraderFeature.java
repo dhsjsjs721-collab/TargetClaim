@@ -18,6 +18,9 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.world.EntitiesLoadEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.MerchantRecipe;
 import org.bukkit.inventory.meta.BlockStateMeta;
@@ -44,7 +47,7 @@ private final Random random=new Random();
 WanderingTraderFeature(JavaPlugin plugin, ItemStack soulboundBook, ItemStack tripleShotBook) {
 this.plugin=plugin;
 this.charmKey=new NamespacedKey(plugin,"inventory_charm");
-this.traderKey=new NamespacedKey(plugin,"improved_trader_v112");
+this.traderKey=new NamespacedKey(plugin,"improved_trader_v3_full_catalog");
 this.soulboundBook=soulboundBook.clone();
 this.tripleShotBook=tripleShotBook.clone();
 }
@@ -121,6 +124,18 @@ if (trader.isValid() && !trader.isDead()) configure(trader);
 },1L);
 }
 
+@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)
+public void traderRightClick(PlayerInteractEntityEvent event){
+if(event.getHand()!=EquipmentSlot.HAND)return;
+if(event.getRightClicked() instanceof WanderingTrader trader)configure(trader);
+}
+@EventHandler(priority=EventPriority.MONITOR)
+public void traderEntitiesLoaded(EntitiesLoadEvent event){
+for(org.bukkit.entity.Entity entity:event.getEntities()){
+if(entity instanceof WanderingTrader trader)configure(trader);
+if(entity instanceof TraderLlama llama&&llama.isLeashed()&&llama.getLeashHolder() instanceof WanderingTrader)llama.remove();
+}
+}
 private void configure(WanderingTrader trader) {
 if (trader.getPersistentDataContainer().has(traderKey,PersistentDataType.BYTE)) return;
 trader.setCustomName("§6Странствующий торговец");
@@ -189,7 +204,7 @@ list.add(new Offer(spawner(type,name),price,1));
 private List<MerchantRecipe> makeOffers() {
 List<Offer> selected=new ArrayList<>();
 List<Offer> pool=new ArrayList<>();
-// Guaranteed, useful offers on every trader.
+// Every wandering trader now sells the same COMPLETE, ordered catalog. No random variations.
 selected.add(new Offer(charm(),5,3));
 selected.add(new Offer(soulboundBook.clone(),28,3));
 selected.add(new Offer(tripleShotBook.clone(),24,3));
@@ -204,9 +219,7 @@ addSpawner(spawners,EntityType.SKELETON,"Скелет",92);
 addSpawner(spawners,EntityType.SPIDER,"Паук",84);
 addSpawner(spawners,EntityType.BLAZE,"Ифрит",112);
 addSpawner(spawners,EntityType.CAVE_SPIDER,"Пещерный паук",96);
-Collections.shuffle(spawners,random);
-selected.add(spawners.remove(0));
-pool.addAll(spawners);
+selected.addAll(spawners);
 
 // Ordinary useful goods, sold in convenient bundles.
 add(pool,Material.GOLDEN_CARROT,32,10,6);
@@ -314,20 +327,10 @@ addEgg(pool,"BLAZE_SPAWN_EGG",38);
 addEgg(pool,"SLIME_SPAWN_EGG",34);
 addEgg(pool,"ZOMBIE_SPAWN_EGG",30);
 addEgg(pool,"SKELETON_SPAWN_EGG",30);
-// Always include one egg, then draw additional offers from the remaining catalog.
-List<Offer> eggs=new ArrayList<>();
-for (Offer offer:pool) if (offer.result().getType().name().endsWith("_SPAWN_EGG")) eggs.add(offer);
-if (!eggs.isEmpty()) {
-Offer guaranteedEgg=eggs.get(random.nextInt(eggs.size()));
-selected.add(guaranteedEgg);
-pool.remove(guaranteedEgg);
-}
-Collections.shuffle(pool,random);
-int target=Math.max(9,Math.min(45,plugin.getConfig().getInt("trader-offers-per-trader",26)));
-for (Offer offer:pool) {
-if (selected.size()>=target) break;
-selected.add(offer);
-}
+// All eggs, enchanted books and useful goods are available on EVERY trader.
+// Trades are generated once per merchant, not regenerated at every click.
+// A lengthy vanilla merchant scrolling menu is intentional for full selection.
+selected.addAll(pool);
 List<MerchantRecipe> recipes=new ArrayList<>();
 for (Offer offer:selected) recipes.add(recipe(offer));
 return recipes;
