@@ -875,7 +875,11 @@ meta.addAttributeModifier(Attribute.ARMOR,
 new AttributeModifier(modifierKey,6.0,AttributeModifier.Operation.ADD_NUMBER,EquipmentSlotGroup.CHEST));
 changed=true;
 }
-if(meta instanceof org.bukkit.inventory.meta.Damageable damageable && damageable.getMaxDamage()<4096){
+// Purpur/Paper 26.3 throws if getMaxDamage() is called before custom
+// max_damage has been set on the ItemMeta. The vanilla Elytra default is
+// smaller than 4096 but does not count as a custom max damage component.
+if(meta instanceof org.bukkit.inventory.meta.Damageable damageable
+&&(!damageable.hasMaxDamage()||damageable.getMaxDamage()!=4096)){
 damageable.setMaxDamage(4096);
 changed=true;
 }
