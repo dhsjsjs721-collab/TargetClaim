@@ -510,7 +510,8 @@ EntityType entity=e.getEntityType();
 if(entity==EntityType.WITHER&&e.getEntity().getKiller()!=null&&random.nextDouble()<getConfig().getDouble("wither-maiming",.5)){
 int n=1;if(random.nextDouble()<.25)n++;if(random.nextDouble()<.08)n++;
 for(int i=0;i<n;i++)e.getDrops().add(talisman(Talisman.MAIMING,2));
-e.getEntity().getWorld().spawnParticle(Particle.DRAGON_BREATH,e.getEntity().getLocation(),55,1,1,1,.03);
+e.getEntity().getWorld().spawnParticle(Particle.DUST,e.getEntity().getLocation(),50,1,1,1,
+new Particle.DustOptions(Color.fromRGB(162,83,182),1.2f));
 }
 if(entity==EntityType.ELDER_GUARDIAN&&random.nextDouble()<getConfig().getDouble("elder-guardian-poseidon",.25))e.getDrops().add(talisman(Talisman.POSEIDON,1));
 if(entity==EntityType.BLAZE&&random.nextDouble()<getConfig().getDouble("blaze-hades",.015))e.getDrops().add(talisman(Talisman.HADES,1));
@@ -887,8 +888,10 @@ Player killer=victim.getKiller();
 if(killer==null||held(killer)!=Talisman.HADES||victim==killer)return;
 // The stolen gold hearts equal the victim's golden (absorption) hearts at death.
 // No absorbable hearts means no stolen bonus; hard cap prevents indefinite stacking.
-double available=Math.max(0,victim.getAbsorptionAmount());
-if(available<=.01)return;
+org.bukkit.attribute.AttributeInstance maxHealth=victim.getAttribute(Attribute.MAX_HEALTH);
+// Each kill grants gold hearts equal to the fallen creature's normal maximum
+// hearts; bosses are capped to 10 hearts per kill, and stacks to 20 hearts.
+double available=maxHealth==null?2:Math.max(1,maxHealth.getValue());
 double before=killer.getAbsorptionAmount();
 double increase=Math.min(20,available);
 killer.setAbsorptionAmount(Math.min(40,before+increase));
@@ -1301,7 +1304,7 @@ if(previous!=null)p.removePotionEffect(PotionEffectType.ABSORPTION);
 p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION,100,amplifier,true,false,true));
 });
 recordGranted(p,PotionEffectType.ABSORPTION,amplifier);
-if(renewing&&p.getAbsorptionAmount()>remaining)p.setAbsorptionAmount(remaining);
+if(renewing&&Math.abs(p.getAbsorptionAmount()-remaining)>.01)p.setAbsorptionAmount(remaining);
 }
 private void refresh(){
 for(Player p:Bukkit.getOnlinePlayers()){
