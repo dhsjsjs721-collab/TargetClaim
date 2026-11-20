@@ -1,6 +1,6 @@
 plugins { java }
 group = "dev.unified"
-version = "1.0.8"
+version = "1.0.9"
 
 repositories { maven("https://repo.papermc.io/repository/maven-public/") }
 dependencies { compileOnly("io.papermc.paper:paper-api:26.3.build.+") }
@@ -12,4 +12,4 @@ resources.srcDir("build/generated-resources")
 }
 }
 tasks.withType<JavaCompile> { options.encoding = "UTF-8" }
-tasks.jar { archiveFileName.set("MinecraftUnified-1.0.8.jar") }
+tasks.jar { archiveFileName.set("MinecraftUnified-1.0.9.jar") }
