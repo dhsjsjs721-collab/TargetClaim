@@ -47,6 +47,9 @@ private final Set<UUID> wings=new HashSet<>(), frogs=new HashSet<>(), ground=new
 private final Map<UUID,List<UUID>> displays=new HashMap<>();
 private final Map<UUID,Input> inputCache=new HashMap<>();
 private final Map<UUID,UUID> pendingMount=new HashMap<>();
+private final Map<UUID,Long> approachRiderUntil=new HashMap<>(),lureHysteresisUntil=new HashMap<>();
+private final Map<UUID,Long> settleUntil=new HashMap<>(),frogIdleUntil=new HashMap<>();
+private final Map<UUID,Location> frogIdleGoals=new HashMap<>();
 private final Map<UUID,UUID> aggro=new HashMap<>();
 private final Map<UUID,Long> aggroUntil=new HashMap<>(),attackCooldown=new HashMap<>(),hitWindow=new HashMap<>(),dismountFall=new HashMap<>(),knockbackUntil=new HashMap<>();
 private final Map<UUID,Integer> hitCount=new HashMap<>();
@@ -88,6 +91,7 @@ for(UUID id:new ArrayList<>(displays.keySet()))pigClear(id);
 aggro.clear();aggroUntil.clear();attackCooldown.clear();hitWindow.clear();hitCount.clear();flightVectors.clear();
 roamHomes.clear();roamTargets.clear();motionSamples.clear();roamExpiry.clear();motionCheckAt.clear();motionStalls.clear();pigErrorLogAt.clear();groundTargets.clear();groundPathUntil.clear();
 dismountFall.clear();knockbackUntil.clear();pendingMount.clear();heldJump.clear();nextMountedJump.clear();
+approachRiderUntil.clear();lureHysteresisUntil.clear();settleUntil.clear();frogIdleGoals.clear();frogIdleUntil.clear();
 for(UUID id:ground){Entity e=Bukkit.getEntity(id);if(e instanceof Pig p){p.setAI(true);p.setAware(true);}}
 for(UUID id:wings){
 Entity e=Bukkit.getEntity(id);
@@ -129,7 +133,7 @@ if(hp!=null)hp.setBaseValue(getConfig().getDouble("frog-health",60));
 AttributeInstance size=f.getAttribute(Attribute.SCALE);
 if(size!=null)size.setBaseValue(getConfig().getDouble("frog-scale",2.8));
 if(hp!=null)f.setHealth(hp.getValue());
-f.setAI(true);f.setAware(false);
+f.setAI(true);f.setAware(true);
 f.setCustomName(null);f.setCustomNameVisible(false);
 f.setRemoveWhenFarAway(false);
 frogs.add(f.getUniqueId());
@@ -149,7 +153,7 @@ if(owner(p)!=null){p.setCustomNameVisible(false);}
 }
 }
 if(e instanceof Frog f && marked(f,giantKey)){
-frogs.add(f.getUniqueId());f.setCustomName(null);f.setCustomNameVisible(false);f.setAI(true);f.setAware(false);
+frogs.add(f.getUniqueId());f.setCustomName(null);f.setCustomNameVisible(false);f.setAI(true);f.setAware(true);
 }
 if(e instanceof ItemDisplay && marked(e,displayKey))e.remove();
 }
