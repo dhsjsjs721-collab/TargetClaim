@@ -54,6 +54,8 @@ private final Map<UUID,UUID> relicDisplays=new HashMap<>();
 private final Map<UUID,Integer> wrathStreak=new HashMap<>();
 private final Map<UUID,Double> hungerTakenFractions=new HashMap<>();
 private final Map<UUID,Double> hungerGivenFractions=new HashMap<>();
+private final Set<UUID> editingFood=new HashSet<>();
+private final Set<UUID> editingPotions=new HashSet<>();
 private final Map<UUID,Long> wrathLastCrit=new HashMap<>();
 private final Map<UUID,Map<PotionEffectType,Integer>> grantedEffects=new HashMap<>();
 private final Map<UUID,Long> agesInvulnerableUntil=new HashMap<>();
@@ -75,7 +77,7 @@ private final Map<UUID,Long> pathRefresh=new HashMap<>();
 private final Random random=new Random();
 private int pulses=0;
 private static final class Pad {
-UUID world;int x,y,z;String original;Material replacement;long expire;
+UUID world;int x,y,z;String original,partnerOriginal;int partnerY;Material replacement;long expire;
 String key(){return world+":"+x+":"+y+":"+z;}
 }
 private static final int MAX_PADS=900;
@@ -120,22 +122,22 @@ hookListener=new GrapplingHookListener(this);
 Bukkit.getPluginManager().registerEvents(hookListener,this);
 Bukkit.getScheduler().runTaskTimer(this,this::quarterTick,5L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::tick,20L,20L);
-getLogger().info("TalismanForge 2.5.6: "+altars.size()+" relics");
+getLogger().info("TalismanForge 2.5.7: "+altars.size()+" relics");
 }
 @Override public void onDisable(){
 if(hookListener!=null)hookListener.shutdown();
 for(UUID id:holograms.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 for(UUID id:relicDisplays.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 for(ShieldRing ring:shieldRings.values())removeShieldVisuals(ring);
-shieldRings.clear();relicDisplays.clear();agesInvulnerableUntil.clear();wrathStreak.clear();wrathLastCrit.clear();hungerTakenFractions.clear();hungerGivenFractions.clear();
+shieldRings.clear();relicDisplays.clear();agesInvulnerableUntil.clear();wrathStreak.clear();wrathLastCrit.clear();hungerTakenFractions.clear();hungerGivenFractions.clear();editingFood.clear();
 for(UUID id:ghostDolphins.keySet()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 holograms.clear();ghostDolphins.clear();trackedDrops.clear();
 for(Player p:Bukkit.getOnlinePlayers()){
 for(PotionEffectType effect:new ArrayList<>(grantedEffects.getOrDefault(p.getUniqueId(),Map.of()).keySet()))removeGrantedEffect(p,effect);
 }
 grantedEffects.clear();active.clear();saveAltars();
-for(Pad pad:new ArrayList<>(pads.values()))restorePad(pad);
-pads.clear();savePads();
+for(Pad pad:new ArrayList<>(pads.values()))if(restorePad(pad))pads.remove(pad.key());
+savePads();
 }
 private int initialLives(Talisman t){return t==Talisman.JOKER?1+random.nextInt(3):t.lives;}
 private ItemStack talisman(Talisman t,int lives){
@@ -273,6 +275,7 @@ for(String id:section.getKeys(false))try{
 String key="paths."+id+".";Pad pad=new Pad();pad.world=UUID.fromString(Objects.requireNonNull(cfg.getString(key+"world")));
 pad.x=cfg.getInt(key+"x");pad.y=cfg.getInt(key+"y");pad.z=cfg.getInt(key+"z");
 pad.original=Objects.requireNonNull(cfg.getString(key+"original"));pad.replacement=Material.valueOf(Objects.requireNonNull(cfg.getString(key+"replacement")));
+pad.partnerOriginal=cfg.getString(key+"partnerOriginal");pad.partnerY=cfg.getInt(key+"partnerY");
 if(!restorePad(pad)){pad.expire=0L;pads.put(pad.key(),pad);}
 }catch(Exception ex){getLogger().warning("Invalid saved liquid path "+id);}
 savePads();
@@ -282,14 +285,24 @@ YamlConfiguration cfg=new YamlConfiguration();int n=0;
 for(Pad pad:pads.values()){
 String k="paths.p"+(n++)+".";cfg.set(k+"world",pad.world.toString());cfg.set(k+"x",pad.x);cfg.set(k+"y",pad.y);cfg.set(k+"z",pad.z);
 cfg.set(k+"original",pad.original);cfg.set(k+"replacement",pad.replacement.name());
+if(pad.partnerOriginal!=null){cfg.set(k+"partnerOriginal",pad.partnerOriginal);cfg.set(k+"partnerY",pad.partnerY);}
 }
 try{cfg.save(padsFile);padsChanged=false;}catch(IOException ex){getLogger().severe("Failed to save liquid paths: "+ex.getMessage());}
 }
 private boolean restorePad(Pad pad){
-World w=Bukkit.getWorld(pad.world);if(w==null)return false;
+World w=Bukkit.getWorld(pad.world);if(w==null||!w.isChunkLoaded(pad.x>>4,pad.z>>4))return false;
 Block b=w.getBlockAt(pad.x,pad.y,pad.z);
 if(b.getType()!=pad.replacement)return true;
-try{b.setBlockData(Bukkit.createBlockData(pad.original),false);return true;}catch(IllegalArgumentException e){return false;}
+try{
+b.setBlockData(Bukkit.createBlockData(pad.original),false);
+if(pad.partnerOriginal!=null&&pad.partnerY>=w.getMinHeight()&&pad.partnerY<w.getMaxHeight()){
+Block partner=w.getBlockAt(pad.x,pad.partnerY,pad.z);
+if(partner.getType().isAir()||partner.getType()==Material.WATER||partner.getType()==Material.TALL_SEAGRASS){
+partner.setBlockData(Bukkit.createBlockData(pad.partnerOriginal),false);
+}
+}
+return true;
+}catch(IllegalArgumentException e){getLogger().warning("Could not restore temporary plant "+pad.key()+": "+e.getMessage());return false;}
 }
 private void addPad(World w,int x,int y,int z){
 Block b=w.getBlockAt(x,y,z);String k=w.getUID()+":"+x+":"+y+":"+z;
@@ -301,6 +314,12 @@ if(!water&&fluid!=Material.LAVA)return;
 BlockData original=b.getBlockData();
 if(!waterPlant(fluid)&&(!(original instanceof org.bukkit.block.data.Levelled lvl)||lvl.getLevel()!=0))return;
 Pad pad=new Pad();pad.world=w.getUID();pad.x=x;pad.y=y;pad.z=z;pad.original=original.getAsString();
+if(fluid==Material.TALL_SEAGRASS&&original instanceof org.bukkit.block.data.Bisected bisected){
+int otherY=y+(bisected.getHalf()==org.bukkit.block.data.Bisected.Half.TOP?-1:1);
+Block partner=w.getBlockAt(x,otherY,z);
+if(partner.getType()!=Material.TALL_SEAGRASS)return;
+pad.partnerOriginal=partner.getBlockData().getAsString();pad.partnerY=otherY;
+}
 pad.replacement=water?randomMoss():lavaStone(w,x,y,z);
 pad.expire=System.currentTimeMillis()+(water?WATER_DURATION:LAVA_DURATION);
 b.setType(pad.replacement,false);pads.put(pad.key(),pad);padsChanged=true;
@@ -379,6 +398,15 @@ else p.teleport(raised);
 Vector velocity=p.getVelocity();
 if(velocity.getY()<.12)p.setVelocity(new Vector(velocity.getX(),.12,velocity.getZ()));
 }
+}
+@EventHandler(priority=EventPriority.MONITOR)public void chunkLoaded(org.bukkit.event.world.ChunkLoadEvent event){
+UUID world=event.getWorld().getUID();int cx=event.getChunk().getX(),cz=event.getChunk().getZ();
+for(Pad pad:new ArrayList<>(pads.values()))if(pad.world.equals(world)&&(pad.x>>4)==cx&&(pad.z>>4)==cz&&restorePad(pad)){pads.remove(pad.key());padsChanged=true;}
+}
+@EventHandler(priority=EventPriority.MONITOR)public void chunkUnloading(org.bukkit.event.world.ChunkUnloadEvent event){
+UUID world=event.getWorld().getUID();int cx=event.getChunk().getX(),cz=event.getChunk().getZ();
+for(Pad pad:new ArrayList<>(pads.values()))if(pad.world.equals(world)&&(pad.x>>4)==cx&&(pad.z>>4)==cz&&restorePad(pad)){pads.remove(pad.key());padsChanged=true;}
+if(padsChanged)savePads();
 }
 private void cleanupPads(){
 long time=System.currentTimeMillis();
@@ -711,6 +739,22 @@ victim.getWorld().strikeLightningEffect(victim.getLocation());victim.setHealth(M
 }
 }
 }
+@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)public void foodChanged(FoodLevelChangeEvent event){
+if(!(event.getEntity() instanceof Player player)||editingFood.contains(player.getUniqueId()))return;
+hungerTakenFractions.remove(player.getUniqueId());hungerGivenFractions.remove(player.getUniqueId());
+}
+@EventHandler(priority=EventPriority.MONITOR)public void clearHungerOnDeath(PlayerDeathEvent event){
+UUID id=event.getEntity().getUniqueId();hungerTakenFractions.remove(id);hungerGivenFractions.remove(id);
+ShieldRing ring=shieldRings.remove(id);if(ring!=null)removeShieldVisuals(ring);
+clearShieldState(event.getEntity());
+}
+@EventHandler(priority=EventPriority.MONITOR)public void clearHungerOnRespawn(PlayerRespawnEvent event){
+UUID id=event.getPlayer().getUniqueId();hungerTakenFractions.remove(id);hungerGivenFractions.remove(id);
+}
+private void changeHunger(Player p,int food){
+UUID id=p.getUniqueId();editingFood.add(id);
+try{p.setFoodLevel(Math.max(0,Math.min(20,food)));}finally{editingFood.remove(id);}
+}
 private void stealHunger(Player attacker,Player victim){
 if(attacker==victim||victim.getFoodLevel()<=0)return;
 UUID victimId=victim.getUniqueId(),attackerId=attacker.getUniqueId();
@@ -718,12 +762,12 @@ UUID victimId=victim.getUniqueId(),attackerId=attacker.getUniqueId();
 double stolen=Math.min(.5,victim.getFoodLevel()-hungerTakenFractions.getOrDefault(victimId,0.0));
 if(stolen<=0)return;
 double pending=hungerTakenFractions.getOrDefault(victimId,0.0)+stolen;
-if(pending>=1.0){victim.setFoodLevel(Math.max(0,victim.getFoodLevel()-1));pending-=1.0;}
+if(pending>=1.0){changeHunger(victim,victim.getFoodLevel()-1);pending-=1.0;}
 if(pending>0)hungerTakenFractions.put(victimId,pending);else hungerTakenFractions.remove(victimId);
 // Transfer only food actually taken; a full attacker cannot gain more than 20.
 if(attacker.getFoodLevel()>=20)return;
 double gain=hungerGivenFractions.getOrDefault(attackerId,0.0)+stolen;
-if(gain>=1.0){attacker.setFoodLevel(Math.min(20,attacker.getFoodLevel()+1));gain-=1.0;}
+if(gain>=1.0){changeHunger(attacker,attacker.getFoodLevel()+1);gain-=1.0;}
 if(gain>0)hungerGivenFractions.put(attackerId,gain);else hungerGivenFractions.remove(attackerId);
 }
 private void ghastAssist(Player owner,LivingEntity enemy){
@@ -898,6 +942,18 @@ d.getWorld().spawnParticle(Particle.SPLASH,d.getLocation(),4,.3,.3,.3,.02);
 }
 }
 private boolean isRaining(Player p){return p.getWorld().getEnvironment()==World.Environment.NORMAL&&p.getWorld().hasStorm();}
+@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)public void externalPotionChanged(EntityPotionEffectEvent event){
+if(!(event.getEntity() instanceof Player player)||editingPotions.contains(player.getUniqueId()))return;
+Map<PotionEffectType,Integer> owned=grantedEffects.get(player.getUniqueId());
+if(owned!=null){
+owned.remove(event.getModifiedType());
+if(owned.isEmpty())grantedEffects.remove(player.getUniqueId());
+}
+}
+private void withManagedPotion(Player p,Runnable change){
+UUID id=p.getUniqueId();editingPotions.add(id);
+try{change.run();}finally{editingPotions.remove(id);}
+}
 private boolean isGranted(Player p,PotionEffectType type,int amplifier){
 return Objects.equals(grantedEffects.getOrDefault(p.getUniqueId(),Map.of()).get(type),amplifier);
 }
@@ -911,38 +967,34 @@ Integer amplifier=own.remove(type);
 if(own.isEmpty())grantedEffects.remove(p.getUniqueId());
 if(amplifier==null)return;
 PotionEffect effect=p.getPotionEffect(type);
-// Do not clear a later, longer, or stronger potion from another source.
-if(effect!=null&&effect.getAmplifier()==amplifier&&effect.getDuration()>=0&&effect.getDuration()<=120)p.removePotionEffect(type);
+if(effect!=null&&effect.getAmplifier()==amplifier&&effect.getDuration()>=0&&effect.getDuration()<=120)
+withManagedPotion(p,()->p.removePotionEffect(type));
 }
 private void giveTalismanEffect(Player p,PotionEffectType type,int duration,int amplifier){
 PotionEffect previous=p.getPotionEffect(type);
+boolean ours=isGranted(p,type,amplifier);
 if(previous!=null){
-if(previous.getAmplifier()>amplifier||previous.getDuration()<0)return;
-if(previous.getAmplifier()==amplifier){
-if(previous.getDuration()>duration+20){
-grantedEffects.getOrDefault(p.getUniqueId(),new HashMap<>()).remove(type);
-return;
-}
+if(!ours)return; // Never override a potion with a different source, even at the same level.
+if(previous.getAmplifier()!=amplifier||previous.getDuration()<0){grantedEffects.getOrDefault(p.getUniqueId(),Map.of()).remove(type);return;}
 if(previous.getDuration()>=40)return;
 }
-}
-p.addPotionEffect(new PotionEffect(type,duration,amplifier,true,false,true));
+withManagedPotion(p,()->p.addPotionEffect(new PotionEffect(type,duration,amplifier,true,false,true)));
 recordGranted(p,type,amplifier);
 }
 private void maintainAbsorption(Player p,int amplifier){
 PotionEffect previous=p.getPotionEffect(PotionEffectType.ABSORPTION);
 boolean ours=isGranted(p,PotionEffectType.ABSORPTION,amplifier);
 if(previous!=null){
-if(previous.getAmplifier()>amplifier)return;
-if(previous.getAmplifier()==amplifier){
-if(!ours&&previous.getDuration()>0)return;
-if(previous.getDuration()>=40&&previous.getDuration()<=200)return;
-}
+if(!ours)return;
+if(previous.getAmplifier()!=amplifier||previous.getDuration()<0)return;
+if(previous.getDuration()>=40)return;
 }
 double remaining=p.getAbsorptionAmount();
-boolean renewing=ours&&previous!=null&&previous.getAmplifier()==amplifier&&previous.getDuration()<=200;
+boolean renewing=ours&&previous!=null;
+withManagedPotion(p,()->{
 if(previous!=null)p.removePotionEffect(PotionEffectType.ABSORPTION);
 p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION,100,amplifier,true,false,true));
+});
 recordGranted(p,PotionEffectType.ABSORPTION,amplifier);
 if(renewing&&p.getAbsorptionAmount()>remaining)p.setAbsorptionAmount(remaining);
 }
@@ -1061,7 +1113,7 @@ w.playSound(loc,Sound.ENTITY_PLAYER_LEVELUP,1,1.3f);
 private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
-sender.sendMessage("§dTalismanForge 2.5.6 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|reliquary|hook>");
+sender.sendMessage("§dTalismanForge 2.5.7 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|reliquary|hook>");
 sender.sendMessage("§7Реликварий: 7 аметистов + тотем + обсидиан снизу. Луч без маяка.");return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
