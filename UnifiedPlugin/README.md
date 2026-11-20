@@ -1,6 +1,6 @@
-# MinecraftUnified 1.0.4 — One JAR for all five Paper plugins
+# MinecraftUnified 1.0.5 — One JAR for all five Paper plugins
 
-A **real single Paper plugin** (not an installer ZIP) built from the latest maintained source branches of TargetClaim, TalismanForge 2.5.8, EnchantmentForge 1.2.0, SwampSky 1.7.1 and ImageMaps 1.1.0. The compile-time generator converts the existing five JavaPlugin subclasses into hosted listener/command modules, retaining their features and original data identifiers.
+A **real single Paper plugin** (not an installer ZIP) built from the latest maintained source branches of TargetClaim, TalismanForge 2.6.0, EnchantmentForge 1.2.0, SwampSky 1.7.1 and ImageMaps 1.1.0. The compile-time generator converts the existing five JavaPlugin subclasses into hosted listener/command modules, retaining their features and original data identifiers.
 
 **Server:** Paper 26.3, Java 25.
 
@@ -8,7 +8,7 @@ A **real single Paper plugin** (not an installer ZIP) built from the latest main
 
 1. Stop the server, **back up the entire world and existing plugin data**.
 2. Remove the old five separate JARs from `plugins/`. Do not keep the five old plugins alongside this file: duplicate recipes and event handlers would conflict.
-3. Place only `MinecraftUnified-1.0.4.jar` in `plugins/`.
+3. Place only `MinecraftUnified-1.0.5.jar` in `plugins/`.
 4. Keep using the single `resourcepacks/TalismanForge-2.0.0-ResourcePack.zip` from the main branch, with the SHA1 shown in the main repo; it includes the SwampSky equipment, TargetClaim key and Reliquary artwork.
 5. Start the server and run `/unified`: all five modules should appear as loaded.
 
@@ -36,10 +36,10 @@ GitHub Actions → Build single unified Minecraft plugin. Full-checkout on the b
 
 **Build success checks Java compilation, not gameplay or anti-cheat compatibility. Test on a staging server first.**
 
-## v1.0.4 — stable pig motion
+## v1.0.5 — stable pig motion
 SwampSky is now compiled from the updated 1.6.0 branch. Ground pigs follow pumpkins through Paper navigation without being made unaware, while winged pigs fly between persistent waypoints, recover from sustained stalls, avoid walls and respect leashes. Use `/ss status` to see pig movement state or `/ss repair` to reinitialize nearby winged pigs if an older server version left them frozen. Resource-pack URL and all other four module mechanics stay unchanged. These fixes were compiled in CI but require testing with your anticheat and world conditions.
 
-## v1.0.4 — Half-sized flying pigs, saddle-only riding, universal traders
+## v1.0.5 — Half-sized flying pigs, saddle-only riding, universal traders
 
 Flying pigs are 50% of vanilla pig scale; their separate wing displays have been adjusted. Ordinary pigs stay vanilla size, and can be ridden by equipping a **saddle** and right-clicking. Carrot-on-a-stick is no longer needed. Use WASD to steer, sprint to accelerate, space to jump, and swim faster while in water (space to rise). Pig controls update each tick. Tamed winged pigs retain owner following, free flying and existing special controls. New config options: `pig-ground-ride-speed: 0.49` and `pig-swim-speed: 0.40` (automatic fallback for existing configs).
 
@@ -47,10 +47,14 @@ All wandering traders, including vanilla, summoned, previously saved and adminis
 
 All changes are server-side Java; no changes to the single unified resource pack or to the other three modules. The build compiles from the latest maintained branches, not snapshots of earlier SwampSky or EnchantmentForge versions. Minecraft server gameplay testing is still required to confirm all riding and merchant interactions.
 
-## v1.0.4 — fixes confirmed by actual Purpur 26.3 logs
+## v1.0.5 — fixes confirmed by actual Purpur 26.3 logs
 
 - SwampSky 1.7.1 avoids the `CraftMetaItem.getMaxDamage()` crash during frog-wing recipe creation.
-- TalismanForge 2.5.8 uses typed purple DUST for Maiming resurrection, fixing the Float particle exception.
+- TalismanForge 2.6.0 uses typed purple DUST for Maiming resurrection, fixing the Float particle exception.
 - Universal prefix `/u`, also `/unified` and `/mods`: `/u status`, `/u pig`, `/u frog`, `/u repair`, `/u trader`, `/u tf give <player> joker`, `/u ss give <player> boots`, `/u ce give <player> soulbound`, `/u p`, `/u team`, `/u map`. Original commands continue working. Tab completion delegates to each module.
 - If a module fails to start, the unified plugin logs the failure, reports it in `/u status`, and leaves the other loaded modules available instead of disabling everything.
 - One enabled plugin contains all five modules. No resourcepack update or data migration required. A real Purpur restart and gameplay test are still necessary after compilation.
+
+## v1.0.5 — TalismanForge 2.6.0
+
+Integrates the full talisman rework from the TalismanForge branch: Wrath's critical-only recharge and single resurrection, Hades' Spectator revival, End's two orbiting swords and no fall damage, Poseidon's pufferfish/axolotl and stronger ghost dolphin, Ages' moving Allays and Thorns, Defiance's restored shields, and Maiming's heavy slow. Uses the same unified resource pack, unchanged. Commands remain `/u`, `/tf`, `/ss`, `/ce` etc. Deployment requires replacing the old combined JAR and restarting Purpur.
