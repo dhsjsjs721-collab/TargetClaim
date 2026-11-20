@@ -3,7 +3,7 @@ package dev.imagemaps;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import io.papermc.paper.dialog.Dialog;
 import io.papermc.paper.registry.data.dialog.DialogBase;
-import io.papermc.paper.registry.data.dialog.DialogBody;
+import io.papermc.paper.registry.data.dialog.body.DialogBody;
 import io.papermc.paper.registry.data.dialog.ActionButton;
 import io.papermc.paper.registry.data.dialog.input.DialogInput;
 import io.papermc.paper.registry.data.dialog.type.DialogType;
