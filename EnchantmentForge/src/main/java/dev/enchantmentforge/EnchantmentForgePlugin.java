@@ -222,7 +222,7 @@ return true;
 if (!sender.hasPermission("enchantmentforge.admin")) {sender.sendMessage("§cНедостаточно прав.");return true;}
 if ("trader".equalsIgnoreCase(args[0])) {
 if (!(sender instanceof Player player)) {sender.sendMessage("§cКоманда только для игрока.");return true;}
-boolean spawned=traderFeature.spawnNear(player);
+boolean spawned=traderFeature.forceSpawnNear(player);
 sender.sendMessage(spawned?"§aТорговец появился неподалёку.":"§cНе удалось найти безопасное место в загруженных чанках.");
 return true;
 }
