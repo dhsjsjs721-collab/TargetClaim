@@ -115,3 +115,11 @@ The pig and frog vanilla skins and the existing resourcepack remain unchanged in
 
 - Prevent `IllegalStateException: We don't have max_damage!` from `CraftMetaItem.getMaxDamage()` during frog-wing recipe creation. Check `Damageable#hasMaxDamage()` before querying the custom component, then set the intended 4096 durability.
 - This fixes the error reported in the supplied server logs at `SwampSkyPlugin.fixEquipment`. No changes to textures, pig behavior, or item IDs.
+
+## SwampSky 1.8.0 — autonomous companion and frog movement
+
+- Winged-pig mounts now use **ordinary right-click**, without sneaking. Keep their saddles when dismounting. A jumping owner who looks at an owned adult winged pig within 6.5 blocks causes it to approach, and automatically mounts when in range.
+- Slower free flight: stable 2-second orbit targets near the owner, smooth momentum and softer steering; less sudden departure after hiding pumpkin/pie, controlled slower panic, lure, leash and hunting speeds. Wing visual teleport interpolation reduced to prevent noticeable lag behind the pig.
+- Giant frogs retain AI-aware vanilla navigation and naturally wander near the swamp even when there are no players in sight, with gently refreshed free-roam goals. Existing random frog hide and slime drops remain.
+- Ordinary saddled pigs are still steerable without carrot-on-a-stick, and pig health/scale and custom equipment are unchanged.
+- This needs real-world player validation; CI only compiles and verifies a server boot.
