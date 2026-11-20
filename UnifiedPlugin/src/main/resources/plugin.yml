@@ -1,0 +1,44 @@
+name: MinecraftUnified
+version: 1.0.0
+main: dev.unified.UnifiedPlugin
+api-version: '26.3'
+author: MinecraftUnified
+description: All 5 Minecraft Paper gameplay systems in a single JAR
+commands:
+  p:
+    description: Protected claims and team menu
+    usage: /p
+    aliases: [claim, privat]
+  team:
+    description: Claim team commands
+    usage: /team
+    aliases: [tc]
+  talismanforge:
+    description: Talismans and reliquaries
+    usage: /tf give <player> <type>
+    aliases: [tf, talismans]
+  enchantmentforge:
+    description: Custom enchantments and trader
+    usage: /ce [trader|give|apply|help]
+    aliases: [ce, enchants]
+  swampsky:
+    description: Flying pigs, giant frogs and swamp equipment
+    usage: /swampsky
+    aliases: [wildlife, ss]
+  imagemap:
+    description: Edit a map using an HTTPS image
+    usage: /imagemap
+    aliases: [im]
+permissions:
+  targetclaim.admin:
+    default: op
+  talismanforge.admin:
+    default: op
+  enchantmentforge.admin:
+    default: op
+  swampsky.admin:
+    default: op
+  imagemaps.use:
+    default: true
+  imagemaps.file:
+    default: op
