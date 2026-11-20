@@ -1,6 +1,15 @@
 package dev.imagemaps;
 
 import io.papermc.paper.event.player.AsyncChatEvent;
+import io.papermc.paper.dialog.Dialog;
+import io.papermc.paper.registry.data.dialog.DialogBase;
+import io.papermc.paper.registry.data.dialog.DialogBody;
+import io.papermc.paper.registry.data.dialog.ActionButton;
+import io.papermc.paper.registry.data.dialog.input.DialogInput;
+import io.papermc.paper.registry.data.dialog.type.DialogType;
+import io.papermc.paper.registry.data.dialog.action.DialogAction;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -67,6 +76,9 @@ private static final int MAX_SIDE = 4096;
 private static final int MAX_MAPS = 512;
 private static final long COOLDOWN_MS = 15000L;
 private static final String PREFIX = "§8[§bImageMaps§8] §7";
+private record CropSettings(boolean fill,double zoom,double shiftX,double shiftY){
+static CropSettings defaults(){return new CropSettings(false,1,0,0);}
+}
 
 private final Set<UUID> awaiting = ConcurrentHashMap.newKeySet();
 private final Set<UUID> loading = ConcurrentHashMap.newKeySet();
@@ -90,7 +102,7 @@ ImageIO.setUseCache(false);
 Bukkit.getPluginManager().registerEvents(this,this);
 if(getCommand("imagemap")!=null){getCommand("imagemap").setExecutor(this);getCommand("imagemap").setTabCompleter(this);}
 restoreImages();
-getLogger().info("Loaded "+storedImages.size()+" persistent image maps");
+getLogger().info("ImageMaps 1.1.0 loaded "+storedImages.size()+" persistent image maps");
 }
 @Override public void onDisable(){
 if(executor!=null)executor.shutdownNow();
@@ -100,6 +112,34 @@ private void tell(CommandSender sender,String text){sender.sendMessage(PREFIX+te
 private boolean hasMap(Player player){
 Material type=player.getInventory().getItemInMainHand().getType();
 return type==Material.MAP||type==Material.FILLED_MAP;
+}
+private void openEditor(Player player){
+if(!player.hasPermission("imagemaps.use")){tell(player,"§cНет разрешения.");return;}
+if(!hasMap(player)){tell(player,"§cДержи пустую или заполненную карту в основной руке.");return;}
+if(loading.contains(player.getUniqueId())){tell(player,"§eКартинка уже загружается.");return;}
+Dialog dialog=Dialog.create(builder->builder.empty()
+.base(DialogBase.builder(Component.text("Редактор изображения на карте"))
+.body(List.of(DialogBody.plainMessage(Component.text("Вставь прямую HTTPS-ссылку. Настрой обрезку, приближение и сдвиг; результат увидят все игроки."))))
+.inputs(List.of(
+DialogInput.text("url",Component.text("Ссылка на PNG / JPG / GIF")).width(350).maxLength(1800).initial("").build(),
+DialogInput.bool("fill",Component.text("Заполнить всю карту (обрезать края)"),false,"true","false"),
+DialogInput.numberRange("zoom",Component.text("Приближение"),1.0f,3.0f).initial(1.0f).step(.1f).width(350).build(),
+DialogInput.numberRange("x",Component.text("Сдвиг по горизонтали"),-100f,100f).initial(0f).step(5f).width(350).build(),
+DialogInput.numberRange("y",Component.text("Сдвиг по вертикали"),-100f,100f).initial(0f).step(5f).width(350).build()
+)).build())
+.type(DialogType.confirmation(
+ActionButton.create(Component.text("Создать карту"),Component.text("Загрузить и применить выбранные настройки"),150,
+DialogAction.customClick((view,audience)->{
+if(!(audience instanceof Player p))return;
+String url=view.getText("url");Boolean fill=view.getBoolean("fill");
+Float zoom=view.getFloat("zoom"),x=view.getFloat("x"),y=view.getFloat("y");
+if(url==null||zoom==null||x==null||y==null||fill==null)return;
+CropSettings options=new CropSettings(fill,Math.max(1,Math.min(3,zoom.doubleValue())),Math.max(-100,Math.min(100,x.doubleValue())),Math.max(-100,Math.min(100,y.doubleValue())));
+Bukkit.getScheduler().runTask(this,()->importImage(p,url.trim(),false,options));
+},ClickCallback.Options.builder().uses(1).build())),
+ActionButton.create(Component.text("Отмена"),Component.text("Ничего не менять"),100,null)
+)));
+player.showDialog(dialog);
 }
 private void prompt(Player player){
 if(!player.hasPermission("imagemaps.use")){tell(player,"§cНет разрешения.");return;}
@@ -113,10 +153,10 @@ tell(player,"§7Отмена: §f/imagemap cancel §7| PNG/JPG/GIF, первая
 public void sneakClickMap(PlayerInteractEvent event){
 if(event.getHand()!=EquipmentSlot.HAND||!event.getPlayer().isSneaking())return;
 if(event.getAction()!=Action.RIGHT_CLICK_AIR&&event.getAction()!=Action.RIGHT_CLICK_BLOCK)return;
-if(event.getPlayer().getInventory().getItemInMainHand().getType()!=Material.MAP)return;
+if(!hasMap(event.getPlayer()))return;
 if(!event.getPlayer().hasPermission("imagemaps.use"))return;
 event.setCancelled(true);
-prompt(event.getPlayer());
+openEditor(event.getPlayer());
 }
 @EventHandler(priority=EventPriority.HIGHEST)
 public void hiddenChat(AsyncChatEvent event){
@@ -136,10 +176,12 @@ importImage(player,input,false);
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(!(sender instanceof Player player)){tell(sender,"§cНужен игрок с картой в руке.");return true;}
 if(!sender.hasPermission("imagemaps.use")){tell(sender,"§cНет разрешения.");return true;}
-if(args.length==0){prompt(player);return true;}
+if(args.length==0){openEditor(player);return true;}
 String option=args[0].toLowerCase(Locale.ROOT);
+if(option.equals("chat")){prompt(player);return true;}
 if(option.equals("cancel")){awaiting.remove(player.getUniqueId());tell(player,"§7Ввод отменён.");return true;}
-if(option.equals("help")){tell(player,"§f/imagemap §7— вставить ссылку через чат");
+if(option.equals("help")){tell(player,"§f/imagemap §7— окно настройки карты");
+tell(player,"§f/imagemap chat §7— ввод ссылки через чат");
 tell(player,"§f/imagemap <https://...> §7— загрузить напрямую");
 tell(player,"§f/imagemap file <filename.png> §7— файл сервера (OP)");return true;}
 if(option.equals("file")){
@@ -153,11 +195,12 @@ importImage(player,args[0],false);
 return true;
 }
 @Override public List<String> onTabComplete(CommandSender sender,Command command,String alias,String[] args){
-if(args.length==1)return sender.hasPermission("imagemaps.file")?List.of("help","cancel","file"):List.of("help","cancel");
+if(args.length==1)return sender.hasPermission("imagemaps.file")?List.of("help","cancel","file","chat"):List.of("help","cancel","chat");
 return List.of();
 }
 
-private void importImage(Player player,String source,boolean local){
+private void importImage(Player player,String source,boolean local){importImage(player,source,local,CropSettings.defaults());}
+private void importImage(Player player,String source,boolean local,CropSettings options){
 UUID id=player.getUniqueId();
 awaiting.remove(id);
 if(!hasMap(player)){tell(player,"§cСначала возьми карту в основную руку.");return;}
@@ -171,7 +214,7 @@ tell(player,"§7Загружаю изображение. Не убирай ка�
 executor.execute(()->{
 try{
 byte[] bytes=local?readServerFile(source):download(source);
-BufferedImage resized=decodeAndScale(bytes);
+BufferedImage resized=decodeAndScale(bytes,options);
 Bukkit.getScheduler().runTask(this,()->{
 loading.remove(id);
 Player online=Bukkit.getPlayer(id);
@@ -243,7 +286,7 @@ while((n=in.read(buffer))!=-1){total+=n;if(total>MAX_BYTES)throw new IOException
 if(total==0)throw new IOException("Пустой файл");
 return out.toByteArray();
 }
-private BufferedImage decodeAndScale(byte[] bytes)throws IOException{
+private BufferedImage decodeAndScale(byte[] bytes,CropSettings settings)throws IOException{
 try(ImageInputStream stream=ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))){
 if(stream==null)throw new IOException("Файл невозможно прочитать");
 Iterator<ImageReader> formats=ImageIO.getImageReaders(stream);
@@ -260,9 +303,15 @@ try{
 g.setColor(Color.WHITE);g.fillRect(0,0,EDGE,EDGE);
 g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 g.setRenderingHint(RenderingHints.KEY_RENDERING,RenderingHints.VALUE_RENDER_QUALITY);
-double ratio=Math.min((double)EDGE/width,(double)EDGE/height);
+double ratio=settings.fill()?Math.max((double)EDGE/width,(double)EDGE/height):Math.min((double)EDGE/width,(double)EDGE/height);
+ratio*=settings.zoom();
 int drawWidth=Math.max(1,(int)Math.round(width*ratio)),drawHeight=Math.max(1,(int)Math.round(height*ratio));
-g.drawImage(original,(EDGE-drawWidth)/2,(EDGE-drawHeight)/2,drawWidth,drawHeight,null);
+// 0 means centred; +/-100 shifts the image to either extreme without leaving empty
+// borders in crop mode, or within the available padding in fit mode.
+int dx=(EDGE-drawWidth)/2,dy=(EDGE-drawHeight)/2;
+dx+=(int)Math.round(settings.shiftX()/100.0*Math.abs(EDGE-drawWidth)/2.0);
+dy+=(int)Math.round(settings.shiftY()/100.0*Math.abs(EDGE-drawHeight)/2.0);
+g.drawImage(original,dx,dy,drawWidth,drawHeight,null);
 }finally{g.dispose();}
 return scaled;
 }finally{reader.dispose();}
