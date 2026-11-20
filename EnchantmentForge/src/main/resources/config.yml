@@ -12,8 +12,8 @@ triple-shot-full-force: 0.90
 trader-spawn-minutes: 25
 trader-max-per-world: 2
 trader-despawn-ticks: 48000
-# Each trader has seven staple offers, a mob spawner, a spawn egg, and a rotating selection.
-trader-offers-per-trader: 26
+# All traders have the same complete catalog of goods, spawners, eggs and books.
+# Old trader-offers-per-trader settings are ignored; every category is available.
 
 # All other trades cost ceil(original price / 2.5) diamonds (range 2.0 to 3.0)
 trader-price-divisor: 2.5
