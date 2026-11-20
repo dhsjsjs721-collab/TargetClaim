@@ -613,8 +613,7 @@ victim.getWorld().spawnParticle(Particle.CRIT,victim.getEyeLocation(),5,.2,.2,.2
 });
 }
 }
-if(sword.getWorld()!=owner.getWorld())sword.teleport(point);else sword.teleport(point);
-}
+sword.teleport(point);
 }
 }
 for(UUID id:new ArrayList<>(swordVisuals.keySet()))if(Bukkit.getPlayer(id)==null)clearEndSwords(id);
