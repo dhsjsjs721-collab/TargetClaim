@@ -142,6 +142,8 @@ for(ShieldRing ring:shieldRings.values())removeShieldVisuals(ring);
 shieldRings.clear();relicDisplays.clear();agesInvulnerableUntil.clear();wrathStreak.clear();wrathLastCrit.clear();hungerTakenFractions.clear();hungerGivenFractions.clear();editingFood.clear();
 for(UUID id:ghostDolphins.keySet()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 holograms.clear();ghostDolphins.clear();trackedDrops.clear();
+for(UUID id:new ArrayList<>(swordVisuals.keySet()))clearEndSwords(id);
+for(UUID id:new ArrayList<>(poseidonCompanions.keySet()))removePoseidonCompanions(id);
 for(Player p:Bukkit.getOnlinePlayers()){
 removeWrathCritRecharge(p);restoreHadesMode(p);
 for(PotionEffectType effect:new ArrayList<>(grantedEffects.getOrDefault(p.getUniqueId(),Map.of()).keySet()))removeGrantedEffect(p,effect);
@@ -535,8 +537,146 @@ if(e.getItemDrop().getItemStack().getType()!=Material.DRAGON_EGG)return;
 if(e.getPlayer().getWorld().getEnvironment()!=World.Environment.THE_END)return;
 thrownEggs.put(e.getItemDrop().getUniqueId(),e.getPlayer().getUniqueId());
 }
+private void removeDisplays(List<UUID> ids){
+if(ids==null)return;
+for(UUID uuid:ids){
+Entity entity=Bukkit.getEntity(uuid);
+if(entity!=null)entity.remove();
+}
+}
+private boolean friendly(Player owner,LivingEntity target){
+if(target==owner||target instanceof ArmorStand)return true;
+if(target instanceof Player other){
+org.bukkit.scoreboard.Team a=owner.getScoreboard().getEntryTeam(owner.getName());
+org.bukkit.scoreboard.Team b=owner.getScoreboard().getEntryTeam(other.getName());
+return a!=null&&a.equals(b);
+}
+return false;
+}
+private void setSwordRetaliation(Player player,LivingEntity target){
+if(held(player)!=Talisman.END||target==player||friendly(player,target))return;
+swordTarget.put(player.getUniqueId(),target.getUniqueId());
+swordExpiry.put(player.getUniqueId(),System.currentTimeMillis()+8500L);
+}
+private void clearEndSwords(UUID id){
+removeDisplays(swordVisuals.remove(id));
+swordTarget.remove(id);swordExpiry.remove(id);
+}
+private void endSwordTick(){
+long now=System.currentTimeMillis();
+for(Player owner:Bukkit.getOnlinePlayers()){
+UUID id=owner.getUniqueId();
+if(owner.isDead()||held(owner)!=Talisman.END){clearEndSwords(id);continue;}
+List<UUID> ids=swordVisuals.get(id);
+if(ids==null||ids.size()!=2||ids.stream().anyMatch(uuid->!(Bukkit.getEntity(uuid) instanceof ItemDisplay))){
+clearEndSwords(id);
+ids=new ArrayList<>();
+for(int i=0;i<2;i++){
+ItemDisplay display=owner.getWorld().spawn(owner.getLocation().add(0,1.45,0),ItemDisplay.class,d->{
+d.setPersistent(false);d.setInvulnerable(true);
+d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.THIRDPERSON_RIGHTHAND);
+d.setTeleportDuration(5);d.setViewRange(1.2f);
+d.setItemStack(new ItemStack(Material.GOLDEN_SWORD));
+});
+ids.add(display.getUniqueId());
+swordCooldown.put(display.getUniqueId(),now+i*1000L);
+}
+swordVisuals.put(id,ids);
+}
+LivingEntity enemy=null;
+if(swordExpiry.getOrDefault(id,0L)>now){
+Entity entity=Bukkit.getEntity(swordTarget.get(id));
+if(entity instanceof LivingEntity e&&e.isValid()&&!e.isDead()&&e.getWorld()==owner.getWorld()
+&&e.getLocation().distanceSquared(owner.getLocation())<=81&&!friendly(owner,e))enemy=e;
+}
+double phase=now/575.0;
+for(int i=0;i<2;i++){
+UUID swordId=ids.get(i);
+Entity raw=Bukkit.getEntity(swordId);
+if(!(raw instanceof ItemDisplay sword))continue;
+double angle=phase+i*Math.PI;
+Location point=owner.getLocation().clone().add(Math.cos(angle)*.95,1.5+Math.sin(phase*1.2+i)*.17,Math.sin(angle)*.95);
+if(enemy!=null&&now>=swordCooldown.getOrDefault(swordId,0L)){
+point=enemy.getLocation().clone().add(Math.cos(angle)*.55,1.05,Math.sin(angle)*.55);
+if(owner.hasLineOfSight(enemy)){
+// A golden sword normally hits for 4 HP; these do 3 HP per hit, every 2s PER sword.
+swordCooldown.put(swordId,now+2000L);
+final LivingEntity victim=enemy;
+Bukkit.getScheduler().runTask(this,()->{
+if(victim.isValid()&&!victim.isDead()&&owner.isOnline()&&held(owner)==Talisman.END
+&&victim.getWorld()==owner.getWorld()&&victim.getLocation().distanceSquared(owner.getLocation())<=81){
+victim.damage(3.0,owner);
+victim.getWorld().spawnParticle(Particle.CRIT,victim.getEyeLocation(),5,.2,.2,.2,.04);
+}
+});
+}
+}
+if(sword.getWorld()!=owner.getWorld())sword.teleport(point);else sword.teleport(point);
+}
+}
+}
+for(UUID id:new ArrayList<>(swordVisuals.keySet()))if(Bukkit.getPlayer(id)==null)clearEndSwords(id);
+}
+private void removePoseidonCompanions(UUID id){
+removeDisplays(poseidonCompanions.remove(id));
+companionAttackCooldown.remove(id);
+}
+private void poseidonCompanionTick(){
+long now=System.currentTimeMillis();
+for(Player owner:Bukkit.getOnlinePlayers()){
+UUID id=owner.getUniqueId();
+boolean raining=held(owner)==Talisman.POSEIDON&&isRaining(owner)&&!owner.isDead()&&owner.getGameMode()!=GameMode.SPECTATOR;
+if(!raining){removePoseidonCompanions(id);continue;}
+List<UUID> companions=poseidonCompanions.get(id);
+if(companions==null||companions.size()!=3||companions.stream().anyMatch(uuid->{Entity ent=Bukkit.getEntity(uuid);return ent==null||!ent.isValid()||ent.getWorld()!=owner.getWorld();})){
+removePoseidonCompanions(id);companions=new ArrayList<>();
+for(int i=0;i<2;i++){
+PufferFish fish=owner.getWorld().spawn(owner.getLocation().add(0,1.4,0),PufferFish.class,entity->{
+entity.setAI(false);entity.setGravity(false);entity.setInvulnerable(true);
+entity.setCollidable(false);entity.setSilent(true);entity.setPersistent(false);
+});
+companions.add(fish.getUniqueId());
+}
+Axolotl axo=owner.getWorld().spawn(owner.getLocation().add(0,0.2,0),Axolotl.class,entity->{
+entity.setAI(false);entity.setGravity(false);entity.setInvulnerable(true);
+entity.setCollidable(false);entity.setSilent(true);entity.setPersistent(false);
+});
+companions.add(axo.getUniqueId());
+poseidonCompanions.put(id,companions);
+}
+double phase=now/900.0;
+Map<UUID,Long> poisoned=companionAttackCooldown.computeIfAbsent(id,key->new HashMap<>());
+for(int i=0;i<3;i++){
+Entity creature=Bukkit.getEntity(companions.get(i));
+if(creature==null)continue;
+double angle=phase+i*Math.PI*2/3;
+Location point=owner.getLocation().clone().add(Math.cos(angle)*(i==2?1.0:1.35),i==2?0.2:1.65+Math.sin(angle)*.22,Math.sin(angle)*(i==2?1.0:1.35));
+if(i==2&&!owner.isInWater())point=owner.getLocation().clone().add(0,.2,0);
+if(point.getBlock().isPassable()&&owner.getWorld().isChunkLoaded(point.getBlockX()>>4,point.getBlockZ()>>4))creature.teleport(point);
+if(i==2){
+if(owner.isInWater()){
+PotionEffect old=owner.getPotionEffect(PotionEffectType.REGENERATION);
+if(old==null||old.getAmplifier()==0&&old.getDuration()<55)
+owner.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION,65,0,true,false,true));
+}
+}else{
+for(Entity ent:creature.getNearbyEntities(2.7,2.5,2.7)){
+if(!(ent instanceof LivingEntity victim)||victim.isDead()||friendly(owner,victim)||ent instanceof PufferFish||ent instanceof Axolotl)continue;
+if(!(victim instanceof Monster)&&!(victim instanceof Player))continue;
+if(now<poisoned.getOrDefault(victim.getUniqueId(),0L))continue;
+poisoned.put(victim.getUniqueId(),now+3300L);
+victim.addPotionEffect(new PotionEffect(PotionEffectType.POISON,80,0));
+creature.getWorld().spawnParticle(Particle.BUBBLE,victim.getEyeLocation(),4,.2,.3,.2,.02);
+}
+}
+}
+poisoned.entrySet().removeIf(e->e.getValue()<now-5000);
+}
+for(UUID id:new ArrayList<>(poseidonCompanions.keySet()))if(Bukkit.getPlayer(id)==null)removePoseidonCompanions(id);
+}
+
 private void quarterTick(){
-moveDroppedTalismans();moveShieldVisuals();
+moveDroppedTalismans();moveShieldVisuals();endSwordTick();poseidonCompanionTick();
 if(!thrownEggs.isEmpty())for(World w:Bukkit.getWorlds())if(w.getEnvironment()==World.Environment.THE_END){
 for(Item i:w.getEntitiesByClass(Item.class)){
 if(i.getItemStack().getType()!=Material.DRAGON_EGG||i.getLocation().getY()>w.getMinHeight()+6)continue;
@@ -815,6 +955,12 @@ LivingEntity threat=null;
 if(e.getDamager() instanceof LivingEntity direct)threat=direct;
 else if(e.getDamager() instanceof Projectile shot&&shot.getShooter() instanceof LivingEntity ranged)threat=ranged;
 if(threat!=null&&threat!=hades)ghastAssist(hades,threat);
+}
+if(e.getEntity() instanceof Player endangered&&held(endangered)==Talisman.END){
+LivingEntity attackerSource=null;
+if(e.getDamager() instanceof LivingEntity direct)attackerSource=direct;
+else if(e.getDamager() instanceof Projectile projectile&&projectile.getShooter() instanceof LivingEntity source)attackerSource=source;
+if(attackerSource!=null)setSwordRetaliation(endangered,attackerSource);
 }
 if(e.getEntity() instanceof Player target&&held(target)==Talisman.END&&e.getDamager() instanceof Projectile projectile){
 e.setCancelled(true);ProjectileSource shooter=projectile.getShooter();
@@ -1246,7 +1392,7 @@ return List.of();
 }
 @EventHandler public void quit(PlayerQuitEvent e){
 UUID id=e.getPlayer().getUniqueId();active.remove(id);safeLocations.remove(id);ghastCooldowns.remove(id);pathCenters.remove(id);pathRefresh.remove(id);
-wrathStreak.remove(id);wrathLastCrit.remove(id);removeWrathCritRecharge(e.getPlayer());restoreHadesMode(e.getPlayer());agesInvulnerableUntil.remove(id);hungerTakenFractions.remove(id);hungerGivenFractions.remove(id);grantedEffects.remove(id);
+wrathStreak.remove(id);wrathLastCrit.remove(id);removeWrathCritRecharge(e.getPlayer());restoreHadesMode(e.getPlayer());clearEndSwords(id);removePoseidonCompanions(id);agesInvulnerableUntil.remove(id);hungerTakenFractions.remove(id);hungerGivenFractions.remove(id);grantedEffects.remove(id);
 ShieldRing ring=shieldRings.remove(id);if(ring!=null)removeShieldVisuals(ring);
 }
 }
