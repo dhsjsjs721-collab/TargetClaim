@@ -32,7 +32,7 @@ private enum Talisman {
 MAIMING("maiming","§5Талисман Увечья",2),
 WRATH("wrath","§cТалисман Кары",0),
 DEFIANCE("defiance","§bТалисман Противостояния",2),
-JOKER("joker","§dТалисман Джокера",1),
+JOKER("joker","§dТалисман Джокера",3),
 POSEIDON("poseidon","§3Талисман Посейдона",1),
 HADES("hades","§4Талисман Аида",1),
 AGES("ages","§6Талисман Веков",3),
@@ -55,6 +55,7 @@ private final Map<UUID,Integer> wrathStreak=new HashMap<>();
 private final Map<UUID,Double> hungerTakenFractions=new HashMap<>();
 private final Map<UUID,Double> hungerGivenFractions=new HashMap<>();
 private final Map<UUID,Long> wrathLastCrit=new HashMap<>();
+private final Map<UUID,Map<PotionEffectType,Integer>> grantedEffects=new HashMap<>();
 private final Map<UUID,Long> agesInvulnerableUntil=new HashMap<>();
 private final Map<UUID,ShieldRing> shieldRings=new HashMap<>();
 private static final class ShieldRing {
@@ -119,7 +120,7 @@ hookListener=new GrapplingHookListener(this);
 Bukkit.getPluginManager().registerEvents(hookListener,this);
 Bukkit.getScheduler().runTaskTimer(this,this::quarterTick,5L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::tick,20L,20L);
-getLogger().info("TalismanForge 2.5.5: "+altars.size()+" relics");
+getLogger().info("TalismanForge 2.5.6: "+altars.size()+" relics");
 }
 @Override public void onDisable(){
 if(hookListener!=null)hookListener.shutdown();
@@ -142,6 +143,7 @@ active.clear();saveAltars();
 for(Pad pad:new ArrayList<>(pads.values()))restorePad(pad);
 pads.clear();savePads();
 }
+private int initialLives(Talisman t){return t==Talisman.JOKER?1+random.nextInt(3):t.lives;}
 private ItemStack talisman(Talisman t,int lives){
 ItemStack i=new ItemStack(Material.TOTEM_OF_UNDYING);ItemMeta m=i.getItemMeta();
 m.setDisplayName(t.name);
@@ -150,14 +152,14 @@ m.getPersistentDataContainer().set(typeKey,PersistentDataType.STRING,t.key);
 m.getPersistentDataContainer().set(usesKey,PersistentDataType.INTEGER,Math.max(0,Math.min(t.lives,lives)));
 List<String> lore=new ArrayList<>();
 lore.add("§8Работает в любой руке");
-lore.add(t.lives==0?"§cНе спасает от обычной смерти":"§7Спасений от смерти: §e"+lives+"/"+t.lives);
+lore.add(t.lives==0?"§cНе спасает от обычной смерти":t==Talisman.JOKER?"§7Осталось попыток: §e"+lives:"§7Спасений от смерти: §e"+lives+"/"+t.lives);
 lore.add(t==Talisman.POSEIDON?"§cНе спасает от бездны":t==Talisman.END?"§bБесконечное спасение от бездны":"§bСпасает от бездны, но исчезает");
 switch(t){
 case MAIMING -> {lore.add("§c−0.5 сердца, Голод I");lore.add("§5Удары: Иссушение I, 5 секунд");lore.add("§8Крит: Слабость I на 3 секунды");lore.add("§6Удар по игроку: кража 0.5 сытости");}
-case WRATH -> {lore.add("§c−2 сердца, без воскрешения");lore.add("§6Сила II, +30% скорость атаки");lore.add("§c+35% прямого урона оружием");lore.add("§6Серия критов: износ брони до ×1.5");}
+case WRATH -> {lore.add("§c−2 сердца, без воскрешения");lore.add("§6Сила II, +30% скорость атаки");lore.add("§c+35% прямого урона оружием");lore.add("§6До 4 критов: +1–4% к урону");lore.add("§6Небольшой дополнительный износ брони");}
 case DEFIANCE -> {lore.add("§c−2 сердца, Поглощение II");lore.add("§bЩит невозможно временно отключить");lore.add("§bПосле последнего спасения: три защитных щита");}
-case JOKER -> {lore.add("§dОдин шанс: 50% спастись от смерти");lore.add("§7Неудача: талисман исчезнет");lore.add("§aУдача: 1–3 случайных усиления");lore.add("§7Скорость II / Сила II / Сопротивление I");lore.add("§7Каждый эффект длится 20 сек. – 5 минут");lore.add("§5Клыки призывателя атакуют существ рядом");}
-case POSEIDON -> {lore.add("§3Вода / дождь: дыхание, скорость");lore.add("§bСпасение только в воде или под дождём");lore.add("§cСухая смерть: гроза и призрачный дельфин");}
+case JOKER -> {lore.add("§dШанс: 50%, с эффектом Удачи — 75%");lore.add("§7От 1 до 3 попыток спасения");lore.add("§7Успех расходует одну попытку, не весь талисман");lore.add("§cНеудача: талисман исчезает");lore.add("§aУспех: 1–3 случайных усиления");lore.add("§7Скорость II / Сила II / Сопротивление I");lore.add("§7Каждый эффект длится 20 сек. – 5 минут");lore.add("§5Клыки призывателя атакуют существ рядом");}
+case POSEIDON -> {lore.add("§3Вода / дождь: дыхание, скорость");lore.add("§bСпасение только в воде или под дождём");lore.add("§cСухая смерть: большой призрачный дельфин");lore.add("§7Проходит через препятствия");}
 case HADES -> {lore.add("§c−4 сердца, Поглощение III");lore.add("§7Мобы игнорируют, пока их не тревожат");lore.add("§4Возрождение только рядом с игроками");}
 case AGES -> {lore.add("§eТри спасения, шипы на всех атаках");lore.add("§6Разные виды мха / породы над водой и лавой");lore.add("§eВозвращает водоросли после исчезновения тропы");lore.add("§6Второе спасение: 3 сек. защиты и свечения");lore.add("§6Защита от огня и лавы");}
 case END -> {lore.add("§5Невидимость, эндермены нейтральны");lore.add("§dОтражение дальних атак");lore.add("§6Крит по мобу: молния +1 сердце урона");}
@@ -485,7 +487,7 @@ if(id.contains("bastion_treasure")){choice=Talisman.HADES;prob=.075;}
 else if(id.contains("bastion_bridge")){choice=Talisman.WRATH;prob=.05;}
 else if(id.contains("bastion_other")||id.contains("bastion_hoglin_stable")){choice=Talisman.DEFIANCE;prob=.027;}
 else if(id.contains("nether_bridge")||id.contains("fortress")){choice=Talisman.WRATH;prob=.022;}
-if(choice!=null&&random.nextDouble()<prob*getConfig().getDouble("nether-loot-multiplier",1))e.getLoot().add(talisman(choice,choice.lives));
+if(choice!=null&&random.nextDouble()<prob*getConfig().getDouble("nether-loot-multiplier",1))e.getLoot().add(talisman(choice,initialLives(choice)));
 }
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)public void fishing(PlayerFishEvent e){
 if(e.getState()!=PlayerFishEvent.State.CAUGHT_FISH)return;
@@ -587,26 +589,36 @@ else saveShieldState(p,ring);
 }
 return true;
 }
-private void wrathCritical(Player attacker,Player victim,boolean critical){
-UUID id=attacker.getUniqueId();if(!critical){wrathStreak.remove(id);wrathLastCrit.remove(id);attacker.sendActionBar(Component.text("Кара: серия критов сброшена",NamedTextColor.GRAY));return;}
+private int wrathCritical(Player attacker,boolean isCritical){
+UUID id=attacker.getUniqueId();
+if(!isCritical){wrathStreak.remove(id);wrathLastCrit.remove(id);return 0;}
 long now=System.currentTimeMillis();
-int count=now-wrathLastCrit.getOrDefault(id,0L)>8000?1:wrathStreak.getOrDefault(id,0)+1;
-wrathStreak.put(id,Math.min(count,6));wrathLastCrit.put(id,now);
-double chance=Math.min(.5,Math.max(0,(count-1)*.10));
-int bars=Math.min(5,count-1);
-attacker.sendActionBar(Component.text("Кара  ["+"■".repeat(bars)+"□".repeat(5-bars)+"]  Износ брони ×"+String.format(Locale.ROOT,"%.1f",1.0+chance),NamedTextColor.GOLD));
-if(random.nextDouble()>=chance)return;
-Bukkit.getScheduler().runTask(this,()->{
-if(!victim.isValid()||victim.isDead()||victim.getEquipment()==null)return;
-for(EquipmentSlot slot:new EquipmentSlot[]{EquipmentSlot.HEAD,EquipmentSlot.CHEST,EquipmentSlot.LEGS,EquipmentSlot.FEET}){
-ItemStack armor=victim.getEquipment().getItem(slot);
-if(armor==null||armor.getType().isAir()||armor.getType().getMaxDurability()==0||!armor.hasItemMeta())continue;
-ItemMeta meta=armor.getItemMeta();if(meta.isUnbreakable()||!(meta instanceof org.bukkit.inventory.meta.Damageable damaged))continue;
-int amount=damaged.getDamage()+1;
-if(amount>=armor.getType().getMaxDurability())victim.getEquipment().setItem(slot,new ItemStack(Material.AIR));
-else{damaged.setDamage(amount);armor.setItemMeta(meta);victim.getEquipment().setItem(slot,armor);}
+int count=now-wrathLastCrit.getOrDefault(id,0L)>5000?1:Math.min(4,wrathStreak.getOrDefault(id,0)+1);
+wrathStreak.put(id,count);wrathLastCrit.put(id,now);
+return count;
 }
-});
+private void wrathArmorWear(Player victim,int count){
+if(count<=1||random.nextDouble()>=(count-1)/6.0)return;
+PlayerInventory inv=victim.getInventory();List<EquipmentSlot> candidates=new ArrayList<>();
+for(EquipmentSlot slot:new EquipmentSlot[]{EquipmentSlot.HEAD,EquipmentSlot.CHEST,EquipmentSlot.LEGS,EquipmentSlot.FEET}){
+ItemStack armor=inv.getItem(slot);
+if(armor!=null&&!armor.getType().isAir()&&armor.getType().getMaxDurability()>0&&armor.hasItemMeta()&&!armor.getItemMeta().isUnbreakable())candidates.add(slot);
+}
+if(candidates.isEmpty())return;
+EquipmentSlot slot=candidates.get(random.nextInt(candidates.size()));
+ItemStack armor=inv.getItem(slot);if(armor==null)return;
+ItemMeta meta=armor.getItemMeta();
+if(!(meta instanceof org.bukkit.inventory.meta.Damageable damageable))return;
+int unbreaking=armor.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.UNBREAKING);
+if(random.nextInt(unbreaking+1)>0)return;
+int next=damageable.getDamage()+1;
+if(next>=armor.getType().getMaxDurability()){
+inv.setItem(slot,null);
+victim.getWorld().playSound(victim.getLocation(),Sound.ENTITY_ITEM_BREAK,.6f,1f);
+}else{
+damageable.setDamage(next);armor.setItemMeta(meta);inv.setItem(slot,armor);
+}
+victim.getWorld().spawnParticle(Particle.CRIT,victim.getLocation().add(0,1,0),3,.2,.25,.2,.02);
 }
 private void agesFinale(Player p){
 Location loc=p.getLocation();World w=p.getWorld();
@@ -692,10 +704,10 @@ Bukkit.getScheduler().runTask(this,()->{if(attacker.isValid()&&!attacker.isDead(
 }
 if(!(e.getDamager() instanceof Player attacker))return;
 Talisman t=held(attacker);if(t==null)return;
-if(t==Talisman.WRATH){e.setDamage(e.getDamage()*1.35);if(e.getEntity() instanceof Player armorVictim)wrathCritical(attacker,armorVictim,critical(attacker));else if(!critical(attacker)){wrathStreak.remove(attacker.getUniqueId());wrathLastCrit.remove(attacker.getUniqueId());}}
+if(t==Talisman.WRATH){int combo=wrathCritical(attacker,critical(attacker));e.setDamage(e.getDamage()*1.35*(1+combo*.01));if(combo>1&&e.getEntity() instanceof Player armorVictim)wrathArmorWear(armorVictim,combo);}
 if(t==Talisman.HADES&&e.getEntity() instanceof LivingEntity victim)ghastAssist(attacker,victim);
 if(e.getEntity() instanceof LivingEntity victim){
-if(t==Talisman.MAIMING){victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER,100,0));if(critical(attacker))victim.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,60,0));if(victim instanceof Player other)stealHunger(attacker,other);}
+if(t==Talisman.MAIMING){victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER,100,0));if(critical(attacker)){victim.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,60,0));victim.getWorld().spawnParticle(Particle.WITCH,victim.getLocation().add(0,1,0),4,.15,.2,.15,.02);}if(victim instanceof Player other&&e.getFinalDamage()>0)stealHunger(attacker,other);}
 if(t==Talisman.POSEIDON&&isRaining(attacker)&&victim.getHealth()<=victim.getAttribute(Attribute.MAX_HEALTH).getValue()*.5)victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,70,1));
 if(t==Talisman.END&&!(victim instanceof Player)&&critical(attacker)){
 Bukkit.getScheduler().runTask(this,()->{if(victim.isValid()&&!victim.isDead()){
@@ -798,8 +810,9 @@ for(Player v:p.getWorld().getPlayers())if(v!=p&&v.getLocation().distanceSquared(
 can&=!victims.isEmpty();
 }
 if(t==Talisman.JOKER){
-if(random.nextBoolean()){
-can=true;
+double chance=p.hasPotionEffect(PotionEffectType.LUCK)?0.75:0.50;
+if(can&&random.nextDouble()<chance){
+p.getWorld().playSound(p.getLocation(),Sound.BLOCK_AMETHYST_BLOCK_CHIME,.9f,1.45f);
 }else{
 can=false;
 unequip(p,slot);
@@ -855,7 +868,8 @@ spawnPhantomDolphin(loc);
 private void spawnPhantomDolphin(Location loc){
 World w=loc.getWorld();if(w==null)return;
 Dolphin d=w.spawn(loc.clone().add(0,1,0),Dolphin.class);
-d.setGravity(false);d.setAI(false);d.setSilent(true);d.setGlowing(true);
+d.setGravity(false);d.setAI(false);d.setSilent(true);d.setGlowing(true);d.setCollidable(false);d.setInvulnerable(true);
+org.bukkit.attribute.AttributeInstance scale=d.getAttribute(Attribute.SCALE);if(scale!=null)scale.setBaseValue(1.65);
 d.getPersistentDataContainer().set(dolphinKey,PersistentDataType.BYTE,(byte)1);
 ghostDolphins.put(d.getUniqueId(),System.currentTimeMillis()+8_000);
 }
@@ -878,6 +892,7 @@ if(distance<best){best=distance;nearest=p;}
 if(nearest!=null){
 Vector travel=nearest.getEyeLocation().toVector().subtract(d.getLocation().toVector());
 double distance=travel.length();
+// Direct teleport bypasses normal pathfinding and makes the ghost phase through blocks.
 if(distance>.05)d.teleport(d.getLocation().add(travel.normalize().multiply(Math.min(1.2,distance))));
 if(d.getLocation().distanceSquared(nearest.getEyeLocation())<2.3*2.3){
 nearest.damage(4.0,d);
@@ -943,7 +958,7 @@ showHologram(a);beamParticles(a);
 if(a.ready){
 Player nearest=null;double best=25*25;
 for(Player p:w.getPlayers()){double d=p.getLocation().distanceSquared(loc);if(d<best){nearest=p;best=d;}}
-if(nearest!=null){Talisman t=roll();give(nearest,talisman(t,t.lives));nearest.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,1200,1));
+if(nearest!=null){Talisman t=roll();give(nearest,talisman(t,initialLives(t)));nearest.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,1200,1));
 nearest.sendMessage("§b✦ Реликварий пробудился: "+t.name+" §b| Скорость II на 60 сек.");
 reviveParticles(loc,t);removeAltar(a);b.setType(Material.AIR,false);continue;}
 }
@@ -1011,13 +1026,13 @@ w.playSound(loc,Sound.ENTITY_PLAYER_LEVELUP,1,1.3f);
 private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
-sender.sendMessage("§dTalismanForge 2.5.5 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|reliquary|hook>");
+sender.sendMessage("§dTalismanForge 2.5.6 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|reliquary|hook>");
 sender.sendMessage("§7Реликварий: 7 аметистов + тотем + обсидиан снизу. Луч без маяка.");return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
 if(args.length<3){sender.sendMessage("§cИспользуй: /tf give <ник> <тип>");return true;}
 Player p=Bukkit.getPlayerExact(args[1]);if(p==null){sender.sendMessage("§cИгрок не найден.");return true;}
-Talisman t=Talisman.parse(args[2]);ItemStack i=(args[2].equalsIgnoreCase("chest")||args[2].equalsIgnoreCase("reliquary"))?chestItem():args[2].equalsIgnoreCase("hook")?hookListener.createHookItem():t==null?null:talisman(t,t.lives);
+Talisman t=Talisman.parse(args[2]);ItemStack i=(args[2].equalsIgnoreCase("chest")||args[2].equalsIgnoreCase("reliquary"))?chestItem():args[2].equalsIgnoreCase("hook")?hookListener.createHookItem():t==null?null:talisman(t,initialLives(t));
 if(i==null){sender.sendMessage("§cНеизвестный тип.");return true;}
 give(p,i);sender.sendMessage("§aВыдано игроку "+p.getName());return true;
 }
