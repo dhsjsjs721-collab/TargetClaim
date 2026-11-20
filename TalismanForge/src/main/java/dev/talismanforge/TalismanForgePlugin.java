@@ -1097,8 +1097,14 @@ if(a.ready)w.spawnParticle(Particle.HAPPY_VILLAGER,loc,8,.5,.7,.5,.05);
 }
 private void reviveParticles(Location loc,Talisman t){
 World w=loc.getWorld();if(w==null)return;
+// Purpur 26.3 requires an explicit Float payload for DRAGON_BREATH.
+// Use a custom purple DUST payload instead of the invalid data-less call.
+if(t==Talisman.MAIMING){
+w.spawnParticle(Particle.DUST,loc.clone().add(0,1,0),70,.9,1,.9,
+new Particle.DustOptions(Color.fromRGB(150,64,175),1.4f));
+}else{
 Particle kind=switch(t){
-case MAIMING -> Particle.DRAGON_BREATH;
+case MAIMING -> Particle.WITCH; // handled with colored DUST above
 case WRATH -> Particle.FLAME;
 case DEFIANCE -> Particle.END_ROD;
 case JOKER -> Particle.WITCH;
@@ -1107,7 +1113,8 @@ case HADES -> Particle.SOUL_FIRE_FLAME;
 case AGES -> Particle.ENCHANT;
 case END -> Particle.PORTAL;
 };
-w.spawnParticle(kind,loc.clone().add(0,1,0),100,.9,1,.9,.06);
+w.spawnParticle(kind,loc.clone().add(0,1,0),65,.75,.85,.75,.045);
+}
 w.playSound(loc,Sound.ENTITY_PLAYER_LEVELUP,1,1.3f);
 }
 private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
