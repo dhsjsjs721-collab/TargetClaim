@@ -92,12 +92,25 @@ transferPotions(defender,enemy);
 defender.getWorld().spawnParticle(Particle.SOUL,defender.getEyeLocation(),12,.4,.4,.4,.025);
 }finally{processing.remove(defender.getUniqueId());}
 }
-private boolean managedPotion(PotionEffectType type){
-return type==PotionEffectType.STRENGTH||type==PotionEffectType.ABSORPTION
-||type==PotionEffectType.HUNGER||type==PotionEffectType.WATER_BREATHING
-||type==PotionEffectType.DOLPHINS_GRACE||type==PotionEffectType.FIRE_RESISTANCE
-||type==PotionEffectType.INVISIBILITY||type==PotionEffectType.SPEED
-||type==PotionEffectType.REGENERATION;
+private boolean talismanPotion(Player owner,PotionEffectType type){
+NamespacedKey key=new NamespacedKey("talismanforge","talisman_type");
+for(ItemStack hand:new ItemStack[]{owner.getInventory().getItemInMainHand(),owner.getInventory().getItemInOffHand()}){
+if(hand==null||!hand.hasItemMeta())continue;
+String talisman=hand.getItemMeta().getPersistentDataContainer().get(key,PersistentDataType.STRING);
+if(talisman==null)continue;
+boolean owned=switch(talisman){
+case "maiming" -> type==PotionEffectType.HUNGER;
+case "wrath" -> type==PotionEffectType.STRENGTH;
+case "defiance","hades" -> type==PotionEffectType.ABSORPTION;
+case "poseidon" -> type==PotionEffectType.WATER_BREATHING||type==PotionEffectType.DOLPHINS_GRACE||type==PotionEffectType.SPEED;
+case "ages" -> type==PotionEffectType.FIRE_RESISTANCE;
+case "end" -> type==PotionEffectType.INVISIBILITY;
+case "joker" -> type==PotionEffectType.SPEED||type==PotionEffectType.STRENGTH||type==PotionEffectType.RESISTANCE;
+default -> false;
+};
+if(owned)return true;
+}
+return false;
 }
 private boolean harmful(PotionEffectType type){
 return type==PotionEffectType.POISON||type==PotionEffectType.WITHER||type==PotionEffectType.WEAKNESS
@@ -117,7 +130,7 @@ private void transferPotions(Player defender,Player enemy){
 // The long-lived buffs and debuffs owned by a held talisman are skipped.
 for(PotionEffect effect:new ArrayList<>(enemy.getActivePotionEffects())){
 if(!harmful(effect.getType())&&!positive(effect.getType()))continue;
-if(managedPotion(effect.getType()))continue;
+if(talismanPotion(enemy,effect.getType()))continue;
 int duration=Math.min(400,Math.max(100,effect.getDuration()));
 PotionEffect transferred=new PotionEffect(effect.getType(),duration,effect.getAmplifier());
 enemy.removePotionEffect(effect.getType());
