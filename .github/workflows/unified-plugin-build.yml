@@ -1,0 +1,36 @@
+name: Build single unified Minecraft plugin
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/unified-server-plugin]
+    paths:
+      - 'UnifiedPlugin/**'
+      - '.github/workflows/unified-plugin-build.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+      - name: Fetch newest source from maintained branches
+        run: |
+          git fetch origin main talismanforge-v2 feature/enchantmentforge-soulbound-triple-shot feature/swampsky-creatures
+          git branch -r
+      - name: Convert each legacy JavaPlugin to a hosted module
+        run: python3 UnifiedPlugin/tools/generate_modules.py
+      - name: Compile one fully-integrated plugin JAR
+        run: gradle -p UnifiedPlugin build --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MinecraftUnified-One-JAR
+          path: UnifiedPlugin/build/libs/MinecraftUnified-1.0.0.jar
