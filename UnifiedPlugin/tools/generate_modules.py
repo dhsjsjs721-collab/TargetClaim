@@ -62,6 +62,11 @@ def convert(code,namespace,name,path):
     code=code.replace("registerEvents(hookListener,this)","registerEvents(hookListener,host())")
     code=re.sub(r"runTask(Later|Timer|Asynchronously)?\(this,",r"runTask\1(host(),",code)
     code=code.replace("new GrapplingHookListener(this)","new GrapplingHookListener(host())")
+    if name=="ImageMaps":
+        # If storage initialization fails, throw into the unified module
+        # loader instead of disabling the entire host plugin.
+        code=code.replace("getPluginManager().disablePlugin(this);return;",
+            'getLogger().severe("ImageMaps storage unavailable");throw new IllegalStateException("ImageMaps storage initialization failed",ex);')
     code=code.replace("getPluginManager().disablePlugin(this)","getPluginManager().disablePlugin(host())")
 
     # TalismanForge's previous shield and item state keys already use the
