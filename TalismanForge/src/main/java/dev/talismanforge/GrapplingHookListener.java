@@ -236,6 +236,20 @@ updateLinks(owner,s);
 }
 
 private void fly(Player p,Shot s){
+if(s.magnet){
+LivingEntity chosen=null;double best=5.5*5.5;
+for(Entity entity:p.getNearbyEntities(30,20,30)){
+if(!isValidTarget(p,entity)||!(entity instanceof LivingEntity living))continue;
+Vector toward=entity.getLocation().toVector().add(new Vector(0,.7,0)).subtract(s.location.toVector());
+if(toward.lengthSquared()>.01&&toward.lengthSquared()<best&&toward.clone().normalize().dot(s.direction)>.90){
+chosen=living;best=toward.lengthSquared();
+}
+}
+if(chosen!=null){
+Vector to=chosen.getEyeLocation().toVector().subtract(s.location.toVector());
+if(to.lengthSquared()>.01)s.direction.multiply(.80).add(to.normalize().multiply(.20)).normalize();
+}
+}
 double distance=Math.min(FLIGHT_SPEED,RANGE-s.traveled);
 if(distance<.03){stop(s);return;}
 RayTraceResult wall=s.world.rayTraceBlocks(s.location,s.direction,distance,FluidCollisionMode.NEVER,true);
@@ -244,9 +258,20 @@ double wallDist=wall==null?Double.POSITIVE_INFINITY:wall.getHitPosition().distan
 double entityDist=entity==null?Double.POSITIVE_INFINITY:entity.getHitPosition().distance(s.location.toVector());
 if(entity!=null&&entityDist<=wallDist){
 Entity victim=entity.getHitEntity();
+if(victim instanceof Player defender&&defender.isBlocking()&&hasShield(defender)){
+reduceDurability(p);
+p.getWorld().playSound(defender.getLocation(),Sound.ITEM_SHIELD_BLOCK,.9f,.75f);
+defender.sendActionBar(Component.text("Крюк отражён щитом",NamedTextColor.AQUA));
+stop(s);return;
+}
 s.victimId=victim.getUniqueId();
 s.location=victim.getLocation().clone().add(0,Math.min(1.2,victim.getHeight()*.65),0);
 s.phase=Phase.PULL;
+suppressedCombat.add(p.getUniqueId());suppressedCombat.add(victim.getUniqueId());
+if(victim instanceof LivingEntity living){
+living.damage(6.0,p);
+living.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS,65,1));
+}
 s.world.playSound(s.location,Sound.BLOCK_CHAIN_PLACE,1.0f,1.0f);
 return;
 }
@@ -322,6 +347,33 @@ s.links.clear();
 Player p=Bukkit.getPlayer(s.shooterId);
 if(p!=null)restoreModels(p);
 }
+}
+
+private boolean hasShield(Player player){
+ItemStack main=player.getInventory().getItemInMainHand();
+ItemStack off=player.getInventory().getItemInOffHand();
+return main.getType()==Material.SHIELD||off.getType()==Material.SHIELD;
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void noAttackWhilePulling(org.bukkit.event.entity.EntityDamageByEntityEvent event){
+if(suppressedCombat.contains(event.getDamager().getUniqueId())||suppressedCombat.contains(event.getEntity().getUniqueId()))event.setCancelled(true);
+}
+@EventHandler(priority=EventPriority.HIGHEST)
+public void prepareMagnet(org.bukkit.event.inventory.PrepareAnvilEvent event){
+ItemStack first=event.getInventory().getItem(0),second=event.getInventory().getItem(1);
+if(!special(first)||second==null||second.getType()!=Material.LODESTONE)return;
+ItemStack upgraded=first.clone();
+ItemMeta meta=upgraded.getItemMeta();
+if(meta.getPersistentDataContainer().has(magnetKey,PersistentDataType.BYTE))return;
+meta.getPersistentDataContainer().set(magnetKey,PersistentDataType.BYTE,(byte)1);
+meta.setDisplayName("§b§lМагнитный крюк");
+List<String> lore=meta.getLore()==null?new ArrayList<>():new ArrayList<>(meta.getLore());
+lore.add("§bМагнит I: лёгкое наведение на ближайшую цель");
+meta.setLore(lore);
+meta.setEnchantmentGlintOverride(true);
+upgraded.setItemMeta(meta);
+event.setResult(upgraded);
+event.getInventory().setRepairCost(8);
 }
 
 @EventHandler public void quit(PlayerQuitEvent e){
