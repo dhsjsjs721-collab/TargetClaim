@@ -229,6 +229,12 @@ private boolean allies(UUID a,UUID b){if(a.equals(b))return true;UUID x=membersh
 private boolean owner(Player player,Claim c){return player.getUniqueId().equals(c.owner);}
 private boolean canUse(Player player,Claim c){return canBuild(player,c);}
 private boolean canBuild(Player player,Claim c){return owner(player,c)||(c.teamBuild&&allies(player.getUniqueId(),c.owner));}
+// Safe integration point for short-lived PvP structures in MinecraftUnified.
+// The public query never changes claim state or grants bypass permissions.
+public boolean allowsTemporaryStructure(Player player,Location place){
+Claim claim=claimAt(place);
+return claim==null||canBuild(player,claim);
+}
 private boolean friendlyDamageBlocked(Player attacker,Player victim){
 if(attacker==null||victim==null||attacker.equals(victim)||!allies(attacker.getUniqueId(),victim.getUniqueId()))return false;
 Group g=groupOf(attacker.getUniqueId());return g!=null&&!(g.pvpOn.contains(attacker.getUniqueId())&&g.pvpOn.contains(victim.getUniqueId()));
