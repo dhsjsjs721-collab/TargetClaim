@@ -47,7 +47,7 @@ Aliases: /wildlife and /ss.
 
 ## Installation
 
-1. Copy SwampSky-1.5.0.jar to the Paper 26.3 server plugins folder; reboot server.
+1. Copy SwampSky-1.6.0.jar to the Paper 26.3 server plugins folder; reboot server.
 2. For custom textures, enable the combined resourcepacks/TalismanForge-SwampSky-Complete.zip on Minecraft Java 26.3 clients; this single pack also includes the pre-existing TalismanForge textures. Standalone SwampSky-ResourcePack.zip is available. Armor/elytra textures use correctly aligned vanilla 3D UV templates and Minecraft 26.3 equipment models in `assets/swampsky/models/equipment` (not the obsolete `assets/swampsky/equipment`). Boots, leggings, and wings explicitly equip in FEET, LEGS and CHEST, respectively. Existing legacy items are upgraded while online, and old head-equipped wings are moved to an empty chest slot.
 3. Edit plugins/SwampSky/config.yml to tune spawn frequency, health, speed, and damage.
 
@@ -91,3 +91,14 @@ This is a **Paper plugin**, not a Fabric/NeoForge mod. Creatures reuse vanilla P
 - Flying-pig AI has a speed setting and disables its follow/attack override while ridden; all existing mechanics and loot remain. First in-game behavior validation and anti-cheat exemptions may be necessary.
 
 The pig and frog vanilla skins and the existing resourcepack remain unchanged in 1.5.0; this release updates server-side AI and controls.
+
+## SwampSky 1.6.0: pig AI reliability and diagnostics
+
+- Fixed a likely cause of passive pigs freezing: ordinary pigs following pumpkin holders now use the vanilla Paper pathfinder while remaining AI-aware, instead of repeatedly disabling awareness and setting raw velocity. Pathfinding runs only on meaningful target movement or a bounded refresh interval.
+- Winged pigs retain AI=true (important: mobs with AI disabled do not move on their own). Their free-flight uses stable waypoints for several seconds instead of choosing a changing relative destination every tick. Tamed pigs maintain a smooth owner orbit, and leash following now takes priority over pumpkin lures, spider hunting, and player retaliation except immediate fleeing from danger.
+- Added front/head clearance and basic sideways obstacle avoidance, safe-height constraints, no forced chunk loading, and a small safe recovery step if a winged pig stalls for repeated checks. No teleporting through walls.
+- Per-pig motion and display exceptions are isolated; one broken entity no longer interrupts the whole movement loop. Repeated exception messages are rate-limited per pig.
+- New operator diagnostics: `/ss status` shows tracked creature counts, nearest pig AI flags and velocity; `/ss repair` reinitializes the flying AI near the player. Existing `/ss spawn flying_pig` and `/ss spawn giant_frog` are unchanged.
+- On chunk reload, persistent flying pigs have movement state repaired; stale in-memory waypoints and stall samples are removed when entities die or unload.
+- Textures, equipment and crafting mechanics remain unchanged. The existing unified resource pack from the main branch works without any modification.
+- Source compilation in GitHub Actions does not substitute for an on-server movement test. If a pig still stands still, run `/ss status` and inspect `logs/latest.log` for `SwampSky pig` errors and any anticheat velocity cancellations.
