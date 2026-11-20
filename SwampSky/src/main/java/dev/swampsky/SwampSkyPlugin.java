@@ -195,7 +195,7 @@ forgetFlight(id);
 aggro.remove(id);aggroUntil.remove(id);attackCooldown.remove(id);hitWindow.remove(id);hitCount.remove(id);knockbackUntil.remove(id);
 }
 if(entity instanceof Frog && marked(entity,giantKey)){
-frogs.remove(id);
+frogs.remove(id);frogIdleUntil.remove(id);frogIdleGoals.remove(id);
 e.getDrops().add(item("hide",1+random.nextInt(3)));
 e.getDrops().add(new ItemStack(Material.SLIME_BALL,6+random.nextInt(7)));
 entity.getWorld().spawnParticle(Particle.ITEM_SLIME,entity.getLocation(),28,1,.5,1,.03);
@@ -395,7 +395,7 @@ if(tick%21==0)for(Player p:Bukkit.getOnlinePlayers())armor(p);
 if(tick%30==0)breedWingedPigs();
 for(UUID id:new ArrayList<>(frogs)){
 Entity e=Bukkit.getEntity(id);
-if(!(e instanceof Frog frog)||!frog.isValid()){frogs.remove(id);continue;}
+if(!(e instanceof Frog frog)||!frog.isValid()){frogs.remove(id);frogIdleUntil.remove(id);frogIdleGoals.remove(id);continue;}
 fight(frog);
 }
 }
@@ -460,34 +460,43 @@ if(distance<lureDistance){lure=candidate;lureDistance=distance;}
 }
 }
 Location destination;
-double speed=Math.max(.12,Math.min(.36,getConfig().getDouble("flying-pig-speed",.23)));
+double speed=Math.max(.12,Math.min(.33,getConfig().getDouble("flying-pig-speed",.23)));
 LivingEntity attackTarget=null;
 if(fear!=null){
 Vector escape=here.toVector().subtract(fear.getLocation().toVector());
 escape.setY(0);
 if(escape.lengthSquared()<.01)escape=new Vector(1,0,0);
 destination=here.clone().add(escape.normalize().multiply(8)).add(0,3.5,0);
-speed=.70;
+speed=.40;
 }else if(leashHolder!=null&&leashHolder.getWorld()==pig.getWorld()){
 destination=leashHolder.getLocation().clone().add(0,leashHolder instanceof Player?1.4:.9,0);
-speed=.57;
+speed=.32;
 // No hunting or pumpkin chasing while attached to a lead.
 }else if(attacker!=null){
 attackTarget=attacker;
 destination=swoopTarget(pig,attacker);
-speed=.70;
+speed=.40;
 }else if(lure!=null){
 destination=lure.getLocation().clone().add(0,1.5,0);
-speed=.59;
+speed=.24;
 }else if(spider!=null&&leashHolder==null){
 attackTarget=spider;
 destination=swoopTarget(pig,spider);
-speed=.60;
+speed=.29;
 }else if(own!=null){
-double phase=tick*.052+Math.floorMod(id.hashCode(),211)*.07;
-double radius=3.2+Math.sin(phase*.33)*.9;
-destination=own.getLocation().clone().add(Math.cos(phase)*radius,3.9+Math.sin(phase*.92)*.8,Math.sin(phase)*radius);
-speed=.49;
+double phase=tick*.025+Math.floorMod(id.hashCode(),211)*.07;
+boolean comingToMount=tick<approachRiderUntil.getOrDefault(id,0L);
+double radius=comingToMount?.75:2.1+Math.sin(phase*.31)*.45;
+double altitude=comingToMount?.15:1.75+Math.sin(phase*.72)*.35;
+destination=own.getLocation().clone().add(Math.cos(phase)*radius,altitude,Math.sin(phase)*radius);
+speed=comingToMount?.30:.22;
+// Keep short stable orbital waypoints: don't reverse direction every AI tick.
+if(!comingToMount&&here.distanceSquared(own.getLocation())<4.5*4.5){
+Location oldGoal=roamTargets.get(id);
+if(oldGoal!=null&&tick<roamExpiry.getOrDefault(id,0L)&&oldGoal.getWorld()==here.getWorld())destination=oldGoal.clone();
+else {roamTargets.put(id,destination.clone());roamExpiry.put(id,tick+40);}
+}else{roamTargets.remove(id);}
+
 // Catch up when the owner teleports; never force-load chunks.
 if(here.distanceSquared(own.getLocation())>42*42&&!pig.isLeashed()){
 Location behind=own.getLocation().clone().add(0,3.4,0);
@@ -502,7 +511,7 @@ return;
 // Previous code generated a new relative goal every tick, making them
 // visually twitch, stop, or keep changing direction.
 destination=roamWaypoint(pig,here);
-speed=.36;
+speed=.19;
 }
 // A lead held very close should not make the pig jitter through its owner.
 if(leashHolder!=null&&here.distanceSquared(destination)<2.2*2.2){
@@ -511,11 +520,11 @@ return;
 }
 Vector delta=destination.toVector().subtract(here.toVector());
 double distance=delta.length();
-if(distance<.5){
+if(distance<.82){
 if(attackTarget==null&&leashHolder==null&&own==null&&lure==null)roamExpiry.remove(id);
-delta=new Vector(0,.03,0);
+delta=new Vector(0,.012,0);
 }else{
-delta.normalize().multiply(Math.min(speed,.16+distance*.13));
+delta.normalize().multiply(Math.min(speed,.07+distance*.055));
 }
 if(attackTarget!=null&&here.distanceSquared(attackTarget.getLocation())<2.6*2.6
 &&tick-attackCooldown.getOrDefault(id,-99999L)>28){
@@ -552,7 +561,7 @@ delta.setY(Math.max(.17,delta.getY()));break;
 if(here.getY()>pig.getWorld().getMaxHeight()-6)delta.setY(Math.min(delta.getY(),-.14));
 if(here.getY()<pig.getWorld().getMinHeight()+4)delta.setY(Math.max(delta.getY(),.20));
 Vector previous=flightVectors.getOrDefault(id,pig.getVelocity()).clone();
-Vector smooth=previous.multiply(.38).add(delta.multiply(.62));
+Vector smooth=previous.multiply(.76).add(delta.multiply(.24));
 if(smooth.lengthSquared()>speed*speed)smooth.normalize().multiply(speed);
 flightVectors.put(id,smooth.clone());
 pig.setVelocity(smooth);
@@ -760,7 +769,17 @@ if(p.isDead()||p.getGameMode()==GameMode.CREATIVE||p.getGameMode()==GameMode.SPE
 double d=p.getLocation().distanceSquared(f.getLocation());
 if(d<dist){dist=d;nearest=p;}
 }
-if(nearest==null)return;
+if(nearest==null){
+// Giant frogs naturally wander using vanilla AI when nobody is nearby.
+if(f.isOnGround()&&tick>=frogIdleUntil.getOrDefault(f.getUniqueId(),0L)){
+Location from=f.getLocation();
+Location goal=from.clone().add(random.nextDouble()*10-5,0,random.nextDouble()*10-5);
+frogIdleGoals.put(f.getUniqueId(),goal);
+frogIdleUntil.put(f.getUniqueId(),tick+50+random.nextInt(60));
+f.getPathfinder().moveTo(goal,.8);
+}
+return;
+}
 Player p=nearest;UUID id=f.getUniqueId();
 // Keep the frog's head pointed at its target while jumping and attacking.
 faceVector(f,p.getLocation().toVector().subtract(f.getLocation().toVector()));
@@ -1126,7 +1145,7 @@ entity.setBillboard(Display.Billboard.FIXED);
 entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
 entity.setItemStack(item("pig_wing",1));
 entity.setViewRange(1.4f);
-entity.setTeleportDuration(3);
+entity.setTeleportDuration(1);
 mark(entity,displayKey);
 });
 list.add(d.getUniqueId());
@@ -1139,7 +1158,7 @@ double yaw=Math.toRadians(at.getYaw());
 Vector right=new Vector(-Math.cos(yaw),0,-Math.sin(yaw));
 Vector back=new Vector(Math.sin(yaw),0,-Math.cos(yaw));
 double size=.5;
-double flap=Math.sin(tick*.12)*.065;
+double flap=Math.sin(tick*.065)*.085;
 for(int j=0;j<2;j++){
 Entity e=Bukkit.getEntity(list.get(j));
 if(!(e instanceof ItemDisplay d))continue;
