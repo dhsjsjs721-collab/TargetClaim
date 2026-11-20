@@ -1,4 +1,5 @@
-# SwampSky 1.3.0, Minecraft Java 26.3
+# SwampSky 1.6.0, Minecraft Java 26.3
+# Flying-pig AI uses stable roam waypoints; ordinary pigs use vanilla pathfinder.
 # New keys work with existing configuration files via fallback defaults
 flying-chance: 0.28
 mushroom-pig-chance: 0.80
