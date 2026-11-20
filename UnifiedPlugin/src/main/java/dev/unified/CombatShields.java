@@ -30,6 +30,7 @@ private ItemStack create(String kind){
 ItemStack item=new ItemStack(Material.SHIELD);
 ItemMeta meta=item.getItemMeta();
 meta.getPersistentDataContainer().set(shieldKey,PersistentDataType.STRING,kind);
+meta.setItemModel(new NamespacedKey("minecraftunified","shield_"+kind));
 switch(kind){
 case "wither" -> {
 meta.setDisplayName("§5§lЩит язвителя");
