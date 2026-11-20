@@ -396,7 +396,7 @@ if(tick%30==0)breedWingedPigs();
 for(UUID id:new ArrayList<>(frogs)){
 Entity e=Bukkit.getEntity(id);
 if(!(e instanceof Frog frog)||!frog.isValid()){frogs.remove(id);frogIdleUntil.remove(id);frogIdleGoals.remove(id);continue;}
-fight(frog);
+try{fight(frog);}catch(RuntimeException ex){pigProblem(id,ex,"giant frog AI");}
 }
 }
 private void pigProblem(UUID id,RuntimeException exception,String operation){
