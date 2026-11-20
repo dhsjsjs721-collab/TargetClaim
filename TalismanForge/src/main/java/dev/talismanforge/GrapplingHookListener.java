@@ -267,11 +267,11 @@ stop(s);return;
 s.victimId=victim.getUniqueId();
 s.location=victim.getLocation().clone().add(0,Math.min(1.2,victim.getHeight()*.65),0);
 s.phase=Phase.PULL;
-suppressedCombat.add(p.getUniqueId());suppressedCombat.add(victim.getUniqueId());
 if(victim instanceof LivingEntity living){
 living.damage(6.0,p);
 living.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS,65,1));
 }
+suppressedCombat.add(p.getUniqueId());suppressedCombat.add(victim.getUniqueId());
 s.world.playSound(s.location,Sound.BLOCK_CHAIN_PLACE,1.0f,1.0f);
 return;
 }
