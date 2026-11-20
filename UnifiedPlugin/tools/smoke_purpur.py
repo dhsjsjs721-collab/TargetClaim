@@ -74,7 +74,7 @@ def main():
             if not any("Done (" in line for line in logs):
                 raise RuntimeError("Purpur did not fully start within 150s or crashed")
             print("Purpur started; testing universal routing",flush=True)
-            for cmd in ["u status","u ss status","u tf","u ce help","u help"]:
+            for cmd in ["u status","u ss status","u tf","u tf give nobody wrath","u ce help","u pig","u frog","u trader","u help"]:
                 proc.stdin.write(cmd+"\n")
                 proc.stdin.flush()
                 time.sleep(.8)
