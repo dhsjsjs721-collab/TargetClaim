@@ -44,7 +44,7 @@ private final Random random=new Random();
 WanderingTraderFeature(JavaPlugin plugin, ItemStack soulboundBook, ItemStack tripleShotBook) {
 this.plugin=plugin;
 this.charmKey=new NamespacedKey(plugin,"inventory_charm");
-this.traderKey=new NamespacedKey(plugin,"improved_trader");
+this.traderKey=new NamespacedKey(plugin,"improved_trader_v112");
 this.soulboundBook=soulboundBook.clone();
 this.tripleShotBook=tripleShotBook.clone();
 }
@@ -133,6 +133,17 @@ private MerchantRecipe recipe(Offer offer) {
 MerchantRecipe result=new MerchantRecipe(offer.result().clone(),offer.maxUses());
 result.setExperienceReward(false);
 result.setPriceMultiplier(0.0f);
+// These two custom enchantments have fixed barter costs; they never use diamonds.
+if (offer.result().isSimilar(soulboundBook)) {
+result.addIngredient(new ItemStack(Material.AMETHYST_BLOCK,1));
+result.addIngredient(new ItemStack(Material.BOOK,1));
+return result;
+}
+if (offer.result().isSimilar(tripleShotBook)) {
+result.addIngredient(new ItemStack(Material.DIAMOND_BLOCK,1));
+result.addIngredient(new ItemStack(Material.BOOK,1));
+return result;
+}
 double divisor=Math.max(2.0,Math.min(3.0,plugin.getConfig().getDouble("trader-price-divisor",2.5)));
 int price=isCharm(offer.result())
 ?Math.max(1,Math.min(64,plugin.getConfig().getInt("trader-charm-price",5)))
@@ -244,6 +255,34 @@ add(pool,Material.BREWING_STAND,1,10,4);
 add(pool,Material.BLAZE_POWDER,32,18,4);
 add(pool,Material.GUNPOWDER,32,12,5);
 add(pool,Material.BONE_MEAL,64,5,7);
+// Rotating inexpensive farming, building and crafting supplies.
+add(pool,Material.SUGAR_CANE,32,6,8);
+add(pool,Material.SUGAR,32,6,8);
+add(pool,Material.BAMBOO,64,5,8);
+add(pool,Material.CACTUS,32,6,6);
+add(pool,Material.KELP,64,5,8);
+add(pool,Material.WHEAT,64,6,8);
+add(pool,Material.WHEAT_SEEDS,64,4,8);
+add(pool,Material.POTATO,64,6,8);
+add(pool,Material.CARROT,64,6,8);
+add(pool,Material.BEETROOT,32,5,8);
+add(pool,Material.PUMPKIN,32,7,7);
+add(pool,Material.MELON_SLICE,64,6,8);
+add(pool,Material.COCOA_BEANS,32,7,7);
+add(pool,Material.SWEET_BERRIES,32,5,7);
+add(pool,Material.GLOW_BERRIES,32,7,7);
+add(pool,Material.BROWN_MUSHROOM,16,5,8);
+add(pool,Material.RED_MUSHROOM,16,5,8);
+add(pool,Material.OAK_SAPLING,16,5,6);
+add(pool,Material.SPRUCE_SAPLING,16,5,6);
+add(pool,Material.PAPER,64,5,8);
+add(pool,Material.TORCH,64,5,8);
+add(pool,Material.GLASS,64,6,6);
+add(pool,Material.SAND,64,5,8);
+add(pool,Material.GRAVEL,64,5,8);
+add(pool,Material.CLAY_BALL,64,6,8);
+add(pool,Material.STONE_BRICKS,64,6,8);
+add(pool,Material.COBBLESTONE,64,4,8);
 
 // Every non-curse vanilla enchantment gets a genuine maximum-level book.
 // Read the server registry to include new enchantments added in future 26.3 updates.
