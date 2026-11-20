@@ -56,7 +56,8 @@ private final Map<UUID,Location> roamHomes=new HashMap<>(),roamTargets=new HashM
 private final Map<UUID,Long> groundPathUntil=new HashMap<>();
 private final Map<UUID,Long> roamExpiry=new HashMap<>(),motionCheckAt=new HashMap<>(),pigErrorLogAt=new HashMap<>();
 private final Map<UUID,Integer> motionStalls=new HashMap<>();
-private final Set<UUID> airborne=new HashSet<>(), bounceLocked=new HashSet<>();
+private final Set<UUID> airborne=new HashSet<>(), bounceLocked=new HashSet<>(),heldJump=new HashSet<>();
+private final Map<UUID,Long> nextMountedJump=new HashMap<>();
 private final Map<UUID,Double> fallSpeed=new HashMap<>();
 private final Map<UUID,Integer> groundedTicks=new HashMap<>();
 private final Map<UUID,Long> leap=new HashMap<>(),hit=new HashMap<>(),tongue=new HashMap<>(),bounce=new HashMap<>();
@@ -76,6 +77,7 @@ if(c!=null){c.setExecutor(this);c.setTabCompleter(this);}
 recipes();
 for(World w:Bukkit.getWorlds())for(Chunk ch:w.getLoadedChunks())scan(ch);
 Bukkit.getScheduler().runTaskTimer(this,this::step,5L,3L);
+Bukkit.getScheduler().runTaskTimer(this,this::mountedTick,1L,1L);
 Bukkit.getScheduler().runTaskTimer(this,this::bounceStep,1L,1L);
 Bukkit.getScheduler().runTaskTimer(this,this::frogWingsMotion,1L,1L);
 Bukkit.getScheduler().runTaskTimer(this,this::populateNearby,120L,160L);
@@ -85,7 +87,7 @@ Bukkit.getScheduler().runTaskTimer(this,this::upgradeOnlineEquipment,40L,100L);
 for(UUID id:new ArrayList<>(displays.keySet()))pigClear(id);
 aggro.clear();aggroUntil.clear();attackCooldown.clear();hitWindow.clear();hitCount.clear();flightVectors.clear();
 roamHomes.clear();roamTargets.clear();motionSamples.clear();roamExpiry.clear();motionCheckAt.clear();motionStalls.clear();pigErrorLogAt.clear();groundTargets.clear();groundPathUntil.clear();
-dismountFall.clear();knockbackUntil.clear();pendingMount.clear();
+dismountFall.clear();knockbackUntil.clear();pendingMount.clear();heldJump.clear();nextMountedJump.clear();
 for(UUID id:ground){Entity e=Bukkit.getEntity(id);if(e instanceof Pig p){p.setAI(true);p.setAware(true);}}
 for(UUID id:wings){
 Entity e=Bukkit.getEntity(id);
@@ -102,10 +104,15 @@ return isSnow(p.getBlock().getType())||isSnow(p.clone().subtract(0,1,0).getBlock
 }
 private boolean isSnow(Material m){return m==Material.SNOW||m==Material.SNOW_BLOCK||m==Material.POWDER_SNOW;}
 
+private void scaleWingedPig(Pig pig){
+AttributeInstance size=pig.getAttribute(Attribute.SCALE);
+if(size!=null&&Math.abs(size.getBaseValue()-.5)>.001)size.setBaseValue(.5);
+}
 private void flyingPig(Pig p){
 if(marked(p,flyingKey))return;
 mark(p,flyingKey);ground.remove(p.getUniqueId());
 p.setGravity(false);p.setAI(true);p.setAware(false);p.setCollidable(false);
+scaleWingedPig(p);
 roamHomes.put(p.getUniqueId(),p.getLocation().clone());
 p.setCustomName(null);p.setCustomNameVisible(false);
 p.setRemoveWhenFarAway(false);wings.add(p.getUniqueId());
@@ -132,12 +139,13 @@ for(Entity e:chunk.getEntities()){
 if(e instanceof Pig p){
 if(marked(p,flyingKey)){
 wings.add(p.getUniqueId());p.setGravity(false);p.setAI(true);p.setAware(false);p.setCollidable(false);
+scaleWingedPig(p);
 roamHomes.putIfAbsent(p.getUniqueId(),p.getLocation().clone());
 p.setCustomName(null);p.setCustomNameVisible(false);
 }else{
 ground.add(p.getUniqueId());p.setAI(true);
 if(owner(p)!=null && p.getCustomName()!=null && (p.getCustomName().contains("свинья")||p.getCustomName().contains("Свинья")))p.setCustomName(null);
-if(owner(p)!=null){p.setCustomNameVisible(false);p.setSaddle(false);}
+if(owner(p)!=null){p.setCustomNameVisible(false);}
 }
 }
 if(e instanceof Frog f && marked(f,giantKey)){
@@ -200,6 +208,18 @@ if(main.getType()==Material.LEAD||off.getType()==Material.LEAD)return;
 ItemStack held=food(main)?main:(food(off)?off:main);
 boolean hasFood=food(held);
 String owner=owner(pig);
+if(!marked(pig,flyingKey)&&pig.hasSaddle()&&!hasFood){
+e.setCancelled(true);
+if(player.isSneaking()||player.isInsideVehicle()||!pig.getPassengers().isEmpty())return;
+Bukkit.getScheduler().runTask(this,()->{
+if(!pig.isValid()||!player.isOnline()||!pig.hasSaddle()||player.isInsideVehicle()||!pig.getPassengers().isEmpty())return;
+pig.setAI(true);pig.setAware(true);
+pig.getPathfinder().stopPathfinding();
+groundTargets.remove(pig.getUniqueId());groundPathUntil.remove(pig.getUniqueId());
+pig.addPassenger(player);
+});
+return;
+}
 if(owner==null){
 if(!hasFood)return;
 e.setCancelled(true);
@@ -284,7 +304,9 @@ Bukkit.getScheduler().runTask(this,()->{if(baby.isValid())flyingPig(baby);});
 }
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)
 public void dismount(EntityDismountEvent e){
-if(!(e.getEntity() instanceof Player player)||!(e.getDismounted() instanceof Pig pig)||!owned(pig,player))return;
+if(!(e.getEntity() instanceof Player player)||!(e.getDismounted() instanceof Pig pig))return;
+heldJump.remove(player.getUniqueId());nextMountedJump.remove(pig.getUniqueId());
+if(!owned(pig,player))return;
 UUID id=player.getUniqueId();
 long until=tick+240;
 dismountFall.put(id,until);
@@ -317,6 +339,14 @@ pig.getWorld().playSound(pig.getLocation(),Sound.ENTITY_PHANTOM_SWOOP,.8f,1.35f)
 }
 }
 
+private void mountedTick(){
+for(Player player:Bukkit.getOnlinePlayers()){
+if(!(player.getVehicle() instanceof Pig pig)||!pig.isValid()||!pig.hasSaddle())continue;
+boolean fly=marked(pig,flyingKey);
+if(fly&&!owned(pig,player))continue;
+try{ride(pig,player,fly);}catch(RuntimeException ex){pigProblem(pig.getUniqueId(),ex,"mounted steering");}
+}
+}
 private void step(){
 tick+=3;
 for(UUID id:new ArrayList<>(wings)){
@@ -357,11 +387,7 @@ motionSamples.remove(id);motionCheckAt.remove(id);motionStalls.remove(id);pigErr
 private void movePig(Pig pig,boolean fly){
 Player rider=null;
 for(Entity passenger:pig.getPassengers())if(passenger instanceof Player p){rider=p;break;}
-if(rider!=null&&owned(pig,rider)){
-if(!pig.hasAI())pig.setAI(true);
-ride(pig,rider,fly);
-return;
-}
+if(rider!=null&&(fly?owned(pig,rider):pig.hasSaddle()))return;
 if(!pig.hasAI())pig.setAI(true);
 if(!fly){if(!pig.hasGravity())pig.setGravity(true);moveGroundPig(pig);return;}
 // Paper's setAI(false) freezes movement even if plugins set velocity.
@@ -636,10 +662,18 @@ return target.getLocation().clone().add(Math.cos(angle+1.4)*3.5,3.2,Math.sin(ang
 }
 
 private void ride(Pig pig,Player p,boolean fly){
-pig.setAI(true);pig.setAware(false);pig.setGravity(!fly);
+if(!pig.hasAI())pig.setAI(true);
+if(fly){
+if(pig.isAware())pig.setAware(false);
+if(pig.hasGravity())pig.setGravity(false);
+}else{
+if(!pig.isAware())pig.setAware(true);
+if(!pig.hasGravity())pig.setGravity(true);
+}
+// A saddle and movement keys suffice; no carrot-on-a-stick is required.
 Input in=inputCache.getOrDefault(p.getUniqueId(),p.getCurrentInput());
 Vector forward=p.getLocation().getDirection().setY(0);
-if(forward.lengthSquared()<.01)forward.setX(0).setZ(1);
+if(forward.lengthSquared()<.001)forward=new Vector(0,0,1);
 forward.normalize();
 Vector right=new Vector(-forward.getZ(),0,forward.getX());
 Vector dir=new Vector();
@@ -647,28 +681,48 @@ if(in.isForward())dir.add(forward);
 if(in.isBackward())dir.subtract(forward);
 if(in.isLeft())dir.add(right);
 if(in.isRight())dir.subtract(right);
-double speed=getConfig().getDouble("pig-speed",.43)*(fly?1.1:1);
-if(in.isSprint())speed*=1.10;
-if(snow(pig.getLocation()))speed*=getConfig().getDouble("snow-multiplier",.35);
+Location here=pig.getLocation();
+boolean inWater=pig.isInWater()||here.getBlock().isLiquid();
+double speed=fly?getConfig().getDouble("pig-speed",.43)*1.08:
+inWater?getConfig().getDouble("pig-swim-speed",.40):
+getConfig().getDouble("pig-ground-ride-speed",.49);
+if(in.isSprint())speed*=fly?1.13:1.30;
+if(!inWater&&snow(here))speed*=getConfig().getDouble("snow-multiplier",.35);
+speed=Math.max(.07,Math.min(.80,speed));
 boolean slope=false;
 if(dir.lengthSquared()>.01){
 dir.normalize();
-Location front=pig.getLocation().add(dir.clone().multiply(.85));
+Location front=here.clone().add(dir.clone().multiply(1.1));
+boolean solid=front.getBlock().getType().isSolid();
 slope=(!front.getBlock().isPassable()&&front.clone().add(0,1,0).getBlock().isPassable())
-||front.clone().subtract(0,1,0).getBlock().isPassable();
-if(slope)speed*=getConfig().getDouble("slope-multiplier",1.45);
+||(!fly&&!inWater&&solid&&front.clone().add(0,1.2,0).getBlock().isPassable());
+if(slope&&!inWater)speed=Math.min(.80,speed*getConfig().getDouble("slope-multiplier",1.20));
 dir.multiply(speed);
 }
-double y=fly?0:pig.getVelocity().getY();
+UUID playerId=p.getUniqueId();
+boolean pressingJump=in.isJump();
+boolean newJump=pressingJump&&!heldJump.contains(playerId);
+if(pressingJump)heldJump.add(playerId);else heldJump.remove(playerId);
+double y=pig.getVelocity().getY();
 if(fly){
-if(in.isJump())y=.29;
-else if(in.isForward()&&p.getLocation().getPitch()>35)y=-.18;
+y=0;
+if(pressingJump)y=.28;
+else if(in.isForward()&&p.getLocation().getPitch()>35)y=-.17;
 else if(in.isForward()&&p.getLocation().getPitch()<-35)y=.13;
-else if(slope)y=.18;
-}else if((in.isJump()||slope)&&pig.isOnGround())y=.52;
-if(fly&&snow(pig.getLocation()))y=Math.max(y,.10);
+else if(slope)y=.17;
+if(snow(here))y=Math.max(.10,y);
+}else if(inWater){
+y=pressingJump?.27:.075;
+if(in.isSneak())y=-.10;
+}else{
+boolean jumpReady=tick>=nextMountedJump.getOrDefault(pig.getUniqueId(),0L);
+if(jumpReady&&pig.isOnGround()&&(newJump||slope)){
+y=newJump?.57:.44;
+nextMountedJump.put(pig.getUniqueId(),tick+12);
+}
+}
 pig.setVelocity(new Vector(dir.getX(),y,dir.getZ()));
-pig.setRotation(p.getLocation().getYaw(),0);
+pig.setRotation(p.getLocation().getYaw(),0f);
 }
 private boolean ready(Map<UUID,Long> state,UUID id,long gap){
 if(tick-state.getOrDefault(id,-9999L)<gap)return false;
@@ -1055,15 +1109,16 @@ double yaw=Math.toRadians(at.getYaw());
 // Local basis relative to the pig's body: sideways and back, not up by its ears.
 Vector right=new Vector(-Math.cos(yaw),0,-Math.sin(yaw));
 Vector back=new Vector(Math.sin(yaw),0,-Math.cos(yaw));
+double size=.5;
 double flap=Math.sin(tick*.12)*.065;
 for(int j=0;j<2;j++){
 Entity e=Bukkit.getEntity(list.get(j));
 if(!(e instanceof ItemDisplay d))continue;
 float side=j==0?-1f:1f;
 // Wings sit at the back of the rib cage, not beside the pig's head.
-Location loc=at.clone().add(right.clone().multiply(side*.37));
-loc.add(back.clone().multiply(.34));
-loc.add(0,.61+flap,0);
+Location loc=at.clone().add(right.clone().multiply(side*.37*size));
+loc.add(back.clone().multiply(.34*size));
+loc.add(0,.61*size+flap*size,0);
 // Rotate the wing planes toward the rear so they resemble folded flight
 // feathers from the front rather than flat wings sprouting near the ears.
 loc.setYaw(at.getYaw()+side*76f);
@@ -1073,7 +1128,7 @@ Quaternionf pose=new Quaternionf().rotationXYZ(.07f,side*.12f,(float)(flap*side)
 d.setTransformation(new Transformation(
 new Vector3f(0f,0f,0f),
 pose,
-new Vector3f(side*.54f,.49f,.54f),
+new Vector3f(side*.27f,.245f,.27f),
 new Quaternionf()
 ));
 }
@@ -1093,7 +1148,7 @@ if(!pig.addPassenger(player))pig.setSaddle(false);
 });
 }
 @EventHandler public void playerInput(PlayerInputEvent e){inputCache.put(e.getPlayer().getUniqueId(),e.getInput());}
-@EventHandler public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();inputCache.remove(id);pendingMount.remove(id);airborne.remove(id);fallSpeed.remove(id);bounceLocked.remove(id);groundedTicks.remove(id);}
+@EventHandler public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();inputCache.remove(id);pendingMount.remove(id);heldJump.remove(id);airborne.remove(id);fallSpeed.remove(id);bounceLocked.remove(id);groundedTicks.remove(id);}
 @Override public boolean onCommand(CommandSender sender,Command cmd,String label,String[] a){
 if(a.length==0||a[0].equalsIgnoreCase("help")){
 sender.sendMessage("§aSwampSky 1.6.0 §7| /swampsky spawn <flying_pig|giant_frog>");
@@ -1129,6 +1184,7 @@ for(Entity entity:player.getWorld().getNearbyEntities(player.getLocation(),48,36
 if(!(entity instanceof Pig pig)||!marked(pig,flyingKey))continue;
 UUID id=pig.getUniqueId();
 pig.setAI(true);pig.setAware(false);pig.setGravity(false);pig.setCollidable(false);
+scaleWingedPig(pig);
 roamTargets.remove(id);roamExpiry.remove(id);motionStalls.remove(id);motionSamples.remove(id);flightVectors.remove(id);
 roamHomes.put(id,pig.getLocation().clone());wings.add(id);
 count++;
