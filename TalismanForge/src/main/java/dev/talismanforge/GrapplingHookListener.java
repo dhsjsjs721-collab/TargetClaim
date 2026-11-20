@@ -355,7 +355,11 @@ return main.getType()==Material.SHIELD||off.getType()==Material.SHIELD;
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void noAttackWhilePulling(org.bukkit.event.entity.EntityDamageByEntityEvent event){
-if(suppressedCombat.contains(event.getDamager().getUniqueId())||suppressedCombat.contains(event.getEntity().getUniqueId()))event.setCancelled(true);
+Entity attacker=event.getDamager();
+if(attacker instanceof Projectile projectile&&projectile.getShooter() instanceof Entity shooter)attacker=shooter;
+// The two tethered participants cannot ATTACK during the pull, but unrelated
+// bystanders can still damage them normally. No accidental invulnerability.
+if(suppressedCombat.contains(attacker.getUniqueId()))event.setCancelled(true);
 }
 @EventHandler(priority=EventPriority.HIGHEST)
 public void prepareMagnet(org.bukkit.event.inventory.PrepareAnvilEvent event){
