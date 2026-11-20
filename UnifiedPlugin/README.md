@@ -1,4 +1,4 @@
-# MinecraftUnified 1.0.1 — One JAR for all five Paper plugins
+# MinecraftUnified 1.0.2 — One JAR for all five Paper plugins
 
 A **real single Paper plugin** (not an installer ZIP) built from the latest maintained source branches of TargetClaim, TalismanForge 2.5.7, EnchantmentForge, SwampSky 1.5.0 and ImageMaps 1.1.0. The compile-time generator converts the existing five JavaPlugin subclasses into hosted listener/command modules, retaining their features and original data identifiers.
 
@@ -8,7 +8,7 @@ A **real single Paper plugin** (not an installer ZIP) built from the latest main
 
 1. Stop the server, **back up the entire world and existing plugin data**.
 2. Remove the old five separate JARs from `plugins/`. Do not keep the five old plugins alongside this file: duplicate recipes and event handlers would conflict.
-3. Place only `MinecraftUnified-1.0.1.jar` in `plugins/`.
+3. Place only `MinecraftUnified-1.0.2.jar` in `plugins/`.
 4. Keep using the single `resourcepacks/TalismanForge-2.0.0-ResourcePack.zip` from the main branch, with the SHA1 shown in the main repo; it includes the SwampSky equipment, TargetClaim key and Reliquary artwork.
 5. Start the server and run `/unified`: all five modules should appear as loaded.
 
@@ -35,3 +35,6 @@ The current combined main resource pack was inspected and has all 22 SwampSky as
 GitHub Actions → Build single unified Minecraft plugin. Full-checkout on the build runner reads module Java sources from main and three feature branches, then runs `gradle -p UnifiedPlugin build` (Java 25). No compiled Minecraft client mods or unused resource-pack duplicates are embedded in the JAR.
 
 **Build success checks Java compilation, not gameplay or anti-cheat compatibility. Test on a staging server first.**
+
+## v1.0.2 — stable pig motion
+SwampSky is now compiled from the updated 1.6.0 branch. Ground pigs follow pumpkins through Paper navigation without being made unaware, while winged pigs fly between persistent waypoints, recover from sustained stalls, avoid walls and respect leashes. Use `/ss status` to see pig movement state or `/ss repair` to reinitialize nearby winged pigs if an older server version left them frozen. Resource-pack URL and all other four module mechanics stay unchanged. These fixes were compiled in CI but require testing with your anticheat and world conditions.
