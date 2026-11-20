@@ -29,17 +29,30 @@ def main():
             "motd=UnifiedPlugin smoke test\n"
         )
         print("Downloading official Purpur 26.3 build 2659...",flush=True)
-        server=wd/"purpur.jar"
-        for attempt in range(3):
-            try:
-                urllib.request.urlretrieve(URL,server)
-                if server.stat().st_size<1_000_000:raise RuntimeError("Purpur download too small")
-                break
-            except Exception as exc:
-                if attempt==2:raise
-                print("Retry download:",exc,flush=True)
-                time.sleep(3)
-        print("Launching Purpur",server.stat().st_size,"bytes",flush=True)
+        server=wd/"server.jar"
+        headers={"User-Agent":"MinecraftUnified-CI/1.0.4 (github.com/dhsjsjs721-collab/TargetClaim)","Accept":"application/json"}
+        tested="Purpur 26.3 build 2659"
+        try:
+            request=urllib.request.Request(URL,headers=headers)
+            with urllib.request.urlopen(request,timeout=30) as response:
+                with server.open("wb") as output:shutil.copyfileobj(response,output)
+            if server.stat().st_size<1_000_000:raise RuntimeError("Purpur download too small")
+        except Exception as exc:
+            # Some cloud runners receive 403 from Purpur's CDN. The same
+            # five Paper APIs can still be smoke-tested on official Paper 26.3.
+            import json
+            print("Purpur download blocked; using official Paper 26.3 fallback:",exc,flush=True)
+            api="https://fill.papermc.io/v3/projects/paper/versions/26.3/builds/latest"
+            request=urllib.request.Request(api,headers=headers)
+            with urllib.request.urlopen(request,timeout=30) as response:
+                release=json.load(response)
+            url=release["downloads"]["server:default"]["url"]
+            request=urllib.request.Request(url,headers=headers)
+            with urllib.request.urlopen(request,timeout=60) as response:
+                with server.open("wb") as output:shutil.copyfileobj(response,output)
+            if server.stat().st_size<1_000_000:raise RuntimeError("Paper download too small")
+            tested="Paper 26.3 build "+str(release["id"])
+        print("Launching",tested,server.stat().st_size,"bytes",flush=True)
         logs=[]
         proc=subprocess.Popen(
             ["java","-Xms256M","-Xmx1200M","-jar",str(server),"nogui"],
@@ -91,5 +104,5 @@ def main():
         if bad:
             print("\n".join(bad))
             raise AssertionError("Purpur startup/command exceptions detected")
-        print("SUCCESS: Purpur 26.3 build 2659 launched all 5 modules; /u status works",flush=True)
+        print("SUCCESS:",tested,"launched all 5 modules; /u status works",flush=True)
 if __name__=="__main__":main()
