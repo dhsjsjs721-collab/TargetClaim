@@ -25,6 +25,7 @@ public final class UnifiedPlugin extends JavaPlugin implements CommandExecutor,T
 private final List<ModuleBridge> enabledModules=new ArrayList<>();
 private final Map<String,String> failedModules=new LinkedHashMap<>();
 private TrapItems trapItems;
+private CombatShields combatShields;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("p","p"),Map.entry("private","p"),
 Map.entry("team","team"),
@@ -77,7 +78,17 @@ if(trapItems!=null){try{trapItems.disable();}catch(Throwable ignored){}}
 trapItems=null;
 }
 }
-getLogger().info("MinecraftUnified 1.0.6 started modules "+enabledModules.size()+"/"+modules.size()+
+try{
+combatShields=new CombatShields(this);
+combatShields.enable();
+getLogger().info("Combat shields active: Wither, Turtle, Crusher");
+}catch(Throwable ex){
+getLogger().severe("Custom combat shields failed: "+ex);
+ex.printStackTrace();
+if(combatShields!=null)try{combatShields.disable();}catch(Throwable ignored){}
+combatShields=null;
+}
+getLogger().info("MinecraftUnified 1.0.7 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
 private boolean enabled(String module){
@@ -85,8 +96,9 @@ for(ModuleBridge m:enabledModules)if(m.getName().equals(module))return true;
 return false;
 }
 private void status(CommandSender sender){
-sender.sendMessage("§aMinecraftUnified 1.0.6 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
+sender.sendMessage("§aMinecraftUnified 1.0.7 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
 sender.sendMessage(trapItems!=null?"§a✓ PvP-трапки §7активны":"§c✗ PvP-трапки §7не активны");
+sender.sendMessage(combatShields!=null?"§a✓ 3 особых щита §7активны":"§c✗ Особые щиты §7не запущены");
 for(String name:List.of("TargetClaim","TalismanForge","EnchantmentForge","SwampSky","ImageMaps")){
 if(enabled(name))sender.sendMessage("§a✓ "+name+" §7работает");
 else sender.sendMessage("§c✗ "+name+" §7ошибка запуска: "+failedModules.getOrDefault(name,"неизвестно"));
@@ -102,6 +114,7 @@ sender.sendMessage("§e/u tf give <ник> <тип> §7— талисман");
 sender.sendMessage("§e/u ss give <ник> <hide|boots|leggings|wings> §7— вещи");
 sender.sendMessage("§e/u map §7— окно картинки на карте");
 sender.sendMessage("§e/u trap §7— крафт и использование трапки");
+sender.sendMessage("§e/u shield §7— особые щиты и рецепты");
 sender.sendMessage("§e/u trap give <ник> [количество] §7— выдача для администратора");
 sender.sendMessage("§e/u p §7и §e/u team §7— приват и команда");
 sender.sendMessage("§7Поддерживаются также /u ce, /u ss, /u tf с исходными аргументами.");
@@ -128,6 +141,10 @@ yield command==null?null:command+(args.length==1?"":" "+String.join(" ",Arrays.c
 if(args.length==0||args[0].equalsIgnoreCase("help")){help(sender);return true;}
 String action=args[0].toLowerCase(Locale.ROOT);
 if(action.equals("status")||action.equals("check")||action.equals("list")){status(sender);return true;}
+if(action.equals("shield")||action.equals("shields")){
+if(combatShields==null){sender.sendMessage("§cМодуль щитов не запущен.");return true;}
+return combatShields.command(sender,Arrays.copyOfRange(args,1,args.length));
+}
 if(action.equals("trap")||action.equals("trapka")){
 if(trapItems==null){sender.sendMessage("§cМодуль PvP-трапок не запущен.");return true;}
 return trapItems.handleCommand(sender,Arrays.copyOfRange(args,1,args.length));
@@ -149,10 +166,15 @@ return true;
 @Override public List<String> onTabComplete(CommandSender sender,Command command,String alias,String[] args){
 if(args.length<=1){
 String prefix=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-return List.of("help","status","pig","frog","repair","trader","p","team","tf","ce","ss","map","trap")
+return List.of("help","status","pig","frog","repair","trader","p","team","tf","ce","ss","map","trap","shield")
 .stream().filter(x->x.startsWith(prefix)).toList();
 }
 String action=args[0].toLowerCase(Locale.ROOT);
+if(action.equals("shield")||action.equals("shields")){
+if(args.length==2)return List.of("give").stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
+if(args.length==4&&args[1].equalsIgnoreCase("give"))return List.of("wither","turtle","crusher").stream().filter(x->x.startsWith(args[3].toLowerCase(Locale.ROOT))).toList();
+return List.of();
+}
 if(action.equals("trap")||action.equals("trapka")){
 if(args.length==2)return List.of("give","help").stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
 if(args.length==3&&args[1].equalsIgnoreCase("give"))
@@ -169,6 +191,7 @@ return sub.tabComplete(sender,target,rest);
 }catch(Exception ex){return List.of();}
 }
 @Override public void onDisable(){
+if(combatShields!=null){try{combatShields.disable();}catch(Throwable error){getLogger().warning("Shield cleanup failed: "+error);}combatShields=null;}
 if(trapItems!=null){try{trapItems.disable();}catch(Throwable failure){getLogger().warning("PvP trap cleanup failed: "+failure.getMessage());}trapItems=null;}
 for(int i=enabledModules.size()-1;i>=0;i--){
 ModuleBridge module=enabledModules.get(i);
