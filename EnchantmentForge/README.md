@@ -44,7 +44,7 @@
 gradle -p EnchantmentForge build --no-daemon
 ```
 
-Готовый JAR: `EnchantmentForge/build/libs/EnchantmentForge-1.1.2.jar`. Либо скачайте JAR в GitHub Actions → **Build EnchantmentForge JAR** → Artifacts.
+Готовый JAR: `EnchantmentForge/build/libs/EnchantmentForge-1.2.0.jar`. Либо скачайте JAR в GitHub Actions → **Build EnchantmentForge JAR** → Artifacts.
 
 Положите JAR в `plugins/` Paper 26.3, перезапустите сервер. Настройки: `plugins/EnchantmentForge/config.yml`.
 
@@ -119,3 +119,7 @@ gradle -p EnchantmentForge build --no-daemon
 6. Проверить взаимодействие с другим плагином изменения дропа/инвентаря на тестовом сервере. Полная совместимость с любыми сторонними обработчиками смерти не гарантируется.
 
 **Требуется Paper 26.3, Java 25.** Код компилируется в GitHub Actions, но перед установкой на основной сервер нужен игровой тест и резервная копия.
+
+## v1.2.0 — One full catalog for every Wandering Trader
+
+Every Wandering Trader (natural spawn, `/summon wandering_trader`, existing on disk, and `/ce trader`) now receives the same full ordered catalog: all useful goods, all supported enchantment books, all spawn eggs and all selected spawners. Old v1.1 trader markers are upgraded the first time the trader loads, is summoned or is right-clicked. The full long merchant UI intentionally scrolls; there is no random short selection. Missing client recipe assets are not required. Prices remain the same, and traders do not bring llamas. A full server restart is needed after replacing an existing JAR.
