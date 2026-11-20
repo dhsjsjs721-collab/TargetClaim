@@ -710,6 +710,10 @@ if(i<ring.index){ring.visuals.add(null);continue;}
 ItemDisplay d=p.getWorld().spawn(p.getLocation().clone().add(0,1.2,0),ItemDisplay.class,display->{
 display.setItemStack(new ItemStack(Material.SHIELD));display.setBillboard(Display.Billboard.CENTER);display.setPersistent(false);display.setInvulnerable(true);
 display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+display.setTeleportDuration(5);display.setViewRange(1.6f);
+display.setTransformation(new org.bukkit.util.Transformation(
+new org.joml.Vector3f(0f,0f,0f),new org.joml.Quaternionf(),
+new org.joml.Vector3f(.75f,.75f,.75f),new org.joml.Quaternionf()));
 });
 ring.visuals.add(d.getUniqueId());
 }
@@ -737,12 +741,16 @@ for(Iterator<Map.Entry<UUID,ShieldRing>> it=shieldRings.entrySet().iterator();it
 Map.Entry<UUID,ShieldRing> entry=it.next();Player p=Bukkit.getPlayer(entry.getKey());ShieldRing ring=entry.getValue();
 if(p==null||!p.isOnline()||p.isDead()){removeShieldVisuals(ring);it.remove();continue;}
 double phase=System.currentTimeMillis()/850.0;
+boolean brokenVisual=false;
 for(int i=ring.index;i<3;i++){
-Entity entity=Bukkit.getEntity(ring.visuals.get(i));if(!(entity instanceof ItemDisplay display))continue;
+UUID visualId=i<ring.visuals.size()?ring.visuals.get(i):null;
+Entity entity=visualId==null?null:Bukkit.getEntity(visualId);
+if(!(entity instanceof ItemDisplay display)||!display.isValid()||display.getWorld()!=p.getWorld()){brokenVisual=true;continue;}
 double a=phase+i*Math.PI*2/3;
 Location loc=p.getLocation().clone().add(Math.cos(a)*.95,1.12+Math.sin(phase*2+i)*.08,Math.sin(a)*.95);
 display.teleport(loc);
 }
+if(brokenVisual){removeShieldVisuals(ring);ring.visuals.clear();spawnShieldVisuals(p,ring);}
 }
 }
 private boolean absorbByShield(Player p,EntityDamageEvent e){
@@ -750,11 +758,11 @@ ShieldRing ring=shieldRings.get(p.getUniqueId());
 if(ring==null||e.getFinalDamage()<=0)return false;
 if(e.getCause()==EntityDamageEvent.DamageCause.VOID||e.getCause()==EntityDamageEvent.DamageCause.KILL)return false;
 double amount=e.getFinalDamage();e.setCancelled(true);
-ring.health-=amount;
+ring.health-=amount;saveShieldState(p,ring);
 p.getWorld().playSound(p.getLocation(),Sound.ITEM_SHIELD_BLOCK,.8f,1.15f);
 p.getWorld().spawnParticle(Particle.END_ROD,p.getLocation().clone().add(0,1,0),6,.45,.3,.45,.01);
 if(ring.health<=0){
-UUID id=ring.visuals.get(ring.index);Entity display=Bukkit.getEntity(id);if(display!=null)display.remove();
+UUID id=ring.index<ring.visuals.size()?ring.visuals.get(ring.index):null;Entity display=id==null?null:Bukkit.getEntity(id);if(display!=null)display.remove();
 ring.index++;ring.health=4.0;
 p.getWorld().playSound(p.getLocation(),Sound.ITEM_SHIELD_BREAK,.85f,1.4f);
 if(ring.index>=3){shieldRings.remove(p.getUniqueId());clearShieldState(p);p.sendMessage("§7Последний призрачный щит разрушен.");}
@@ -889,13 +897,31 @@ killer.getWorld().spawnParticle(Particle.SOUL,killer.getLocation().add(0,1,0),8,
 
 private void agesFinale(Player p){
 Location loc=p.getLocation();World w=p.getWorld();
-for(int i=0;i<4;i++){
-final int step=i;
-Allay allay=w.spawn(loc.clone().add(Math.cos(i*Math.PI/2)*.9,1.1,Math.sin(i*Math.PI/2)*.9),Allay.class,a->{
-a.setAI(false);a.setSilent(true);a.setInvulnerable(true);a.setPersistent(false);a.setGravity(false);
+List<Allay> fairies=new ArrayList<>();
+for(int i=0;i<3;i++){
+Allay allay=w.spawn(loc.clone().add(Math.cos(i*Math.PI*2/3)*.9,1.3,Math.sin(i*Math.PI*2/3)*.9),Allay.class,a->{
+a.setAI(false);a.setSilent(true);a.setInvulnerable(true);a.setPersistent(false);a.setGravity(false);a.setCollidable(false);
 });
-Bukkit.getScheduler().runTaskLater(this,()->{if(allay.isValid())allay.remove();},50L);
+fairies.add(allay);
 }
+final UUID owner=p.getUniqueId();
+new org.bukkit.scheduler.BukkitRunnable(){
+int iteration=0;
+@Override public void run(){
+Player target=Bukkit.getPlayer(owner);
+if(iteration++>=25||target==null||target.isDead()){
+for(Allay allay:fairies)if(allay.isValid())allay.remove();
+cancel();return;
+}
+Location center=target.getLocation();
+for(int i=0;i<fairies.size();i++){
+Allay allay=fairies.get(i);if(!allay.isValid())continue;
+double angle=iteration*.31+i*Math.PI*2/fairies.size();
+Location point=center.clone().add(Math.cos(angle)*1.05,1.4+Math.sin(iteration*.28+i)*.33,Math.sin(angle)*1.05);
+if(point.getBlock().isPassable())allay.teleport(point);
+}
+}
+}.runTaskTimer(this,1L,2L);
 for(Player other:w.getPlayers())if(other!=p&&other.getLocation().distanceSquared(loc)<=25){
 other.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA,40,0,true,false,true));
 }
@@ -968,13 +994,22 @@ if(shooter instanceof LivingEntity source&&source!=target&&source.isValid())sour
 target.getWorld().spawnParticle(Particle.PORTAL,target.getEyeLocation(),24,.3,.3,.3,.1);
 target.playSound(target.getLocation(),Sound.ENTITY_ENDERMAN_TELEPORT,.35f,1.6f);return;
 }
-if(e.getEntity() instanceof Player target&&held(target)==Talisman.AGES){
+if(e.getEntity() instanceof Player target&&held(target)==Talisman.AGES
+&&!agesThornsInProgress.contains(target.getUniqueId())&&e.getFinalDamage()>0){
 LivingEntity thornsSource=null;
 if(e.getDamager() instanceof LivingEntity direct)thornsSource=direct;
 else if(e.getDamager() instanceof Projectile shot&&shot.getShooter() instanceof LivingEntity ranged)thornsSource=ranged;
 if(thornsSource!=null&&thornsSource!=target){
-final LivingEntity attacker=thornsSource;
-Bukkit.getScheduler().runTask(this,()->{if(attacker.isValid()&&!attacker.isDead())attacker.damage(2.0,target);});
+final LivingEntity punished=thornsSource;
+Bukkit.getScheduler().runTask(this,()->{
+if(!punished.isValid()||punished.isDead()||!target.isOnline())return;
+UUID punishedId=punished.getUniqueId();
+if(!agesThornsInProgress.add(punishedId))return;
+try{
+punished.damage(2.0,target);
+punished.getWorld().spawnParticle(Particle.CRIT,punished.getEyeLocation(),5,.15,.25,.15,.02);
+}finally{agesThornsInProgress.remove(punishedId);}
+});
 }
 }
 if(!(e.getDamager() instanceof Player attacker))return;
