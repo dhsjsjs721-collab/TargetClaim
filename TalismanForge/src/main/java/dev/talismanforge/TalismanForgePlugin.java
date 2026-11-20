@@ -561,7 +561,9 @@ swordTarget.put(player.getUniqueId(),target.getUniqueId());
 swordExpiry.put(player.getUniqueId(),System.currentTimeMillis()+8500L);
 }
 private void clearEndSwords(UUID id){
-removeDisplays(swordVisuals.remove(id));
+List<UUID> displays=swordVisuals.remove(id);
+if(displays!=null){for(UUID display:displays)swordCooldown.remove(display);}
+removeDisplays(displays);
 swordTarget.remove(id);swordExpiry.remove(id);
 }
 private void endSwordTick(){
@@ -571,7 +573,9 @@ UUID id=owner.getUniqueId();
 if(owner.isDead()||held(owner)!=Talisman.END){clearEndSwords(id);continue;}
 List<UUID> ids=swordVisuals.get(id);
 if(ids==null||ids.size()!=2||ids.stream().anyMatch(uuid->!(Bukkit.getEntity(uuid) instanceof ItemDisplay))){
-clearEndSwords(id);
+if(ids!=null){for(UUID old:ids)swordCooldown.remove(old);}
+removeDisplays(swordVisuals.remove(id));
+// Visual reload must retain the last attacker for the first retaliation.
 ids=new ArrayList<>();
 for(int i=0;i<2;i++){
 ItemDisplay display=owner.getWorld().spawn(owner.getLocation().add(0,1.45,0),ItemDisplay.class,d->{
