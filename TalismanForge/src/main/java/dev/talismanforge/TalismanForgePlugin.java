@@ -131,15 +131,9 @@ shieldRings.clear();relicDisplays.clear();agesInvulnerableUntil.clear();wrathStr
 for(UUID id:ghostDolphins.keySet()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 holograms.clear();ghostDolphins.clear();trackedDrops.clear();
 for(Player p:Bukkit.getOnlinePlayers()){
-Talisman t=active.get(p.getUniqueId());
-if(t==Talisman.MAIMING)p.removePotionEffect(PotionEffectType.HUNGER);
-if(t==Talisman.WRATH)p.removePotionEffect(PotionEffectType.STRENGTH);
-if(t==Talisman.DEFIANCE||t==Talisman.HADES)p.removePotionEffect(PotionEffectType.ABSORPTION);
-if(t==Talisman.POSEIDON){p.removePotionEffect(PotionEffectType.WATER_BREATHING);p.removePotionEffect(PotionEffectType.DOLPHINS_GRACE);p.removePotionEffect(PotionEffectType.SPEED);}
-if(t==Talisman.AGES)p.removePotionEffect(PotionEffectType.FIRE_RESISTANCE);
-if(t==Talisman.END)p.removePotionEffect(PotionEffectType.INVISIBILITY);
+for(PotionEffectType effect:new ArrayList<>(grantedEffects.getOrDefault(p.getUniqueId(),Map.of()).keySet()))removeGrantedEffect(p,effect);
 }
-active.clear();saveAltars();
+grantedEffects.clear();active.clear();saveAltars();
 for(Pad pad:new ArrayList<>(pads.values()))restorePad(pad);
 pads.clear();savePads();
 }
@@ -691,7 +685,8 @@ if(threat!=null&&threat!=hades)ghastAssist(hades,threat);
 if(e.getEntity() instanceof Player target&&held(target)==Talisman.END&&e.getDamager() instanceof Projectile projectile){
 e.setCancelled(true);ProjectileSource shooter=projectile.getShooter();
 if(shooter instanceof LivingEntity source&&source!=target&&source.isValid())source.damage(Math.min(20,Math.max(1,e.getFinalDamage())),target);
-target.getWorld().spawnParticle(Particle.PORTAL,target.getEyeLocation(),24,.3,.3,.3,.1);return;
+target.getWorld().spawnParticle(Particle.PORTAL,target.getEyeLocation(),24,.3,.3,.3,.1);
+target.playSound(target.getLocation(),Sound.ENTITY_ENDERMAN_TELEPORT,.35f,1.6f);return;
 }
 if(e.getEntity() instanceof Player target&&held(target)==Talisman.AGES){
 LivingEntity thornsSource=null;
@@ -737,7 +732,7 @@ long now=System.currentTimeMillis();
 if(now-ghastCooldowns.getOrDefault(owner.getUniqueId(),0L)<3500L)return;
 int fired=0;
 for(Ghast ghast:owner.getWorld().getEntitiesByClass(Ghast.class)){
-if(!ghast.isValid()||ghast.isDead()||ghast.getLocation().distanceSquared(owner.getLocation())>32*32||ghast.getLocation().distanceSquared(enemy.getLocation())>42*42)continue;
+if(!ghast.isValid()||ghast.isDead()||ghast.getLocation().distanceSquared(owner.getLocation())>32*32||ghast.getLocation().distanceSquared(enemy.getLocation())>42*42||!ghast.hasLineOfSight(enemy))continue;
 Vector direction=enemy.getEyeLocation().toVector().subtract(ghast.getEyeLocation().toVector());
 if(direction.lengthSquared()<.001)continue;
 LargeFireball shot=ghast.launchProjectile(LargeFireball.class,direction.normalize());
@@ -903,46 +898,86 @@ d.getWorld().spawnParticle(Particle.SPLASH,d.getLocation(),4,.3,.3,.3,.02);
 }
 }
 private boolean isRaining(Player p){return p.getWorld().getEnvironment()==World.Environment.NORMAL&&p.getWorld().hasStorm();}
+private boolean isGranted(Player p,PotionEffectType type,int amplifier){
+return Objects.equals(grantedEffects.getOrDefault(p.getUniqueId(),Map.of()).get(type),amplifier);
+}
+private void recordGranted(Player p,PotionEffectType type,int amplifier){
+grantedEffects.computeIfAbsent(p.getUniqueId(),unused->new HashMap<>()).put(type,amplifier);
+}
+private void removeGrantedEffect(Player p,PotionEffectType type){
+Map<PotionEffectType,Integer> own=grantedEffects.get(p.getUniqueId());
+if(own==null)return;
+Integer amplifier=own.remove(type);
+if(own.isEmpty())grantedEffects.remove(p.getUniqueId());
+if(amplifier==null)return;
+PotionEffect effect=p.getPotionEffect(type);
+// Do not clear a later, longer, or stronger potion from another source.
+if(effect!=null&&effect.getAmplifier()==amplifier&&effect.getDuration()>=0&&effect.getDuration()<=120)p.removePotionEffect(type);
+}
+private void giveTalismanEffect(Player p,PotionEffectType type,int duration,int amplifier){
+PotionEffect previous=p.getPotionEffect(type);
+if(previous!=null){
+if(previous.getAmplifier()>amplifier||previous.getDuration()<0)return;
+if(previous.getAmplifier()==amplifier){
+if(previous.getDuration()>duration+20){
+grantedEffects.getOrDefault(p.getUniqueId(),new HashMap<>()).remove(type);
+return;
+}
+if(previous.getDuration()>=40)return;
+}
+}
+p.addPotionEffect(new PotionEffect(type,duration,amplifier,true,false,true));
+recordGranted(p,type,amplifier);
+}
 private void maintainAbsorption(Player p,int amplifier){
 PotionEffect previous=p.getPotionEffect(PotionEffectType.ABSORPTION);
-if(previous!=null&&previous.getAmplifier()>amplifier)return;
-if(previous!=null&&previous.getAmplifier()==amplifier&&previous.getDuration()>=40&&previous.getDuration()<=200)return;
+boolean ours=isGranted(p,PotionEffectType.ABSORPTION,amplifier);
+if(previous!=null){
+if(previous.getAmplifier()>amplifier)return;
+if(previous.getAmplifier()==amplifier){
+if(!ours&&previous.getDuration()>0)return;
+if(previous.getDuration()>=40&&previous.getDuration()<=200)return;
+}
+}
 double remaining=p.getAbsorptionAmount();
-boolean renewing=previous!=null&&previous.getAmplifier()==amplifier&&previous.getDuration()<=200;
+boolean renewing=ours&&previous!=null&&previous.getAmplifier()==amplifier&&previous.getDuration()<=200;
 if(previous!=null)p.removePotionEffect(PotionEffectType.ABSORPTION);
 p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION,100,amplifier,true,false,true));
+recordGranted(p,PotionEffectType.ABSORPTION,amplifier);
 if(renewing&&p.getAbsorptionAmount()>remaining)p.setAbsorptionAmount(remaining);
 }
 private void refresh(){
-long now=System.currentTimeMillis();
 for(Player p:Bukkit.getOnlinePlayers()){
 Talisman t=held(p),old=active.get(p.getUniqueId());
 if(old!=t){
-if(old==Talisman.MAIMING)p.removePotionEffect(PotionEffectType.HUNGER);
-if(old==Talisman.WRATH)p.removePotionEffect(PotionEffectType.STRENGTH);
-if(old==Talisman.DEFIANCE||old==Talisman.HADES)p.removePotionEffect(PotionEffectType.ABSORPTION);
-if(old==Talisman.POSEIDON){p.removePotionEffect(PotionEffectType.WATER_BREATHING);p.removePotionEffect(PotionEffectType.DOLPHINS_GRACE);p.removePotionEffect(PotionEffectType.SPEED);}
-if(old==Talisman.AGES)p.removePotionEffect(PotionEffectType.FIRE_RESISTANCE);
-if(old==Talisman.END)p.removePotionEffect(PotionEffectType.INVISIBILITY);
+if(old==Talisman.MAIMING)removeGrantedEffect(p,PotionEffectType.HUNGER);
+if(old==Talisman.WRATH)removeGrantedEffect(p,PotionEffectType.STRENGTH);
+if(old==Talisman.DEFIANCE||old==Talisman.HADES)removeGrantedEffect(p,PotionEffectType.ABSORPTION);
+if(old==Talisman.POSEIDON){removeGrantedEffect(p,PotionEffectType.WATER_BREATHING);removeGrantedEffect(p,PotionEffectType.DOLPHINS_GRACE);removeGrantedEffect(p,PotionEffectType.SPEED);}
+if(old==Talisman.AGES)removeGrantedEffect(p,PotionEffectType.FIRE_RESISTANCE);
+if(old==Talisman.END)removeGrantedEffect(p,PotionEffectType.INVISIBILITY);
 }
 if(t==null){active.remove(p.getUniqueId());continue;}active.put(p.getUniqueId(),t);
 switch(t){
-case MAIMING -> p.addPotionEffect(new PotionEffect(PotionEffectType.HUNGER,80,0,true,false,true));
-case WRATH -> p.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH,80,1,true,false,true));
+case MAIMING -> giveTalismanEffect(p,PotionEffectType.HUNGER,80,0);
+case WRATH -> giveTalismanEffect(p,PotionEffectType.STRENGTH,80,1);
 case DEFIANCE -> maintainAbsorption(p,1);
 case JOKER -> {}
-case POSEIDON -> {if(p.isInWater()||isRaining(p)){
-p.addPotionEffect(new PotionEffect(PotionEffectType.WATER_BREATHING,100,0,true,false,true));
-p.addPotionEffect(new PotionEffect(PotionEffectType.DOLPHINS_GRACE,100,0,true,false,true));
-p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,100,0,true,false,true));
+case POSEIDON -> {
+if(p.isInWater()||isRaining(p)){
+giveTalismanEffect(p,PotionEffectType.WATER_BREATHING,100,0);
+giveTalismanEffect(p,PotionEffectType.DOLPHINS_GRACE,100,0);
+giveTalismanEffect(p,PotionEffectType.SPEED,100,0);
+if(pulses%3==0&&p.isInWater())p.getWorld().spawnParticle(Particle.BUBBLE,p.getLocation().add(0,1,0),3,.2,.3,.2,.02);
 }else{
-p.removePotionEffect(PotionEffectType.WATER_BREATHING);
-p.removePotionEffect(PotionEffectType.DOLPHINS_GRACE);
-p.removePotionEffect(PotionEffectType.SPEED);
-}}
+removeGrantedEffect(p,PotionEffectType.WATER_BREATHING);
+removeGrantedEffect(p,PotionEffectType.DOLPHINS_GRACE);
+removeGrantedEffect(p,PotionEffectType.SPEED);
+}
+}
 case HADES -> maintainAbsorption(p,2);
-case AGES -> p.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE,100,0,true,false,true));
-case END -> p.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY,100,0,true,false,true));
+case AGES -> giveTalismanEffect(p,PotionEffectType.FIRE_RESISTANCE,100,0);
+case END -> giveTalismanEffect(p,PotionEffectType.INVISIBILITY,100,0);
 }
 }
 }
@@ -1044,7 +1079,7 @@ return List.of();
 }
 @EventHandler public void quit(PlayerQuitEvent e){
 UUID id=e.getPlayer().getUniqueId();active.remove(id);safeLocations.remove(id);ghastCooldowns.remove(id);pathCenters.remove(id);pathRefresh.remove(id);
-wrathStreak.remove(id);wrathLastCrit.remove(id);agesInvulnerableUntil.remove(id);hungerTakenFractions.remove(id);hungerGivenFractions.remove(id);
+wrathStreak.remove(id);wrathLastCrit.remove(id);agesInvulnerableUntil.remove(id);hungerTakenFractions.remove(id);hungerGivenFractions.remove(id);grantedEffects.remove(id);
 ShieldRing ring=shieldRings.remove(id);if(ring!=null)removeShieldVisuals(ring);
 }
 }
