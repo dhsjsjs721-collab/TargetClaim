@@ -58,3 +58,5 @@ All changes are server-side Java; no changes to the single unified resource pack
 ## v1.0.5 — TalismanForge 2.6.0
 
 Integrates the full talisman rework from the TalismanForge branch: Wrath's critical-only recharge and single resurrection, Hades' Spectator revival, End's two orbiting swords and no fall damage, Poseidon's pufferfish/axolotl and stronger ghost dolphin, Ages' moving Allays and Thorns, Defiance's restored shields, and Maiming's heavy slow. Uses the same unified resource pack, unchanged. Commands remain `/u`, `/tf`, `/ss`, `/ce` etc. Deployment requires replacing the old combined JAR and restarting Purpur.
+
+- End lightning now inflicts its bonus damage through the standard Paper damage event, so armor, protected entities, other plugins, and resurrection effects are not bypassed by directly setting HP to zero. The unified build fetches TalismanForge source commit c33003265442917aeb46cff3781e808752616b7c or later.
