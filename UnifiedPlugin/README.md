@@ -1,4 +1,4 @@
-# MinecraftUnified 1.0.7 — One JAR for all five Paper plugins
+# MinecraftUnified 1.0.8 — One JAR for all five Paper plugins
 
 A **real single Paper plugin** (not an installer ZIP) built from the latest maintained source branches of TargetClaim, TalismanForge 2.6.0, EnchantmentForge 1.2.0, SwampSky 1.7.1 and ImageMaps 1.1.0. The compile-time generator converts the existing five JavaPlugin subclasses into hosted listener/command modules, retaining their features and original data identifiers.
 
@@ -8,7 +8,7 @@ A **real single Paper plugin** (not an installer ZIP) built from the latest main
 
 1. Stop the server, **back up the entire world and existing plugin data**.
 2. Remove the old five separate JARs from `plugins/`. Do not keep the five old plugins alongside this file: duplicate recipes and event handlers would conflict.
-3. Place only `MinecraftUnified-1.0.7.jar` in `plugins/`.
+3. Place only `MinecraftUnified-1.0.8.jar` in `plugins/`.
 4. Keep using the single `resourcepacks/TalismanForge-2.0.0-ResourcePack.zip` from the main branch, with the SHA1 shown in the main repo; it includes the SwampSky equipment, TargetClaim key and Reliquary artwork.
 5. Start the server and run `/unified`: all five modules should appear as loaded.
 
@@ -36,10 +36,10 @@ GitHub Actions → Build single unified Minecraft plugin. Full-checkout on the b
 
 **Build success checks Java compilation, not gameplay or anti-cheat compatibility. Test on a staging server first.**
 
-## v1.0.7 — stable pig motion
+## v1.0.8 — stable pig motion
 SwampSky is now compiled from the updated 1.6.0 branch. Ground pigs follow pumpkins through Paper navigation without being made unaware, while winged pigs fly between persistent waypoints, recover from sustained stalls, avoid walls and respect leashes. Use `/ss status` to see pig movement state or `/ss repair` to reinitialize nearby winged pigs if an older server version left them frozen. Resource-pack URL and all other four module mechanics stay unchanged. These fixes were compiled in CI but require testing with your anticheat and world conditions.
 
-## v1.0.7 — Half-sized flying pigs, saddle-only riding, universal traders
+## v1.0.8 — Half-sized flying pigs, saddle-only riding, universal traders
 
 Flying pigs are 50% of vanilla pig scale; their separate wing displays have been adjusted. Ordinary pigs stay vanilla size, and can be ridden by equipping a **saddle** and right-clicking. Carrot-on-a-stick is no longer needed. Use WASD to steer, sprint to accelerate, space to jump, and swim faster while in water (space to rise). Pig controls update each tick. Tamed winged pigs retain owner following, free flying and existing special controls. New config options: `pig-ground-ride-speed: 0.49` and `pig-swim-speed: 0.40` (automatic fallback for existing configs).
 
@@ -47,7 +47,7 @@ All wandering traders, including vanilla, summoned, previously saved and adminis
 
 All changes are server-side Java; no changes to the single unified resource pack or to the other three modules. The build compiles from the latest maintained branches, not snapshots of earlier SwampSky or EnchantmentForge versions. Minecraft server gameplay testing is still required to confirm all riding and merchant interactions.
 
-## v1.0.7 — fixes confirmed by actual Purpur 26.3 logs
+## v1.0.8 — fixes confirmed by actual Purpur 26.3 logs
 
 - SwampSky 1.7.1 avoids the `CraftMetaItem.getMaxDamage()` crash during frog-wing recipe creation.
 - TalismanForge 2.6.0 uses typed purple DUST for Maiming resurrection, fixing the Float particle exception.
@@ -55,13 +55,13 @@ All changes are server-side Java; no changes to the single unified resource pack
 - If a module fails to start, the unified plugin logs the failure, reports it in `/u status`, and leaves the other loaded modules available instead of disabling everything.
 - One enabled plugin contains all five modules. No resourcepack update or data migration required. A real Purpur restart and gameplay test are still necessary after compilation.
 
-## v1.0.7 — TalismanForge 2.6.0
+## v1.0.8 — TalismanForge 2.6.0
 
 Integrates the full talisman rework from the TalismanForge branch: Wrath's critical-only recharge and single resurrection, Hades' Spectator revival, End's two orbiting swords and no fall damage, Poseidon's pufferfish/axolotl and stronger ghost dolphin, Ages' moving Allays and Thorns, Defiance's restored shields, and Maiming's heavy slow. Uses the same unified resource pack, unchanged. Commands remain `/u`, `/tf`, `/ss`, `/ce` etc. Deployment requires replacing the old combined JAR and restarting Purpur.
 
 - End lightning now inflicts its bonus damage through the standard Paper damage event, so armor, protected entities, other plugins, and resurrection effects are not bypassed by directly setting HP to zero. The unified build fetches TalismanForge source commit c33003265442917aeb46cff3781e808752616b7c or later.
 
-## v1.0.7 — First new PvP consumable: Obsidian Trap
+## v1.0.8 — First new PvP consumable: Obsidian Trap
 
 The five original modules and the five existing creature-movement improvements remain. New PvP item is available through a single integrated plugin, without any client mod or new resource-pack textures.
 
@@ -74,9 +74,9 @@ The five original modules and the five existing creature-movement improvements r
 
 Deploy the new JAR after backing up the world. A clean Purpur 26.3 startup and command smoke test validates server compatibility, but players still need to test placement around terrain and claims in-game.
 
-## MinecraftUnified 1.0.7 — three combat shields and smarter creatures
+## MinecraftUnified 1.0.8 — three combat shields and smarter creatures
 
-SwampSky 1.8.0, TalismanForge 2.7.0 and the other original three modules all remain in one server JAR. The obsidian PvP trap is preserved.
+SwampSky 1.8.0, TalismanForge 2.7.1 and the other original three modules all remain in one server JAR. The obsidian PvP trap is preserved.
 
 - Wither Shield: drains health/hunger during successful blocking, transmits negative effects to the attacker and steals compatible positive effects, excluding talisman-powered effects. Incoming projectiles create a temporary allied frog or silverfish, which cannot target its owner.
 - Turtle Shield: rear protection while not actively blocking; durable shield with double max damage, reduced knockback and a short-range repelling aura; crafted from turtle scutes and deepslate.
@@ -86,3 +86,11 @@ SwampSky 1.8.0, TalismanForge 2.7.0 and the other original three modules all rem
 - SwampSky: mounting a tamed flying pig by right-click; jumping toward your pig draws it closer. Slower gentler orbit and more responsive wings. Giant frogs wander when not fighting. Ordinary saddle-only pig riding remains.
 
 Only compilations/automated real Purpur startup are guaranteed by CI; player-in-game PvP ability tests still required.
+
+## v1.0.8 — unified pixel art resourcepack and tested startup
+
+The original main resource pack ZIP (same path and link) now includes 32×32 transparent pixel textures and item models for the hook, hook-tip, active hook, chain links, Wither Shield, Turtle Shield and Crusher Shield. No separate pack is needed. `server.properties` SHA-1 **must** be updated to match the new main ZIP when forcing the pack.
+
+Joker creates one 3-second giant even when the revival had no attacker (only an actual enemy receives five seconds of stun). Zeus swords chase a target for up to 20 seconds and can become a low-health defensive shield. Wither Shield now absorbs a target's transferable good and bad effects for 5–20 seconds while respecting active talisman-generated effects. Giant frogs and winged pigs have smoother idle behavior; pig riding is now right-click and optionally approach by jumping toward the pig.
+
+Automated CI boot checks five module startup, original obsidian trap and the new shields. Combat behaviors require actual in-world testing.
