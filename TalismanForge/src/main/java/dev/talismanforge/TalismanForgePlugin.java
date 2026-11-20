@@ -137,7 +137,7 @@ Bukkit.getPluginManager().registerEvents(hookListener,this);
 Bukkit.getScheduler().runTaskTimer(this,this::quarterTick,5L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::wrathRechargeTick,10L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::tick,20L,20L);
-getLogger().info("TalismanForge 2.7.0: "+altars.size()+" relics");
+getLogger().info("TalismanForge 2.7.1: "+altars.size()+" relics");
 }
 @Override public void onDisable(){
 if(hookListener!=null)hookListener.shutdown();
@@ -1544,7 +1544,7 @@ w.playSound(loc,Sound.ENTITY_PLAYER_LEVELUP,1,1.3f);
 private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
-sender.sendMessage("§dTalismanForge 2.7.0 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|reliquary|hook>");
+sender.sendMessage("§dTalismanForge 2.7.1 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|reliquary|hook>");
 sender.sendMessage("§7Реликварий: 7 аметистов + тотем + обсидиан снизу. Луч без маяка.");return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
