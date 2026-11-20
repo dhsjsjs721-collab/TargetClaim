@@ -87,3 +87,8 @@ Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil o
 - Talismans' short-lived potion effects are now individually tracked; external effect applications/changes revoke plugin ownership so taking off a talisman does not remove an unrelated potion. Potions that are present and not owned by the plugin are not overwritten by refresh.
 - Temporary Ages paths recover both halves of tall seagrass when possible. Unloaded chunks are not forced loaded during shutdown; leftover restore records stay persisted. Chunk unload/load handlers attempt restoration as soon as safely available.
 - Phantom dolphins, end reflections, Defiance shield damage, and the lightweight particle limits retain their previous behavior. No textures or resource-pack files changed.
+
+## v2.5.8 — Purpur 26.3 revival effect bugfix
+
+- Fixed `IllegalArgumentException: missing required data class java.lang.Float` from `reviveParticles` when reviving with the Maiming talisman. The effect now spawns color-matched `DUST` with explicitly typed `DustOptions` instead of an untyped `DRAGON_BREATH` particle.
+- Particle counts reduced. No item, rescue probability, talisman rules or resource-pack changes.
