@@ -1,4 +1,4 @@
-# SwampSky 1.6.0, Minecraft Java 26.3
+# SwampSky 1.7.0, Minecraft Java 26.3
 # Flying-pig AI uses stable roam waypoints; ordinary pigs use vanilla pathfinder.
 # New keys work with existing configuration files via fallback defaults
 flying-chance: 0.28
@@ -13,6 +13,10 @@ giant-chance: 0.80
 frog-health: 60.0
 frog-scale: 2.8
 frog-damage: 7.0
+# Mount controls: no carrot-on-a-stick required; saddle normal pigs to ride
+pig-ground-ride-speed: 0.49
+pig-swim-speed: 0.40
+# Winged pigs have 0.5x entity scale, including their custom wing display
 # Mount controls
 pig-speed: 0.43
 slope-multiplier: 1.45
