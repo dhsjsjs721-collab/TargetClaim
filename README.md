@@ -1,4 +1,4 @@
-# TargetClaim 1.5.1 (development test)
+# TargetClaim 1.5.2 (development test)
 
 Minecraft Paper 26.3, Java 25. One claim per player.
 
@@ -35,3 +35,8 @@ GitHub Actions / Build plugin JAR; then download the artifact from the completed
 ## Commands
 /p, /p info, /p border [on|off], /p upgrade, /p remove, /p cancel, /p give <nick>, /p givekey <nick>
 /team, /team create <name>, /team invite <nick>, /team accept, /team deny, /team leave, /team kick <nick>, /team disband, /team pvp [on|off], /team info
+
+## v1.5.2: Key artwork
+- Crafted one-use chest keys now carry the item model `targetclaim:chest_key` (pixel-art amethyst/gold key).
+- The existing special-key PDC tag, theft mechanics and recipe are unchanged. Players' already-crafted keys are migrated on login.
+- Merge the `assets/targetclaim` namespace into the **single main resourcepack** (`resourcepacks/TalismanForge-2.0.0-ResourcePack.zip`). That same main pack also includes the TalismanForge and SwampSky assets and the Reliquary model; no other packs should be enabled simultaneously.
