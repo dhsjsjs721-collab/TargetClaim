@@ -30,7 +30,7 @@ import java.util.*;
 public final class TalismanForgePlugin extends org.bukkit.plugin.java.JavaPlugin implements Listener, CommandExecutor, TabCompleter {
 private enum Talisman {
 MAIMING("maiming","§5Талисман Увечья",2),
-WRATH("wrath","§cТалисман Кары",0),
+WRATH("wrath","§cТалисман Кары",1),
 DEFIANCE("defiance","§bТалисман Противостояния",2),
 JOKER("joker","§dТалисман Джокера",3),
 POSEIDON("poseidon","§3Талисман Посейдона",1),
@@ -57,6 +57,15 @@ private final Map<UUID,Double> hungerGivenFractions=new HashMap<>();
 private final Set<UUID> editingFood=new HashSet<>();
 private final Set<UUID> editingPotions=new HashSet<>();
 private final Map<UUID,Long> wrathLastCrit=new HashMap<>();
+private final Map<UUID,Long> wrathCritRechargeUntil=new HashMap<>();
+private final Map<UUID,Long> swordExpiry=new HashMap<>(),swordCooldown=new HashMap<>();
+private final Map<UUID,UUID> swordTarget=new HashMap<>();
+private final Map<UUID,List<UUID>> swordVisuals=new HashMap<>();
+private final Map<UUID,List<UUID>> poseidonCompanions=new HashMap<>();
+private final Map<UUID,Map<UUID,Long>> companionAttackCooldown=new HashMap<>();
+private final Set<UUID> agesThornsInProgress=new HashSet<>();
+private final Map<UUID,GameMode> hadesPending=new HashMap<>();
+private final NamespacedKey wrathRechargeKey=new NamespacedKey("talismanforge","crit_recharge");
 private final Map<UUID,Map<PotionEffectType,Integer>> grantedEffects=new HashMap<>();
 private final Map<UUID,Long> agesInvulnerableUntil=new HashMap<>();
 private final Map<UUID,ShieldRing> shieldRings=new HashMap<>();
@@ -151,21 +160,21 @@ lore.add("§8Работает в любой руке");
 lore.add(t.lives==0?"§cНе спасает от обычной смерти":t==Talisman.JOKER?"§7Осталось попыток: §e"+lives:"§7Спасений от смерти: §e"+lives+"/"+t.lives);
 lore.add(t==Talisman.POSEIDON?"§cНе спасает от бездны":t==Talisman.END?"§bБесконечное спасение от бездны":"§bСпасает от бездны, но исчезает");
 switch(t){
-case MAIMING -> {lore.add("§c−0.5 сердца, Голод I");lore.add("§5Удары: Иссушение I, 5 секунд");lore.add("§8Крит: Слабость I на 3 секунды");lore.add("§6Удар по игроку: кража 0.5 сытости");}
-case WRATH -> {lore.add("§c−2 сердца, без воскрешения");lore.add("§6Сила II, +30% скорость атаки");lore.add("§c+35% прямого урона оружием");lore.add("§6До 4 критов: +1–4% к урону");lore.add("§6Небольшой дополнительный износ брони");}
-case DEFIANCE -> {lore.add("§c−2 сердца, Поглощение II");lore.add("§bЩит невозможно временно отключить");lore.add("§bПосле последнего спасения: три защитных щита");}
+case MAIMING -> {lore.add("§c−0.5 сердца, Голод I");lore.add("§5Удары: Иссушение I (5с) и Замедление III (2с)");lore.add("§8Крит: Слабость I на 3 секунды");lore.add("§6Удар по игроку: кража 0.5 сытости");}
+case WRATH -> {lore.add("§c−4 сердца, восстановление здоровья −40%");lore.add("§6Сила I, восстановление критического удара быстрее");lore.add("§c+35% прямого урона оружием");lore.add("§6До 4 критов: +1–4% к урону и износ брони");lore.add("§7Одно спасение от смерти");}
+case DEFIANCE -> {lore.add("§c−2 сердца, Поглощение II");lore.add("§bЩит невозможно временно отключить");lore.add("§bПосле второго спасения: три парящих щита");lore.add("§7Каждый щит поглощает один удар, 2 сердца прочности");}
 case JOKER -> {lore.add("§dШанс: 50%, с эффектом Удачи — 75%");lore.add("§7От 1 до 3 попыток спасения");lore.add("§7Успех расходует одну попытку, не весь талисман");lore.add("§cНеудача: талисман исчезает");lore.add("§aУспех: 1–3 случайных усиления");lore.add("§7Скорость II / Сила II / Сопротивление I");lore.add("§7Каждый эффект длится 20 сек. – 5 минут");lore.add("§5Клыки призывателя атакуют существ рядом");}
-case POSEIDON -> {lore.add("§3Вода / дождь: дыхание, скорость");lore.add("§bСпасение только в воде или под дождём");lore.add("§cСухая смерть: большой призрачный дельфин");lore.add("§7Проходит через препятствия");}
-case HADES -> {lore.add("§c−4 сердца, Поглощение III");lore.add("§7Мобы игнорируют, пока их не тревожат");lore.add("§4Возрождение только рядом с игроками");}
+case POSEIDON -> {lore.add("§3Вода/дождь: скорость, парящие фугу с ядом");lore.add("§bВ воде: аксолотли лечат владельца");lore.add("§bСпасение только в воде или под дождём");lore.add("§cСухая смерть: мощный дельфин и грозовые молнии");}
+case HADES -> {lore.add("§c−6 сердец, Поглощение III");lore.add("§7Мобы игнорируют, пока их не тревожат");lore.add("§6Убийства игроков: кража золотых сердец");lore.add("§4После спасения: 3 секунды призраком в GM3");lore.add("§4Возрождение только рядом с игроками");}
 case AGES -> {lore.add("§eТри спасения, шипы на всех атаках");lore.add("§6Разные виды мха / породы над водой и лавой");lore.add("§eВозвращает водоросли после исчезновения тропы");lore.add("§6Второе спасение: 3 сек. защиты и свечения");lore.add("§6Защита от огня и лавы");}
-case END -> {lore.add("§5Невидимость, эндермены нейтральны");lore.add("§dОтражение дальних атак");lore.add("§6Крит по мобу: молния +1 сердце урона");}
+case END -> {lore.add("§5Невидимость, эндермены нейтральны");lore.add("§dОтражение снарядов, иммунитет к падению");lore.add("§6Каждый крит: молния +1 сердце урона");lore.add("§eДва парящих золотых меча защищают от атакующих");}
 }
 m.setLore(lore);
 if(t==Talisman.MAIMING)attribute(m,"maiming_health",Attribute.MAX_HEALTH,-1,AttributeModifier.Operation.ADD_NUMBER);
-if(t==Talisman.WRATH){attribute(m,"wrath_health",Attribute.MAX_HEALTH,-4,AttributeModifier.Operation.ADD_NUMBER);attribute(m,"wrath_attack_speed",Attribute.ATTACK_SPEED,.30,AttributeModifier.Operation.ADD_SCALAR);}
+if(t==Talisman.WRATH)attribute(m,"wrath_health",Attribute.MAX_HEALTH,-8,AttributeModifier.Operation.ADD_NUMBER);
 if(t==Talisman.DEFIANCE)attribute(m,"defiance_health",Attribute.MAX_HEALTH,-4,AttributeModifier.Operation.ADD_NUMBER);
 
-if(t==Talisman.HADES)attribute(m,"hades_health",Attribute.MAX_HEALTH,-8,AttributeModifier.Operation.ADD_NUMBER);
+if(t==Talisman.HADES)attribute(m,"hades_health",Attribute.MAX_HEALTH,-12,AttributeModifier.Operation.ADD_NUMBER);
 i.setItemMeta(m);return i;
 }
 private void attribute(ItemMeta m,String id,Attribute a,double amount,AttributeModifier.Operation op){
@@ -506,9 +515,9 @@ if(e.getWorld().getEnvironment()!=World.Environment.NETHER)return;
 String id=e.getLootTable().getKey().toString();
 Talisman choice=null;double prob=0;
 if(id.contains("bastion_treasure")){choice=Talisman.HADES;prob=.075;}
-else if(id.contains("bastion_bridge")){choice=Talisman.WRATH;prob=.05;}
+else if(id.contains("bastion_bridge")){choice=Talisman.WRATH;prob=.003;}
 else if(id.contains("bastion_other")||id.contains("bastion_hoglin_stable")){choice=Talisman.DEFIANCE;prob=.027;}
-else if(id.contains("nether_bridge")||id.contains("fortress")){choice=Talisman.WRATH;prob=.022;}
+else if(id.contains("nether_bridge")||id.contains("fortress")){choice=Talisman.WRATH;prob=.001;}
 if(choice!=null&&random.nextDouble()<prob*getConfig().getDouble("nether-loot-multiplier",1))e.getLoot().add(talisman(choice,initialLives(choice)));
 }
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)public void fishing(PlayerFishEvent e){
@@ -688,6 +697,7 @@ if(!(e.getEntity() instanceof Player p))return;
 if(e.getCause()==EntityDamageEvent.DamageCause.VOID&&voidSlot(p)!=null){e.setCancelled(true);voidRescue(p);return;}
 if(System.currentTimeMillis()<agesInvulnerableUntil.getOrDefault(p.getUniqueId(),0L)&&e.getCause()!=EntityDamageEvent.DamageCause.VOID&&e.getCause()!=EntityDamageEvent.DamageCause.KILL){e.setCancelled(true);return;}
 if(absorbByShield(p,e))return;
+if(e.getCause()==EntityDamageEvent.DamageCause.FALL&&held(p)==Talisman.END){e.setCancelled(true);p.setFallDistance(0);return;}
 if(held(p)==Talisman.HADES){
 switch(e.getCause()){
 case FIRE,FIRE_TICK,HOT_FLOOR -> {e.setCancelled(true);p.setFireTicks(0);return;}
@@ -727,12 +737,12 @@ Bukkit.getScheduler().runTask(this,()->{if(attacker.isValid()&&!attacker.isDead(
 }
 if(!(e.getDamager() instanceof Player attacker))return;
 Talisman t=held(attacker);if(t==null)return;
-if(t==Talisman.WRATH){int combo=wrathCritical(attacker,critical(attacker));e.setDamage(e.getDamage()*1.35*(1+combo*.01));if(combo>1&&e.getEntity() instanceof Player armorVictim)wrathArmorWear(armorVictim,combo);}
+if(t==Talisman.WRATH){boolean crit=critical(attacker);int combo=wrathCritical(attacker,crit);e.setDamage(e.getDamage()*1.35*(1+combo*.01));if(combo>1&&e.getEntity() instanceof Player armorVictim)wrathArmorWear(armorVictim,combo);if(crit)grantWrathCritRecharge(attacker);}
 if(t==Talisman.HADES&&e.getEntity() instanceof LivingEntity victim)ghastAssist(attacker,victim);
 if(e.getEntity() instanceof LivingEntity victim){
-if(t==Talisman.MAIMING){victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER,100,0));if(critical(attacker)){victim.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,60,0));victim.getWorld().spawnParticle(Particle.WITCH,victim.getLocation().add(0,1,0),4,.15,.2,.15,.02);}if(victim instanceof Player other&&e.getFinalDamage()>0)stealHunger(attacker,other);}
+if(t==Talisman.MAIMING){victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,45,2));victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER,100,0));if(critical(attacker)){victim.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,60,0));victim.getWorld().spawnParticle(Particle.WITCH,victim.getLocation().add(0,1,0),4,.15,.2,.15,.02);}if(victim instanceof Player other&&e.getFinalDamage()>0)stealHunger(attacker,other);}
 if(t==Talisman.POSEIDON&&isRaining(attacker)&&victim.getHealth()<=victim.getAttribute(Attribute.MAX_HEALTH).getValue()*.5)victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,70,1));
-if(t==Talisman.END&&!(victim instanceof Player)&&critical(attacker)){
+if(t==Talisman.END&&critical(attacker)){
 Bukkit.getScheduler().runTask(this,()->{if(victim.isValid()&&!victim.isDead()){
 victim.getWorld().strikeLightningEffect(victim.getLocation());victim.setHealth(Math.max(0,victim.getHealth()-2));
 }});
@@ -887,6 +897,7 @@ p.getWorld().playSound(p.getLocation(),Sound.BLOCK_AMETHYST_BLOCK_RESONATE,1,1.2
 }
 if(t==Talisman.AGES&&current==1)agesFinale(p);
 if(t==Talisman.DEFIANCE&&current==1)createShieldRing(p);
+if(t==Talisman.WRATH&&current==1)p.sendMessage("§cКара спасла тебя в последний раз.");
 reviveParticles(p.getLocation(),t);
 p.sendMessage("§dТалисман спас тебя! §7Осталось спасений: §e"+(current-1));
 });
@@ -1012,7 +1023,7 @@ if(old==Talisman.END)removeGrantedEffect(p,PotionEffectType.INVISIBILITY);
 if(t==null){active.remove(p.getUniqueId());continue;}active.put(p.getUniqueId(),t);
 switch(t){
 case MAIMING -> giveTalismanEffect(p,PotionEffectType.HUNGER,80,0);
-case WRATH -> giveTalismanEffect(p,PotionEffectType.STRENGTH,80,1);
+case WRATH -> giveTalismanEffect(p,PotionEffectType.STRENGTH,80,0);
 case DEFIANCE -> maintainAbsorption(p,1);
 case JOKER -> {}
 case POSEIDON -> {
@@ -1056,9 +1067,9 @@ private Talisman roll(){
 double x=random.nextDouble();
 if(x<.15)return Talisman.JOKER;
 if(x<.40)return Talisman.DEFIANCE;
-if(x<.65)return Talisman.WRATH;
-if(x<.80)return Talisman.POSEIDON;
-if(x<.92)return Talisman.HADES;
+if(x<.41)return Talisman.WRATH;
+if(x<.64)return Talisman.POSEIDON;
+if(x<.81)return Talisman.HADES;
 return Talisman.AGES;
 }
 private void showRelicBlock(Altar a){
