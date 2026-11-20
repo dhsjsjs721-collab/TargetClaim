@@ -25,22 +25,23 @@ import org.joml.Vector3f;
 
 /** Standalone hook with custom visual projectile; never creates a fishing bobber or white fishing line. */
 public final class GrapplingHookListener implements Listener {
-private static final long COOLDOWN=15_000L;
-private static final int HOOK_COOLDOWN_TICKS=300;
+private static final long COOLDOWN=21_000L;
+private static final int HOOK_COOLDOWN_TICKS=420;
 private static final int PEARL_COOLDOWN_TICKS=200;
 private static final NamespacedKey HOOK_COOLDOWN_GROUP=new NamespacedKey("talismanforge","grappling_hook_cooldown");
-private static final int WEAR_PER_CAST=8;
+private static final int WEAR_PER_CAST=1;
 private static final double RANGE=36.0, FLIGHT_SPEED=2.4;
-private static final int MAX_LINKS=48;
-private static final double LINK_STEP=0.72;
+private static final int MAX_LINKS=24;
+private static final double LINK_STEP=1.28;
 private static final NamespacedKey IDLE=new NamespacedKey("talismanforge","grappling_hook");
 private static final NamespacedKey CAST=new NamespacedKey("talismanforge","grappling_hook_cast");
 private static final NamespacedKey TIP=new NamespacedKey("talismanforge","grappling_hook_tip");
 private static final NamespacedKey LINK=new NamespacedKey("talismanforge","grappling_chain_link");
 private final JavaPlugin plugin;
-private final NamespacedKey hookKey;
+private final NamespacedKey hookKey,magnetKey=new NamespacedKey("talismanforge","grappling_magnet");
 private final Map<UUID,Long> cooldowns=new HashMap<>();
 private final Map<UUID,Shot> shots=new HashMap<>();
+private final Set<UUID> suppressedCombat=new HashSet<>();
 
 private enum Phase { FLY, PULL }
 private static final class Shot {
@@ -52,6 +53,7 @@ ItemDisplay projectile;
 List<BlockDisplay> links=new ArrayList<>();
 Phase phase=Phase.FLY;
 double traveled;
+boolean magnet;
 int age;
 }
 
@@ -73,10 +75,10 @@ private ItemStack newHook(){
 ItemStack i=new ItemStack(Material.FISHING_ROD);
 ItemMeta m=i.getItemMeta();
 m.setDisplayName("§7§lКрюк-кошка");
-m.setLore(List.of("§7ПКМ — бросить крюк на цепи","§7Притягивает мобов и игроков к тебе","§7Дальность: §f36 блоков","§7КД: §d15 секунд","§7Ресурс: §f8 бросков", "§8Без аметиста"));
+m.setLore(List.of("§7ПКМ — бросить крюк на цепи","§7Притягивает мобов и игроков к тебе","§7Дальность: §f36 блоков","§7КД: §d21 секунда","§7Урон: §f6 • Замедление II", "§8Без аметиста"));
 m.setItemModel(IDLE);
 UseCooldownComponent cooldown=m.getUseCooldown();
-cooldown.setCooldownSeconds(15f);
+cooldown.setCooldownSeconds(21f);
 cooldown.setCooldownGroup(HOOK_COOLDOWN_GROUP);
 m.setUseCooldown(cooldown);
 m.getPersistentDataContainer().set(hookKey,PersistentDataType.BYTE,(byte)1);
@@ -95,8 +97,8 @@ ItemStack item=p.getInventory().getItemInMainHand();
 if(!special(item))return;
 ItemMeta meta=item.getItemMeta();
 UseCooldownComponent cooldown=meta.getUseCooldown();
-if(HOOK_COOLDOWN_GROUP.equals(cooldown.getCooldownGroup()) && Math.abs(cooldown.getCooldownSeconds()-15f)<.01f)return;
-cooldown.setCooldownSeconds(15f);
+if(HOOK_COOLDOWN_GROUP.equals(cooldown.getCooldownGroup()) && Math.abs(cooldown.getCooldownSeconds()-21f)<.01f)return;
+cooldown.setCooldownSeconds(21f);
 cooldown.setCooldownGroup(HOOK_COOLDOWN_GROUP);
 meta.setUseCooldown(cooldown);
 item.setItemMeta(meta);
@@ -183,10 +185,10 @@ shot.shooterId=p.getUniqueId();
 shot.world=p.getWorld();
 shot.location=p.getEyeLocation().clone().add(p.getEyeLocation().getDirection().normalize().multiply(1.1));
 shot.direction=p.getEyeLocation().getDirection().normalize();
+shot.magnet=p.getInventory().getItemInMainHand().getItemMeta().getPersistentDataContainer().has(magnetKey,PersistentDataType.BYTE);
 shot.projectile=display(shot.world,shot.location,TIP,.30f);
 shots.put(p.getUniqueId(),shot);
 cooldowns.put(p.getUniqueId(),now+COOLDOWN);
-reduceDurability(p);
 handModel(p,CAST);
 // Native gray radial cooldown indicator, shared only with other custom hooks.
 p.setCooldown(newHook(),HOOK_COOLDOWN_TICKS);
@@ -221,7 +223,7 @@ return true;
 private void tick(){
 for(Shot s:new ArrayList<>(shots.values())){
 Player owner=Bukkit.getPlayer(s.shooterId);
-if(owner==null||!owner.isOnline()||owner.isDead()||!owner.getWorld().equals(s.world)||s.age++>65){stop(s);continue;}
+if(owner==null||!owner.isOnline()||owner.isDead()||!owner.getWorld().equals(s.world)||s.age++>46){stop(s);continue;}
 if(s.phase==Phase.FLY){
 fly(owner,s);
 }else{
@@ -262,12 +264,12 @@ stop(s);return;
 s.location=target.getLocation().clone().add(0,Math.min(1.2,target.getHeight()*.65),0);
 Vector v=p.getLocation().clone().add(0,1,0).toVector().subtract(s.location.toVector());
 double len=v.length();
-if(len<2.6||s.age>51){
+if(len<2.6||s.age>39){
 target.setFallDistance(0);
 s.world.playSound(s.location,Sound.BLOCK_CHAIN_BREAK,.7f,1.2f);
 stop(s);return;
 }
-target.setVelocity(v.normalize().multiply(Math.min(1.75,Math.max(.6,len*.38))));
+target.setVelocity(v.normalize().multiply(Math.min(1.05,Math.max(.3,len*.16))));
 target.setFallDistance(0);
 }
 
@@ -296,9 +298,9 @@ if(count==0)return;
 Vector dir=separation.normalize();
 Vector3f direction=new Vector3f((float)dir.getX(),(float)dir.getY(),(float)dir.getZ());
 Quaternionf rotation=new Quaternionf().rotationTo(new Vector3f(0,1,0),direction);
-Vector3f scale=new Vector3f(.42f,.70f,.42f);
+Vector3f scale=new Vector3f(.30f,.54f,.30f);
 // BlockDisplay geometry is located at the block corner: compensate for the rotated center.
-Vector3f translation=new Vector3f(.21f,.35f,.21f);
+Vector3f translation=new Vector3f(.15f,.27f,.15f);
 rotation.transform(translation);translation.negate();
 for(int i=0;i<count;i++){
 double distance=(i+1)*LINK_STEP;
@@ -312,6 +314,8 @@ d.setTransformation(new Transformation(new Vector3f(translation),new Quaternionf
 
 private void stop(Shot s){
 if(shots.remove(s.shooterId,s)){
+suppressedCombat.remove(s.shooterId);
+if(s.victimId!=null)suppressedCombat.remove(s.victimId);
 if(s.projectile!=null&&s.projectile.isValid())s.projectile.remove();
 for(BlockDisplay d:s.links)if(d.isValid())d.remove();
 s.links.clear();
