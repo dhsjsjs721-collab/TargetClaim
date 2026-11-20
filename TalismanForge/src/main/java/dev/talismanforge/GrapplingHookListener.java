@@ -50,7 +50,7 @@ World world;
 Location location;
 Vector direction;
 ItemDisplay projectile;
-List<BlockDisplay> links=new ArrayList<>();
+List<ItemDisplay> links=new ArrayList<>();
 Phase phase=Phase.FLY;
 double traveled;
 boolean magnet;
@@ -298,42 +298,41 @@ target.setVelocity(v.normalize().multiply(Math.min(1.05,Math.max(.3,len*.16))));
 target.setFallDistance(0);
 }
 
-private BlockDisplay chainDisplay(World world,Location at){
-return world.spawn(at,BlockDisplay.class,d->{
-d.setBlock(Bukkit.createBlockData(Material.IRON_CHAIN));
+private ItemDisplay chainDisplay(World world,Location at){
+// One lightweight custom chain-link sprite per 1.28 blocks; no giant
+// transparent iron-chain blocks following the player.
+return world.spawn(at,ItemDisplay.class,d->{
+d.setItemStack(displayItem(LINK));
+d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
 d.setBillboard(Display.Billboard.FIXED);
-d.setGravity(false);
-d.setInvulnerable(true);
-d.setPersistent(false);
-d.setTeleportDuration(1);
+d.setGravity(false);d.setInvulnerable(true);d.setPersistent(false);
+d.setTeleportDuration(2);d.setViewRange(1.3f);
 });
 }
-
 private void updateLinks(Player owner,Shot shot){
-Location from=owner.getEyeLocation().clone().add(owner.getEyeLocation().getDirection().multiply(.9)).add(0,-.30,0);
+Location from=owner.getEyeLocation().clone().add(owner.getEyeLocation().getDirection().multiply(.45)).add(0,-.32,0);
 Location to=shot.location;
 Vector separation=to.toVector().subtract(from.toVector());
 double dist=separation.length();
-int count=Math.min(MAX_LINKS,Math.max(0,(int)Math.floor((dist-.6)/LINK_STEP)));
+int count=Math.min(MAX_LINKS,Math.max(0,(int)Math.floor((dist-.4)/LINK_STEP)));
 while(shot.links.size()<count)shot.links.add(chainDisplay(shot.world,from));
 while(shot.links.size()>count){
-BlockDisplay d=shot.links.remove(shot.links.size()-1);if(d.isValid())d.remove();
+ItemDisplay link=shot.links.remove(shot.links.size()-1);
+if(link.isValid())link.remove();
 }
 if(count==0)return;
-Vector dir=separation.normalize();
-Vector3f direction=new Vector3f((float)dir.getX(),(float)dir.getY(),(float)dir.getZ());
+Vector axis=separation.normalize();
+Vector3f direction=new Vector3f((float)axis.getX(),(float)axis.getY(),(float)axis.getZ());
 Quaternionf rotation=new Quaternionf().rotationTo(new Vector3f(0,1,0),direction);
-Vector3f scale=new Vector3f(.30f,.54f,.30f);
-// BlockDisplay geometry is located at the block corner: compensate for the rotated center.
-Vector3f translation=new Vector3f(.15f,.27f,.15f);
-rotation.transform(translation);translation.negate();
 for(int i=0;i<count;i++){
-double distance=(i+1)*LINK_STEP;
-Location at=from.clone().add(dir.clone().multiply(distance));
-BlockDisplay d=shot.links.get(i);
-if(!d.isValid())continue;
-d.teleport(at);
-d.setTransformation(new Transformation(new Vector3f(translation),new Quaternionf(rotation),new Vector3f(scale),new Quaternionf()));
+double distance=(i+.55)*LINK_STEP;
+Location pos=from.clone().add(axis.clone().multiply(distance));
+ItemDisplay link=shot.links.get(i);
+if(!link.isValid())continue;
+if(!pos.getWorld().isChunkLoaded(pos.getBlockX()>>4,pos.getBlockZ()>>4))continue;
+link.teleport(pos);
+link.setTransformation(new Transformation(new Vector3f(0f,0f,0f),
+new Quaternionf(rotation),new Vector3f(.31f,.55f,.31f),new Quaternionf()));
 }
 }
 
@@ -342,7 +341,7 @@ if(shots.remove(s.shooterId,s)){
 suppressedCombat.remove(s.shooterId);
 if(s.victimId!=null)suppressedCombat.remove(s.victimId);
 if(s.projectile!=null&&s.projectile.isValid())s.projectile.remove();
-for(BlockDisplay d:s.links)if(d.isValid())d.remove();
+for(ItemDisplay d:s.links)if(d.isValid())d.remove();
 s.links.clear();
 Player p=Bukkit.getPlayer(s.shooterId);
 if(p!=null)restoreModels(p);
