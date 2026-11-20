@@ -1150,20 +1150,25 @@ if(fired>0)ghastCooldowns.put(owner.getUniqueId(),now);
 private void summonJokerAvenger(Player owner){
 UUID attackerId=lastAttacker.get(owner.getUniqueId());
 long since=System.currentTimeMillis()-lastAttackerTime.getOrDefault(owner.getUniqueId(),0L);
-if(attackerId==null||since>4500)return;
-Entity raw=Bukkit.getEntity(attackerId);
-if(!(raw instanceof LivingEntity victim)||!victim.isValid()||victim.isDead()||victim.getWorld()!=owner.getWorld())return;
-if(victim instanceof Player player&&friendly(owner,player))return;
-long until=System.currentTimeMillis()+5000;
-jokerStunnedUntil.put(victim.getUniqueId(),until);
+Entity raw=attackerId==null||since>4500?null:Bukkit.getEntity(attackerId);
+LivingEntity victim=raw instanceof LivingEntity living&&living.isValid()&&!living.isDead()
+&&living.getWorld()==owner.getWorld()&&!friendly(owner,living)?living:null;
+if(victim!=null){
+jokerStunnedUntil.put(victim.getUniqueId(),System.currentTimeMillis()+5000L);
 if(victim instanceof Player player){
 player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,105,7));
 player.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE,105,3));
 }else{
-victim.setAI(false);
-Bukkit.getScheduler().runTaskLater(this,()->{if(victim.isValid())victim.setAI(true);},100L);
+final LivingEntity caught=victim;
+caught.setAI(false);
+Bukkit.getScheduler().runTaskLater(this,()->{if(caught.isValid())caught.setAI(true);},100L);
 }
-Location where=victim.getLocation().clone().add(victim.getLocation().getDirection().multiply(-2));
+}
+// A single 3-second giant always appears on Joker's successful revival,
+// even when the death was caused by lava, fall damage or the environment.
+Location where=victim==null?owner.getLocation().clone().add(0,0,-1.5)
+:victim.getLocation().clone().add(victim.getLocation().getDirection().multiply(-2));
+if(!where.getBlock().isPassable())where=owner.getLocation().clone();
 Evoker avenger=owner.getWorld().spawn(where,Evoker.class,entity->{
 entity.setAI(false);entity.setGravity(false);entity.setCollidable(false);
 entity.setInvulnerable(true);entity.setSilent(true);entity.setPersistent(false);
@@ -1185,7 +1190,7 @@ avenger.getWorld().spawnParticle(Particle.WITCH,avenger.getEyeLocation(),18,.5,.
 elapsed+=5;
 }
 }.runTaskTimer(this,1L,5L);
-owner.sendMessage("§dДжокер вызвал великого мстителя! Обидчик оглушён на 5 секунд.");
+owner.sendMessage(victim==null?"§dДжокер вызвал великого мстителя!":"§dДжокер вызвал великого мстителя! Обидчик оглушён на 5 секунд.");
 }
 private void jokerBonuses(Player player){
 List<PotionEffectType> choices=new ArrayList<>(List.of(
