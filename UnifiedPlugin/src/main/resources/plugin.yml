@@ -1,5 +1,5 @@
 name: MinecraftUnified
-version: 1.0.6
+version: 1.0.7
 main: dev.unified.UnifiedPlugin
 api-version: '26.3'
 author: MinecraftUnified
@@ -38,6 +38,8 @@ commands:
     usage: /imagemap
     aliases: [im]
 permissions:
+  minecraftunified.shields.admin:
+    default: op
   minecraftunified.trap.use:
     default: true
   minecraftunified.trap.admin:
