@@ -13,7 +13,7 @@ import os
 import sys
 
 ROOT=Path(__file__).resolve().parents[2]
-JAR=ROOT/"UnifiedPlugin"/"build"/"libs"/"MinecraftUnified-1.0.6.jar"
+JAR=ROOT/"UnifiedPlugin"/"build"/"libs"/"MinecraftUnified-1.0.7.jar"
 URL="https://api.purpurmc.org/v2/purpur/26.3/2659/download"
 EXPECTED=["TargetClaim","TalismanForge","EnchantmentForge","SwampSky","ImageMaps"]
 
@@ -30,7 +30,7 @@ def main():
         )
         print("Downloading official Purpur 26.3 build 2659...",flush=True)
         server=wd/"server.jar"
-        headers={"User-Agent":"MinecraftUnified-CI/1.0.6 (github.com/dhsjsjs721-collab/TargetClaim)","Accept":"application/json"}
+        headers={"User-Agent":"MinecraftUnified-CI/1.0.7 (github.com/dhsjsjs721-collab/TargetClaim)","Accept":"application/json"}
         tested="Purpur 26.3 build 2659"
         try:
             request=urllib.request.Request(URL,headers=headers)
@@ -74,7 +74,7 @@ def main():
             if not any("Done (" in line for line in logs):
                 raise RuntimeError("Purpur did not fully start within 150s or crashed")
             print("Purpur started; testing universal routing",flush=True)
-            for cmd in ["u status","u trap","u trap give nobody 1","u ss status","u tf","u tf give nobody wrath","u ce help","u pig","u frog","u trader","u help"]:
+            for cmd in ["u status","u trap","u shield","u shield give nobody wither","u trap give nobody 1","u ss status","u tf","u tf give nobody wrath","u ce help","u pig","u frog","u trader","u help"]:
                 proc.stdin.write(cmd+"\n")
                 proc.stdin.flush()
                 time.sleep(.8)
