@@ -126,10 +126,11 @@ Bukkit.addRecipe(craftedTag);
 PluginCommand c=getCommand("talismanforge");if(c!=null){c.setExecutor(this);c.setTabCompleter(this);}
 Bukkit.getPluginManager().registerEvents(this,this);
 for(World world:Bukkit.getWorlds())for(Item item:world.getEntitiesByClass(Item.class))trackTalismanDrop(item);
-for(Player player:Bukkit.getOnlinePlayers())restoreShieldRing(player);
+for(Player player:Bukkit.getOnlinePlayers()){restoreShieldRing(player);restoreHadesMode(player);}
 hookListener=new GrapplingHookListener(this);
 Bukkit.getPluginManager().registerEvents(hookListener,this);
 Bukkit.getScheduler().runTaskTimer(this,this::quarterTick,5L,5L);
+Bukkit.getScheduler().runTaskTimer(this,this::wrathRechargeTick,10L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::tick,20L,20L);
 getLogger().info("TalismanForge 2.5.8: "+altars.size()+" relics");
 }
@@ -142,6 +143,7 @@ shieldRings.clear();relicDisplays.clear();agesInvulnerableUntil.clear();wrathStr
 for(UUID id:ghostDolphins.keySet()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 holograms.clear();ghostDolphins.clear();trackedDrops.clear();
 for(Player p:Bukkit.getOnlinePlayers()){
+removeWrathCritRecharge(p);restoreHadesMode(p);
 for(PotionEffectType effect:new ArrayList<>(grantedEffects.getOrDefault(p.getUniqueId(),Map.of()).keySet()))removeGrantedEffect(p,effect);
 }
 grantedEffects.clear();active.clear();saveAltars();
@@ -581,7 +583,7 @@ ring.health=Math.min(4,Math.max(.01,p.getPersistentDataContainer().getOrDefault(
 spawnShieldVisuals(p,ring);shieldRings.put(p.getUniqueId(),ring);
 }
 @EventHandler public void playerJoined(PlayerJoinEvent e){
-Bukkit.getScheduler().runTask(this,()->{if(e.getPlayer().isOnline())restoreShieldRing(e.getPlayer());});
+Bukkit.getScheduler().runTask(this,()->{if(e.getPlayer().isOnline()){restoreShieldRing(e.getPlayer());restoreHadesMode(e.getPlayer());}});
 }
 private void createShieldRing(Player p){
 ShieldRing existing=shieldRings.remove(p.getUniqueId());if(existing!=null)removeShieldVisuals(existing);
@@ -651,6 +653,100 @@ damageable.setDamage(next);armor.setItemMeta(meta);inv.setItem(slot,armor);
 }
 victim.getWorld().spawnParticle(Particle.CRIT,victim.getLocation().add(0,1,0),3,.2,.25,.2,.02);
 }
+private void grantWrathCritRecharge(Player player){
+UUID id=player.getUniqueId();
+wrathCritRechargeUntil.put(id,System.currentTimeMillis()+850);
+org.bukkit.attribute.AttributeInstance speed=player.getAttribute(Attribute.ATTACK_SPEED);
+if(speed==null)return;
+AttributeModifier old=speed.getModifier(wrathRechargeKey);
+if(old!=null)speed.removeModifier(old);
+// The bonus is temporary and starts ONLY after a real critical hit.
+// It expires after 0.85s and is never a passive attack-speed buff.
+speed.addModifier(new AttributeModifier(wrathRechargeKey,.30,AttributeModifier.Operation.ADD_SCALAR));
+}
+private void removeWrathCritRecharge(Player player){
+wrathCritRechargeUntil.remove(player.getUniqueId());
+org.bukkit.attribute.AttributeInstance speed=player.getAttribute(Attribute.ATTACK_SPEED);
+if(speed==null)return;
+AttributeModifier old=speed.getModifier(wrathRechargeKey);
+if(old!=null)speed.removeModifier(old);
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void wrathHealing(EntityRegainHealthEvent event){
+if(!(event.getEntity() instanceof Player player)||held(player)!=Talisman.WRATH)return;
+event.setAmount(Math.max(0,event.getAmount()*.60));
+}
+private void wrathRechargeTick(){
+long now=System.currentTimeMillis();
+for(UUID id:new ArrayList<>(wrathCritRechargeUntil.keySet())){
+Player player=Bukkit.getPlayer(id);
+if(player==null){wrathCritRechargeUntil.remove(id);continue;}
+if(held(player)!=Talisman.WRATH||now>=wrathCritRechargeUntil.getOrDefault(id,0L))removeWrathCritRecharge(player);
+}
+}
+private boolean safeSpectatorLanding(Location point){
+World w=point.getWorld();
+if(w==null||!w.getWorldBorder().isInside(point))return false;
+if(!w.isChunkLoaded(point.getBlockX()>>4,point.getBlockZ()>>4))return false;
+if(point.getBlockY()<=w.getMinHeight()||point.getBlockY()>=w.getMaxHeight()-2)return false;
+return point.getBlock().isPassable()&&point.clone().add(0,1,0).getBlock().isPassable();
+}
+private void beginHadesSpectator(Player player){
+UUID id=player.getUniqueId();
+if(hadesPending.containsKey(id))return;
+GameMode mode=player.getGameMode();
+if(mode==GameMode.SPECTATOR)return;
+hadesPending.put(id,mode);
+NamespacedKey key=new NamespacedKey("talismanforge","hades_original_gamemode");
+player.getPersistentDataContainer().set(key,PersistentDataType.STRING,mode.name());
+Location start=player.getLocation().clone();
+player.setGameMode(GameMode.SPECTATOR);
+player.sendMessage("§4Дух Аида: три секунды, чтобы выбрать место возрождения!");
+Bukkit.getScheduler().runTaskLater(this,()->finishHadesSpectator(player,start),60L);
+}
+private void finishHadesSpectator(Player player,Location fallback){
+UUID id=player.getUniqueId();
+GameMode previous=hadesPending.remove(id);
+if(previous==null)return;
+player.getPersistentDataContainer().remove(new NamespacedKey("talismanforge","hades_original_gamemode"));
+if(!player.isOnline())return;
+Location wanted=player.getLocation().clone();
+if(!safeSpectatorLanding(wanted)){
+Location candidate=wanted.clone();
+boolean found=false;
+for(int y=1;y<=5;y++){candidate=wanted.clone().add(0,y,0);if(safeSpectatorLanding(candidate)){found=true;break;}}
+wanted=found?candidate:(safeSpectatorLanding(fallback)?fallback:player.getWorld().getSpawnLocation());
+}
+player.setGameMode(previous);
+player.teleport(wanted);
+player.setFallDistance(0);
+player.setNoDamageTicks(40);
+player.getWorld().spawnParticle(Particle.SOUL,wanted.clone().add(0,1,0),20,.5,.6,.5,.025);
+player.sendMessage("§4Дух Аида вернулся в мир.");
+}
+private void restoreHadesMode(Player player){
+String stored=player.getPersistentDataContainer().get(new NamespacedKey("talismanforge","hades_original_gamemode"),PersistentDataType.STRING);
+if(stored==null)return;
+player.getPersistentDataContainer().remove(new NamespacedKey("talismanforge","hades_original_gamemode"));
+GameMode original;
+try{original=GameMode.valueOf(stored);}catch(IllegalArgumentException e){original=GameMode.SURVIVAL;}
+hadesPending.remove(player.getUniqueId());
+if(player.getGameMode()==GameMode.SPECTATOR)player.setGameMode(original);
+}
+@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)public void hadesKillReward(EntityDeathEvent event){
+LivingEntity victim=event.getEntity();
+Player killer=victim.getKiller();
+if(killer==null||held(killer)!=Talisman.HADES||victim==killer)return;
+// The stolen gold hearts equal the victim's golden (absorption) hearts at death.
+// No absorbable hearts means no stolen bonus; hard cap prevents indefinite stacking.
+double available=Math.max(0,victim.getAbsorptionAmount());
+if(available<=.01)return;
+double before=killer.getAbsorptionAmount();
+double increase=Math.min(20,available);
+killer.setAbsorptionAmount(Math.min(40,before+increase));
+killer.sendMessage("§6Аид похитил "+String.format(Locale.ROOT,"%.1f",increase/2)+" золотых сердец.");
+killer.getWorld().spawnParticle(Particle.SOUL,killer.getLocation().add(0,1,0),8,.3,.3,.3,.025);
+}
+
 private void agesFinale(Player p){
 Location loc=p.getLocation();World w=p.getWorld();
 for(int i=0;i<4;i++){
@@ -885,6 +981,7 @@ v.setHealth(Math.max(1,v.getHealth()-4));int n=Math.min(v.getFoodLevel(),4);v.se
 v.getWorld().spawnParticle(Particle.SOUL,v.getLocation().add(0,1,0),20,.5,.5,.5,.03);
 }
 p.setFoodLevel(Math.min(20,p.getFoodLevel()+hunger));
+beginHadesSpectator(p);
 }
 if(t==Talisman.JOKER){
 jokerBonuses(p);
@@ -1014,7 +1111,7 @@ for(Player p:Bukkit.getOnlinePlayers()){
 Talisman t=held(p),old=active.get(p.getUniqueId());
 if(old!=t){
 if(old==Talisman.MAIMING)removeGrantedEffect(p,PotionEffectType.HUNGER);
-if(old==Talisman.WRATH)removeGrantedEffect(p,PotionEffectType.STRENGTH);
+if(old==Talisman.WRATH){removeGrantedEffect(p,PotionEffectType.STRENGTH);removeWrathCritRecharge(p);}
 if(old==Talisman.DEFIANCE||old==Talisman.HADES)removeGrantedEffect(p,PotionEffectType.ABSORPTION);
 if(old==Talisman.POSEIDON){removeGrantedEffect(p,PotionEffectType.WATER_BREATHING);removeGrantedEffect(p,PotionEffectType.DOLPHINS_GRACE);removeGrantedEffect(p,PotionEffectType.SPEED);}
 if(old==Talisman.AGES)removeGrantedEffect(p,PotionEffectType.FIRE_RESISTANCE);
@@ -1149,7 +1246,7 @@ return List.of();
 }
 @EventHandler public void quit(PlayerQuitEvent e){
 UUID id=e.getPlayer().getUniqueId();active.remove(id);safeLocations.remove(id);ghastCooldowns.remove(id);pathCenters.remove(id);pathRefresh.remove(id);
-wrathStreak.remove(id);wrathLastCrit.remove(id);agesInvulnerableUntil.remove(id);hungerTakenFractions.remove(id);hungerGivenFractions.remove(id);grantedEffects.remove(id);
+wrathStreak.remove(id);wrathLastCrit.remove(id);removeWrathCritRecharge(e.getPlayer());restoreHadesMode(e.getPlayer());agesInvulnerableUntil.remove(id);hungerTakenFractions.remove(id);hungerGivenFractions.remove(id);grantedEffects.remove(id);
 ShieldRing ring=shieldRings.remove(id);if(ring!=null)removeShieldVisuals(ring);
 }
 }
