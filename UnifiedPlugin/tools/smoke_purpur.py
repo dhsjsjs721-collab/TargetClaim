@@ -13,7 +13,7 @@ import os
 import sys
 
 ROOT=Path(__file__).resolve().parents[2]
-JAR=ROOT/"UnifiedPlugin"/"build"/"libs"/"MinecraftUnified-1.0.7.jar"
+JAR=ROOT/"UnifiedPlugin"/"build"/"libs"/"MinecraftUnified-1.0.8.jar"
 URL="https://api.purpurmc.org/v2/purpur/26.3/2659/download"
 EXPECTED=["TargetClaim","TalismanForge","EnchantmentForge","SwampSky","ImageMaps"]
 
@@ -30,7 +30,7 @@ def main():
         )
         print("Downloading official Purpur 26.3 build 2659...",flush=True)
         server=wd/"server.jar"
-        headers={"User-Agent":"MinecraftUnified-CI/1.0.7 (github.com/dhsjsjs721-collab/TargetClaim)","Accept":"application/json"}
+        headers={"User-Agent":"MinecraftUnified-CI/1.0.8 (github.com/dhsjsjs721-collab/TargetClaim)","Accept":"application/json"}
         tested="Purpur 26.3 build 2659"
         try:
             request=urllib.request.Request(URL,headers=headers)
@@ -92,6 +92,11 @@ def main():
             if "Enabled module: "+name not in output:
                 print("\n".join(logs[-100:]))
                 raise AssertionError("Module not enabled: "+name)
+        if "Combat shields active: Wither, Turtle, Crusher" not in output:
+            print("\\n".join(logs[-100:]))
+            raise AssertionError("Three combat shield recipes / startup did not initialize")
+        if "Obsidian PvP trap module enabled" not in output:
+            raise AssertionError("Obsidian trap did not initialize")
         if "Запущено модулей:" not in output or "5/5" not in output:
             print("\n".join(logs[-100:]))
             raise AssertionError("/u status failed or does not report all modules")
