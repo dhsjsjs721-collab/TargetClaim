@@ -350,6 +350,22 @@ break; // Max one player selected per interval.
 }
 }
 
+// Direct administrator summon. Natural spawns still use the original distance
+// and population rules; this bypasses random chunk checks.
+boolean forceSpawnNear(Player player){
+if(player.isDead())return false;
+World world=player.getWorld();
+Location center=player.getLocation().clone();
+org.bukkit.util.Vector dir=center.getDirection().setY(0);
+if(dir.lengthSquared()<.001)dir.setX(1);
+Location preferred=center.clone().add(dir.normalize().multiply(2.3));
+Location point=(preferred.getBlock().isPassable()&&preferred.clone().add(0,1,0).getBlock().isPassable())?preferred:center;
+if(!world.getWorldBorder().isInside(point))return false;
+WanderingTrader trader=world.spawn(point,WanderingTrader.class);
+trader.setDespawnDelay(Math.max(24000,Math.min(144000,plugin.getConfig().getInt("trader-despawn-ticks",48000))));
+configure(trader);
+return true;
+}
 boolean spawnNear(Player player) {
 World world=player.getWorld();
 if (world.getEnvironment()!=World.Environment.NORMAL) return false;
