@@ -80,3 +80,10 @@ Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil o
 - Potion housekeeping: periodic short effects from talismans are tracked so that replacing/removing talismans does not intentionally strip separate longer or stronger vanilla potion effects; consumed Absorption hearts are not refilled by the plugin's refresh.
 - Small existing-particle/sound polish for Maiming, Poseidon and End; ghasts check line of sight before supporting Hades.
 - Reliquary and all model/texture pack assets remain as in 2.5.5, with no new texture requirement introduced by this release.
+
+
+## v2.5.7 — consistency fixes (textures unchanged)
+- Maiming's 0.5 food-point transfer remains fractional between hits; partial food transactions now reset after any unrelated food change, death, respawn, or quit. Self-induced food changes are guarded to preserve the relevant pending half-point.
+- Talismans' short-lived potion effects are now individually tracked; external effect applications/changes revoke plugin ownership so taking off a talisman does not remove an unrelated potion. Potions that are present and not owned by the plugin are not overwritten by refresh.
+- Temporary Ages paths recover both halves of tall seagrass when possible. Unloaded chunks are not forced loaded during shutdown; leftover restore records stay persisted. Chunk unload/load handlers attempt restoration as soon as safely available.
+- Phantom dolphins, end reflections, Defiance shield damage, and the lightweight particle limits retain their previous behavior. No textures or resource-pack files changed.
