@@ -80,6 +80,7 @@ private final Set<UUID> trackedDrops=new HashSet<>();
 private final Map<UUID,Location> safeLocations=new HashMap<>();
 private final Map<UUID,UUID> thrownEggs=new HashMap<>();
 private final Map<UUID,Long> ghostDolphins=new HashMap<>();
+private final Map<UUID,UUID> ghostDolphinOwners=new HashMap<>();
 private final Map<UUID,Long> ghastCooldowns=new HashMap<>();
 private final Map<UUID,String> pathCenters=new HashMap<>();
 private final Map<UUID,Long> pathRefresh=new HashMap<>();
@@ -141,7 +142,7 @@ for(UUID id:relicDisplays.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.r
 for(ShieldRing ring:shieldRings.values())removeShieldVisuals(ring);
 shieldRings.clear();relicDisplays.clear();agesInvulnerableUntil.clear();wrathStreak.clear();wrathLastCrit.clear();hungerTakenFractions.clear();hungerGivenFractions.clear();editingFood.clear();
 for(UUID id:ghostDolphins.keySet()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
-holograms.clear();ghostDolphins.clear();trackedDrops.clear();
+holograms.clear();ghostDolphins.clear();ghostDolphinOwners.clear();trackedDrops.clear();
 for(UUID id:new ArrayList<>(swordVisuals.keySet()))clearEndSwords(id);
 for(UUID id:new ArrayList<>(poseidonCompanions.keySet()))removePoseidonCompanions(id);
 for(Player p:Bukkit.getOnlinePlayers()){
@@ -1184,36 +1185,49 @@ p.sendMessage("§dТалисман спас тебя! §7Осталось спа
 Player p=e.getEntity();
 if(held(p)!=Talisman.POSEIDON||(p.isInWater()||isRaining(p)))return;
 Location loc=p.getLocation().clone();World w=loc.getWorld();if(w==null)return;
-w.strikeLightningEffect(loc);w.playSound(loc,Sound.ENTITY_LIGHTNING_BOLT_THUNDER,1,.9f);
+for(int i=0;i<7;i++){
+double angle=i*Math.PI*2/7;
+Location strike=loc.clone().add(Math.cos(angle)*(2+i%3*2),0,Math.sin(angle)*(2+i%3*2));
+w.strikeLightningEffect(strike); // visuals only: no fire or block damage
+}
+w.playSound(loc,Sound.ENTITY_LIGHTNING_BOLT_THUNDER,1,.75f);
 for(Player other:w.getPlayers()){
 if(other==p||held(other)==Talisman.POSEIDON||other.getLocation().distanceSquared(loc)>12*12)continue;
 other.addPotionEffect(new PotionEffect(PotionEffectType.POISON,140,0));
 other.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA,140,0));
 other.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS,90,0));
 }
-spawnPhantomDolphin(loc);
+spawnPhantomDolphin(loc,p.getUniqueId());
 }
-private void spawnPhantomDolphin(Location loc){
+private void spawnPhantomDolphin(Location loc,UUID ownerId){
 World w=loc.getWorld();if(w==null)return;
 Dolphin d=w.spawn(loc.clone().add(0,1,0),Dolphin.class);
 d.setGravity(false);d.setAI(false);d.setSilent(true);d.setGlowing(true);d.setCollidable(false);d.setInvulnerable(true);
 org.bukkit.attribute.AttributeInstance scale=d.getAttribute(Attribute.SCALE);if(scale!=null)scale.setBaseValue(1.65);
 d.getPersistentDataContainer().set(dolphinKey,PersistentDataType.BYTE,(byte)1);
-ghostDolphins.put(d.getUniqueId(),System.currentTimeMillis()+8_000);
+ghostDolphins.put(d.getUniqueId(),System.currentTimeMillis()+12_000);
+ghostDolphinOwners.put(d.getUniqueId(),ownerId);
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void dolphinHit(EntityDamageEvent e){
 if(!(e.getEntity() instanceof Dolphin d))return;
 if(!ghostDolphins.containsKey(d.getUniqueId()))return;
-e.setCancelled(true);ghostDolphins.remove(d.getUniqueId());d.remove();d.getWorld().spawnParticle(Particle.SPLASH,d.getLocation(),40,.4,.4,.4,.05);
+e.setCancelled(true);
+switch(e.getCause()){
+case ENTITY_ATTACK,ENTITY_SWEEP_ATTACK,PROJECTILE -> {
+ghostDolphins.remove(d.getUniqueId());ghostDolphinOwners.remove(d.getUniqueId());
+d.remove();d.getWorld().spawnParticle(Particle.SPLASH,d.getLocation(),40,.4,.4,.4,.05);
+}
+default -> {} // environmental damage cannot despawn a phasing ghost
+}
 }
 private void dolphinTick(){
 for(var entry:new ArrayList<>(ghostDolphins.entrySet())){
 Entity raw=Bukkit.getEntity(entry.getKey());
-if(!(raw instanceof Dolphin d)||!raw.isValid()){ghostDolphins.remove(entry.getKey());continue;}
-if(System.currentTimeMillis()>entry.getValue()){ghostDolphins.remove(entry.getKey());d.remove();continue;}
+if(!(raw instanceof Dolphin d)||!raw.isValid()){ghostDolphins.remove(entry.getKey());ghostDolphinOwners.remove(entry.getKey());continue;}
+if(System.currentTimeMillis()>entry.getValue()){ghostDolphins.remove(entry.getKey());ghostDolphinOwners.remove(entry.getKey());d.remove();continue;}
 Player nearest=null;double best=24*24;
 for(Player p:d.getWorld().getPlayers()){
-if(held(p)==Talisman.POSEIDON||p.isDead()||p.getGameMode()==GameMode.SPECTATOR)continue;
+if(p.getUniqueId().equals(ghostDolphinOwners.get(d.getUniqueId()))||held(p)==Talisman.POSEIDON||p.isDead()||p.getGameMode()==GameMode.SPECTATOR)continue;
 double distance=p.getEyeLocation().distanceSquared(d.getLocation());
 if(distance<best){best=distance;nearest=p;}
 }
@@ -1221,10 +1235,12 @@ if(nearest!=null){
 Vector travel=nearest.getEyeLocation().toVector().subtract(d.getLocation().toVector());
 double distance=travel.length();
 // Direct teleport bypasses normal pathfinding and makes the ghost phase through blocks.
-if(distance>.05)d.teleport(d.getLocation().add(travel.normalize().multiply(Math.min(1.2,distance))));
+if(distance>.05)d.teleport(d.getLocation().add(travel.normalize().multiply(Math.min(1.75,distance))));
 if(d.getLocation().distanceSquared(nearest.getEyeLocation())<2.3*2.3){
-nearest.damage(4.0,d);
-ghostDolphins.remove(d.getUniqueId());d.getWorld().spawnParticle(Particle.SPLASH,d.getLocation(),36,.5,.5,.5,.04);d.remove();continue;
+nearest.damage(9.0,d);
+nearest.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,60,1));
+d.getWorld().strikeLightningEffect(nearest.getLocation());
+ghostDolphins.remove(d.getUniqueId());ghostDolphinOwners.remove(d.getUniqueId());d.getWorld().spawnParticle(Particle.SPLASH,d.getLocation(),36,.5,.5,.5,.04);d.remove();continue;
 }
 }
 d.getWorld().spawnParticle(Particle.SPLASH,d.getLocation(),4,.3,.3,.3,.02);
