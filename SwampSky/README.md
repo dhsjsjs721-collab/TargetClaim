@@ -102,3 +102,11 @@ The pig and frog vanilla skins and the existing resourcepack remain unchanged in
 - On chunk reload, persistent flying pigs have movement state repaired; stale in-memory waypoints and stall samples are removed when entities die or unload.
 - Textures, equipment and crafting mechanics remain unchanged. The existing unified resource pack from the main branch works without any modification.
 - Source compilation in GitHub Actions does not substitute for an on-server movement test. If a pig still stands still, run `/ss status` and inspect `logs/latest.log` for `SwampSky pig` errors and any anticheat velocity cancellations.
+
+## v1.7.0 — Half-scale flying pigs; fast saddle-only pig riding
+
+- Only the special flying pigs are now **0.5× vanilla pig size** (including after chunk reload). Both wing ItemDisplay props are proportionally smaller and relocated to the smaller body. Ordinary pigs and giant frogs retain their scale.
+- On **ordinary pigs**, equip a vanilla saddle and right-click to ride. The carrot-on-a-stick is not needed. WASD steers, sprint raises speed, space jumps and auto-hops small slopes. Water swimming stays fast, and space moves upward in water. No client mod required. Existing item use outside pig riding is unchanged.
+- Mounted controls are evaluated every tick, not every 3 ticks; when dismounted the ordinary pig returns to its vanilla pathfinding. For tamed winged pigs, the original shift/release mounting and free flight remain available.
+- Configuration: `pig-ground-ride-speed` 0.49, `pig-swim-speed` 0.40, `pig-speed` for winged pigs. Old config files are compatible through fallback defaults.
+- Entity AI/physics can still be affected by other plugins, including anticheat. Gameplay testing is required beyond a successful Paper compile.
