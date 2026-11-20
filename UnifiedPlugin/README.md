@@ -1,6 +1,6 @@
-# MinecraftUnified 1.0.2 — One JAR for all five Paper plugins
+# MinecraftUnified 1.0.3 — One JAR for all five Paper plugins
 
-A **real single Paper plugin** (not an installer ZIP) built from the latest maintained source branches of TargetClaim, TalismanForge 2.5.7, EnchantmentForge, SwampSky 1.5.0 and ImageMaps 1.1.0. The compile-time generator converts the existing five JavaPlugin subclasses into hosted listener/command modules, retaining their features and original data identifiers.
+A **real single Paper plugin** (not an installer ZIP) built from the latest maintained source branches of TargetClaim, TalismanForge 2.5.7, EnchantmentForge 1.2.0, SwampSky 1.7.0 and ImageMaps 1.1.0. The compile-time generator converts the existing five JavaPlugin subclasses into hosted listener/command modules, retaining their features and original data identifiers.
 
 **Server:** Paper 26.3, Java 25.
 
@@ -8,7 +8,7 @@ A **real single Paper plugin** (not an installer ZIP) built from the latest main
 
 1. Stop the server, **back up the entire world and existing plugin data**.
 2. Remove the old five separate JARs from `plugins/`. Do not keep the five old plugins alongside this file: duplicate recipes and event handlers would conflict.
-3. Place only `MinecraftUnified-1.0.2.jar` in `plugins/`.
+3. Place only `MinecraftUnified-1.0.3.jar` in `plugins/`.
 4. Keep using the single `resourcepacks/TalismanForge-2.0.0-ResourcePack.zip` from the main branch, with the SHA1 shown in the main repo; it includes the SwampSky equipment, TargetClaim key and Reliquary artwork.
 5. Start the server and run `/unified`: all five modules should appear as loaded.
 
@@ -36,5 +36,13 @@ GitHub Actions → Build single unified Minecraft plugin. Full-checkout on the b
 
 **Build success checks Java compilation, not gameplay or anti-cheat compatibility. Test on a staging server first.**
 
-## v1.0.2 — stable pig motion
+## v1.0.3 — stable pig motion
 SwampSky is now compiled from the updated 1.6.0 branch. Ground pigs follow pumpkins through Paper navigation without being made unaware, while winged pigs fly between persistent waypoints, recover from sustained stalls, avoid walls and respect leashes. Use `/ss status` to see pig movement state or `/ss repair` to reinitialize nearby winged pigs if an older server version left them frozen. Resource-pack URL and all other four module mechanics stay unchanged. These fixes were compiled in CI but require testing with your anticheat and world conditions.
+
+## v1.0.3 — Half-sized flying pigs, saddle-only riding, universal traders
+
+Flying pigs are 50% of vanilla pig scale; their separate wing displays have been adjusted. Ordinary pigs stay vanilla size, and can be ridden by equipping a **saddle** and right-clicking. Carrot-on-a-stick is no longer needed. Use WASD to steer, sprint to accelerate, space to jump, and swim faster while in water (space to rise). Pig controls update each tick. Tamed winged pigs retain owner following, free flying and existing special controls. New config options: `pig-ground-ride-speed: 0.49` and `pig-swim-speed: 0.40` (automatic fallback for existing configs).
+
+All wandering traders, including vanilla, summoned, previously saved and administratively spawned, now offer the same full catalog rather than randomized different small selections. Traders automatically upgrade on entity loading or right-clicking. `/ce trader` still summons one at the player's location. Existing trade prices remain.
+
+All changes are server-side Java; no changes to the single unified resource pack or to the other three modules. The build compiles from the latest maintained branches, not snapshots of earlier SwampSky or EnchantmentForge versions. Minecraft server gameplay testing is still required to confirm all riding and merchant interactions.
