@@ -111,19 +111,17 @@ return type==PotionEffectType.RESISTANCE||type==PotionEffectType.HASTE
 ||type==PotionEffectType.REGENERATION||type==PotionEffectType.SPEED;
 }
 private void transferPotions(Player defender,Player enemy){
-// Keep talisman-driven permanent effects untouched. Only external short
-// effects are movable, bounded to 5-20 seconds, without hidden 15-minute buffs.
-for(PotionEffect effect:new ArrayList<>(defender.getActivePotionEffects())){
-if(!harmful(effect.getType())||managedPotion(effect.getType()))continue;
-int duration=Math.max(100,Math.min(400,effect.getDuration()));
-defender.removePotionEffect(effect.getType());
-enemy.addPotionEffect(new PotionEffect(effect.getType(),duration,effect.getAmplifier()));
-}
+// The Wither shield steals SHORT effects directly from its attacker.
+// Harmful effects are absorbed by the bearer too: a deliberate
+// curse/price for the shield's high HP and hunger siphon.
+// The long-lived buffs and debuffs owned by a held talisman are skipped.
 for(PotionEffect effect:new ArrayList<>(enemy.getActivePotionEffects())){
-if(!positive(effect.getType())||managedPotion(effect.getType()))continue;
-int duration=Math.max(100,Math.min(400,effect.getDuration()));
+if(!harmful(effect.getType())&&!positive(effect.getType()))continue;
+if(managedPotion(effect.getType()))continue;
+int duration=Math.min(400,Math.max(100,effect.getDuration()));
+PotionEffect transferred=new PotionEffect(effect.getType(),duration,effect.getAmplifier());
 enemy.removePotionEffect(effect.getType());
-defender.addPotionEffect(new PotionEffect(effect.getType(),duration,effect.getAmplifier()));
+defender.addPotionEffect(transferred);
 }
 }
 private void convertProjectile(Player owner,Entity damager,LivingEntity attacker){
