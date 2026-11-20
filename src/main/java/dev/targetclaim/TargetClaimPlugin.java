@@ -113,6 +113,7 @@ private ItemStack specialChestKey(){
 ItemStack key=new ItemStack(Material.TRIPWIRE_HOOK,1);
 ItemMeta meta=key.getItemMeta();
 meta.setDisplayName("§6§lКлюч сундука");
+meta.setItemModel(new NamespacedKey("targetclaim","chest_key"));
 meta.setLore(List.of("§7Одноразовый ключ для сундуков","§7в чужих приватах.","§eПКМ по сундуку: §f1 случайный предмет","§8На одну попытку расходуется один ключ."));
 meta.getPersistentDataContainer().set(raidKey,PersistentDataType.BYTE,(byte)1);
 key.setItemMeta(meta);
@@ -367,7 +368,16 @@ Scoreboard s=Bukkit.getScoreboardManager().getMainScoreboard();Team team=s.getTe
 team.setColor(g.color);team.setAllowFriendlyFire(true);team.setPrefix(g.color.toString());
 for(UUID id:g.members){OfflinePlayer off=Bukkit.getOfflinePlayer(id);if(off.getName()!=null)team.addEntry(off.getName());}
 }
-@EventHandler public void join(PlayerJoinEvent event){Group g=groupOf(event.getPlayer().getUniqueId());if(g!=null)updateScoreboard(g);}
+@EventHandler public void join(PlayerJoinEvent event){
+Player p=event.getPlayer();
+// Existing chest keys retain their PDC and gain the new client texture on login.
+for(ItemStack item:p.getInventory().getContents())if(isChestKey(item)){
+ItemMeta m=item.getItemMeta();if(!new NamespacedKey("targetclaim","chest_key").equals(m.getItemModel())){
+m.setItemModel(new NamespacedKey("targetclaim","chest_key"));item.setItemMeta(m);
+}
+}
+Group g=groupOf(p.getUniqueId());if(g!=null)updateScoreboard(g);
+}
 
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void place(BlockPlaceEvent e){
