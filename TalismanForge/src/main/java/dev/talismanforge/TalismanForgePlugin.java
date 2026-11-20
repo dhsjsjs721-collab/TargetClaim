@@ -63,6 +63,7 @@ private final Map<UUID,UUID> swordTarget=new HashMap<>();
 private final Map<UUID,UUID> lastAttacker=new HashMap<>(),lastAttackerAttribution=new HashMap<>();
 private final Map<UUID,Long> lastAttackerTime=new HashMap<>(),jokerStunnedUntil=new HashMap<>();
 private final Map<UUID,Integer> endShieldHits=new HashMap<>();
+private final Set<UUID> endReflectionInProgress=new HashSet<>();
 private final Map<UUID,List<UUID>> swordVisuals=new HashMap<>();
 private final Map<UUID,List<UUID>> poseidonCompanions=new HashMap<>();
 private final Map<UUID,Map<UUID,Long>> companionAttackCooldown=new HashMap<>();
@@ -573,54 +574,69 @@ private void endSwordTick(){
 long now=System.currentTimeMillis();
 for(Player owner:Bukkit.getOnlinePlayers()){
 UUID id=owner.getUniqueId();
-if(owner.isDead()||held(owner)!=Talisman.END){clearEndSwords(id);continue;}
+if(owner.isDead()||held(owner)!=Talisman.END){clearEndSwords(id);endShieldHits.remove(id);continue;}
 List<UUID> ids=swordVisuals.get(id);
 if(ids==null||ids.size()!=2||ids.stream().anyMatch(uuid->!(Bukkit.getEntity(uuid) instanceof ItemDisplay))){
-if(ids!=null){for(UUID old:ids)swordCooldown.remove(old);}
+if(ids!=null)for(UUID previous:ids)swordCooldown.remove(previous);
 removeDisplays(swordVisuals.remove(id));
-// Visual reload must retain the last attacker for the first retaliation.
 ids=new ArrayList<>();
 for(int i=0;i<2;i++){
-ItemDisplay display=owner.getWorld().spawn(owner.getLocation().add(0,1.45,0),ItemDisplay.class,d->{
-d.setPersistent(false);d.setInvulnerable(true);
+ItemDisplay display=owner.getWorld().spawn(owner.getLocation().clone().add(0,1.3,0),ItemDisplay.class,d->{
+d.setPersistent(false);d.setInvulnerable(true);d.setTeleportDuration(5);d.setViewRange(1.4f);
 d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.THIRDPERSON_RIGHTHAND);
-d.setTeleportDuration(5);d.setViewRange(1.2f);
 d.setItemStack(new ItemStack(Material.GOLDEN_SWORD));
 });
 ids.add(display.getUniqueId());
-swordCooldown.put(display.getUniqueId(),now+i*1000L);
+swordCooldown.put(display.getUniqueId(),now+i*850);
 }
 swordVisuals.put(id,ids);
 }
 LivingEntity enemy=null;
 if(swordExpiry.getOrDefault(id,0L)>now){
-Entity entity=Bukkit.getEntity(swordTarget.get(id));
-if(entity instanceof LivingEntity e&&e.isValid()&&!e.isDead()&&e.getWorld()==owner.getWorld()
-&&e.getLocation().distanceSquared(owner.getLocation())<=81&&!friendly(owner,e))enemy=e;
+UUID targetId=swordTarget.get(id);
+Entity raw=targetId==null?null:Bukkit.getEntity(targetId);
+if(raw instanceof LivingEntity e&&e.isValid()&&!e.isDead()&&e.getWorld()==owner.getWorld()
+&&e.getLocation().distanceSquared(owner.getLocation())<=40*40&&!friendly(owner,e))enemy=e;
 }
-double phase=now/575.0;
+org.bukkit.attribute.AttributeInstance max=owner.getAttribute(Attribute.MAX_HEALTH);
+boolean shieldMode=max!=null&&owner.getHealth()<=max.getValue()*.5;
+double phase=now/620.0;
 for(int i=0;i<2;i++){
 UUID swordId=ids.get(i);
 Entity raw=Bukkit.getEntity(swordId);
-if(!(raw instanceof ItemDisplay sword))continue;
+if(!(raw instanceof ItemDisplay display)||!display.isValid())continue;
+boolean guard=shieldMode&&i==0;
+Material wanted=guard?Material.SHIELD:Material.GOLDEN_SWORD;
+if(display.getItemStack().getType()!=wanted)display.setItemStack(new ItemStack(wanted));
 double angle=phase+i*Math.PI;
-Location point=owner.getLocation().clone().add(Math.cos(angle)*.95,1.5+Math.sin(phase*1.2+i)*.17,Math.sin(angle)*.95);
-if(enemy!=null&&now>=swordCooldown.getOrDefault(swordId,0L)){
-point=enemy.getLocation().clone().add(Math.cos(angle)*.55,1.05,Math.sin(angle)*.55);
-if(owner.hasLineOfSight(enemy)){
-// A golden sword normally hits for 4 HP; these do 3 HP per hit, every 2s PER sword.
-swordCooldown.put(swordId,now+2000L);
-final LivingEntity victim=enemy;
+Location point=owner.getLocation().clone().add(Math.cos(angle)*.9,1.35+Math.sin(phase+i)*.18,Math.sin(angle)*.9);
+if(guard){
+Vector front=owner.getLocation().getDirection().setY(0);
+if(front.lengthSquared()<.01)front=new Vector(0,0,1);
+point=owner.getLocation().clone().add(front.normalize().multiply(.9)).add(0,1.25,0);
+point.setYaw(owner.getLocation().getYaw());
+}else if(enemy!=null){
+// Boomerang flight: the sword pursues the last attacker up to 40 blocks.
+// It curves through space instead of teleporting into the opponent's face.
+Vector toward=enemy.getEyeLocation().toVector().subtract(owner.getEyeLocation().toVector());
+double fraction=.55+.32*Math.sin(phase*1.5+i*Math.PI);
+fraction=Math.max(.15,Math.min(.90,fraction));
+point=owner.getEyeLocation().clone().add(toward.multiply(fraction));
+point.add(Math.cos(angle)*.4,Math.sin(phase+i)*.20,Math.sin(angle)*.4);
+if(now>=swordCooldown.getOrDefault(swordId,0L)&&owner.hasLineOfSight(enemy)){
+swordCooldown.put(swordId,now+(shieldMode?1250L:1900L));
+final LivingEntity target=enemy;
 Bukkit.getScheduler().runTask(this,()->{
-if(victim.isValid()&&!victim.isDead()&&owner.isOnline()&&held(owner)==Talisman.END
-&&victim.getWorld()==owner.getWorld()&&victim.getLocation().distanceSquared(owner.getLocation())<=81){
-victim.damage(3.0,owner);
-victim.getWorld().spawnParticle(Particle.CRIT,victim.getEyeLocation(),5,.2,.2,.2,.04);
+if(target.isValid()&&!target.isDead()&&owner.isOnline()&&held(owner)==Talisman.END
+&&target.getWorld()==owner.getWorld()&&target.getLocation().distanceSquared(owner.getLocation())<=1600){
+target.damage(shieldMode?3.5:3.0,owner);
+target.getWorld().spawnParticle(Particle.SMALL_FLAME,target.getEyeLocation(),10,.25,.25,.25,.04);
 }
 });
 }
+owner.getWorld().spawnParticle(Particle.FLAME,point,2,.1,.1,.1,.02);
 }
-sword.teleport(point);
+if(point.getWorld()!=null&&point.getWorld().isChunkLoaded(point.getBlockX()>>4,point.getBlockZ()>>4))display.teleport(point);
 }
 }
 for(UUID id:new ArrayList<>(swordVisuals.keySet()))if(Bukkit.getPlayer(id)==null)clearEndSwords(id);
@@ -975,6 +991,33 @@ if(e.getCause()==EntityDamageEvent.DamageCause.VOID&&voidSlot(p)!=null){e.setCan
 if(System.currentTimeMillis()<agesInvulnerableUntil.getOrDefault(p.getUniqueId(),0L)&&e.getCause()!=EntityDamageEvent.DamageCause.VOID&&e.getCause()!=EntityDamageEvent.DamageCause.KILL){e.setCancelled(true);return;}
 if(absorbByShield(p,e))return;
 if(e.getCause()==EntityDamageEvent.DamageCause.FALL&&held(p)==Talisman.END){e.setCancelled(true);p.setFallDistance(0);return;}
+if(held(p)==Talisman.END&&e.getFinalDamage()>0&&!endReflectionInProgress.contains(p.getUniqueId())){
+org.bukkit.attribute.AttributeInstance max=p.getAttribute(Attribute.MAX_HEALTH);
+if(max!=null&&p.getHealth()<=max.getValue()*.5
+&&e.getCause()!=EntityDamageEvent.DamageCause.VOID&&e.getCause()!=EntityDamageEvent.DamageCause.KILL){
+int count=endShieldHits.merge(p.getUniqueId(),1,Integer::sum);
+if(count%2==0){
+double reflected=e.getFinalDamage();
+e.setCancelled(true);
+LivingEntity source=null;
+if(e instanceof EntityDamageByEntityEvent attack){
+if(attack.getDamager() instanceof LivingEntity direct)source=direct;
+else if(attack.getDamager() instanceof Projectile projectile&&projectile.getShooter() instanceof LivingEntity shooter)source=shooter;
+}
+if(source!=null&&source!=p&&source.isValid()&&!friendly(p,source)){
+final LivingEntity enemy=source;
+Bukkit.getScheduler().runTask(this,()->{
+if(!enemy.isValid()||enemy.isDead()||!p.isOnline())return;
+if(!endReflectionInProgress.add(enemy.getUniqueId()))return;
+try{enemy.damage(reflected,p);}finally{endReflectionInProgress.remove(enemy.getUniqueId());}
+});
+}
+p.getWorld().playSound(p.getLocation(),Sound.ITEM_SHIELD_BLOCK,1f,1.2f);
+return;
+}
+}
+}
+
 if(held(p)==Talisman.HADES){
 switch(e.getCause()){
 case FIRE,FIRE_TICK,HOT_FLOOR -> {e.setCancelled(true);p.setFireTicks(0);return;}
