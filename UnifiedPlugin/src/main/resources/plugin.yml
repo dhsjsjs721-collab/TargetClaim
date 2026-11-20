@@ -1,5 +1,5 @@
 name: MinecraftUnified
-version: 1.0.8
+version: 1.0.9
 main: dev.unified.UnifiedPlugin
 api-version: '26.3'
 author: MinecraftUnified
