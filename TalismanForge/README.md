@@ -112,3 +112,9 @@ Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil o
 - Grappling hook: 21-second cooldown, 6-point impact damage plus Slowness II, two-second capped pull time, light chain and speed cap, reflected by an actively blocking shield (reducing hook durability). Puller and target cannot attack each other during the pull. The new Magnet I upgrade is made by combining a grappling hook with Lodestone in an anvil and applies mild auto-aim.
 - Defiance's already working three floating shield system remains in place; it is spawned after the final resurrection.
 - Existing texture/model IDs remain unchanged until a tested unified resourcepack update.
+
+## v2.7.1 hotfix
+
+- Joker creates the 3-second giant avenger on *every* successful resurrection; only recent living attackers receive the 5-second stun (environmental deaths still get the visual event).
+- Zeus swords keep chasing the last attacker up to 40 blocks for 20 seconds. When under half HP, one sword transforms into a shielding display and every second eligible damaging event is reflected. No additional changes to talisman model IDs.
+- Grappling chain is now textured as compact ItemDisplay links rather than oversized block displays. This matches the updated main unified resource pack's new chain-link and hook icon assets.
