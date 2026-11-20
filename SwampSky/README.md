@@ -110,3 +110,8 @@ The pig and frog vanilla skins and the existing resourcepack remain unchanged in
 - Mounted controls are evaluated every tick, not every 3 ticks; when dismounted the ordinary pig returns to its vanilla pathfinding. For tamed winged pigs, the original shift/release mounting and free flight remain available.
 - Configuration: `pig-ground-ride-speed` 0.49, `pig-swim-speed` 0.40, `pig-speed` for winged pigs. Old config files are compatible through fallback defaults.
 - Entity AI/physics can still be affected by other plugins, including anticheat. Gameplay testing is required beyond a successful Paper compile.
+
+## v1.7.1 — Purpur 26.3 hard startup fix
+
+- Prevent `IllegalStateException: We don't have max_damage!` from `CraftMetaItem.getMaxDamage()` during frog-wing recipe creation. Check `Damageable#hasMaxDamage()` before querying the custom component, then set the intended 4096 durability.
+- This fixes the error reported in the supplied server logs at `SwampSkyPlugin.fixEquipment`. No changes to textures, pig behavior, or item IDs.
