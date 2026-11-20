@@ -1,4 +1,4 @@
-# ImageMaps 1.0.0
+# ImageMaps 1.1.0
 
 **Standalone Paper 26.3 server plugin, Java 25.** Clients do not need a mod or resource pack.
 
@@ -6,12 +6,12 @@ Create custom image maps visible to all players, including when placed in vanill
 
 ## Use
 1. Hold an empty MAP or a FILLED_MAP in your **main hand**.
-2. Run `/imagemap`, then paste a **direct public HTTPS image URL** into chat. The chat message with the URL is hidden from other players. Alternatively run `/imagemap https://example.com/picture.png`.
+2. **Sneak + right click** with an empty or filled map in the main hand to open a native Minecraft dialog with an HTTPS URL field, crop-to-fill option, zoom slider (1×–3×) and X/Y pan controls. `/imagemap` opens the same window. No client mod or resource pack required.
 3. Do not switch your held map while loading.
 4. A custom FILLED_MAP replaces **one** map item. Place it in an item frame: everybody sees the same artwork (no client-side mod needed).
-5. Hold an empty map and sneak + right-click to open the URL prompt directly.
+5. The changes are saved as a normal persistent 128×128 map. The original item stack loses one map when the new map is created, and the image is visible in item frames to all players.
 
-Commands: `/imagemap`, `/im`, `/imagemap cancel`, `/imagemap help`, `/imagemap <https://url>`.
+Commands: `/imagemap`, `/im`, `/imagemap chat`, `/imagemap cancel`, `/imagemap help`, `/imagemap <https://url>`. `chat` offers a fallback invisible-to-other-players URL prompt, while the new native dialog supports one-step URL + image adjustments.
 
 ### Local uploaded images
 For images from your computer without a public URL, a server administrator can upload them into `plugins/ImageMaps/uploads/` and use `/imagemap file photo.png` with a map in hand. This operation requires `imagemaps.file` (OP by default). The plugin cannot access a player's local computer files from vanilla Minecraft chat.
@@ -28,3 +28,9 @@ For images from your computer without a public URL, a server administrator can u
 **Build**: `gradle -p ImageMaps build` from repository root using Java 25 / Gradle 9.2.1; CI workflow: `.github/workflows/imagemaps-build.yml`.
 
 **Limitations**: Animated GIFs show only the first frame; a single map is low-resolution, and vanilla Minecraft's map palette limits color fidelity. For multi-map murals, another feature would be needed.
+
+### Cropping and scale
+- **Fit** (default): keep the whole image with white padding. **Fill**: cover the 128×128 square, cropping outside edges.
+- **Zoom** multiplies the image size from 1.0 to 3.0; horizontal and vertical pan position the enlarged picture.
+- All settings apply server-side while the image loads asynchronously. A single map is limited to vanilla 128×128 image pixels; the dialog edits the composition before committing, rather than providing a live rendered preview.
+- Full-featured image-editing tools and direct upload of a local desktop file from the Minecraft client are not available through vanilla dialogs. Admins can use the existing file import command.
