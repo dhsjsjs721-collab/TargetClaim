@@ -1027,9 +1027,13 @@ if(e.getEntity() instanceof LivingEntity victim){
 if(t==Talisman.MAIMING){victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,45,2));victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER,100,0));if(critical(attacker)){victim.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,60,0));victim.getWorld().spawnParticle(Particle.WITCH,victim.getLocation().add(0,1,0),4,.15,.2,.15,.02);}if(victim instanceof Player other&&e.getFinalDamage()>0)stealHunger(attacker,other);}
 if(t==Talisman.POSEIDON&&isRaining(attacker)&&victim.getHealth()<=victim.getAttribute(Attribute.MAX_HEALTH).getValue()*.5)victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,70,1));
 if(t==Talisman.END&&critical(attacker)){
-Bukkit.getScheduler().runTask(this,()->{if(victim.isValid()&&!victim.isDead()){
-victim.getWorld().strikeLightningEffect(victim.getLocation());victim.setHealth(Math.max(0,victim.getHealth()-2));
-}});
+Bukkit.getScheduler().runTask(this,()->{
+if(!attacker.isOnline()||!victim.isValid()||victim.isDead())return;
+victim.getWorld().strikeLightningEffect(victim.getLocation());
+// Apply damage through Bukkit instead of direct setHealth(0), allowing
+// armor, damage protection, other plugins and death-rescue talismans to work.
+victim.damage(2.0,attacker);
+});
 }
 }
 }
