@@ -92,3 +92,15 @@ Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil o
 
 - Fixed `IllegalArgumentException: missing required data class java.lang.Float` from `reviveParticles` when reviving with the Maiming talisman. The effect now spawns color-matched `DUST` with explicitly typed `DustOptions` instead of an untyped `DRAGON_BREATH` particle.
 - Particle counts reduced. No item, rescue probability, talisman rules or resource-pack changes.
+
+## v2.6.0 — full talisman combat rework
+
+- **Wrath:** 4 fewer normal hearts (total penalty -8 HP), passive Strength I instead of II, one save from death. Removed permanent +30% attack speed. Landing a critical briefly boosts attack-speed/recovery for 0.85 seconds, while all healing is reduced by 40%. Existing four-hit crit combo and weapon multiplier persist. Wrath is the rarest relic drop (1% of reliquary rolls; 0.3% bastion bridges; 0.1% fortress loot).
+- **Defiance:** visibly animated 3 SHIELD displays after the second/final life is expended. Shields respawn if visual entities disappear, and partially depleted shield health is persisted. Each absorbs a hit up to 2 hearts of stored protection (one hit is fully canceled even if stronger).
+- **Ages:** 3 dancing Allays now actually orbit the owner for 2.5 seconds; a 1-heart thorns effect fires for each accepted melee or ranged hit, protected from recursive retribution between Ages owners.
+- **End/Zeus:** each critical hit on a player or mob creates an extra lightning effect and 1 heart of damage. Fall damage is canceled. Two permanent orbiting gold sword displays respond to the last attacker within 9 blocks, each hitting for 3 HP at most once every 2 seconds. Swords clean up on unequip/quit/reload.
+- **Maiming:** hits additionally inflict Slowness III for 2.25 seconds (plus existing Wither, Weakness on crit, and fractional hunger siphon).
+- **Poseidon:** rain creates two short-range hovering pufferfish to poison enemies, and an axolotl that applies Regeneration I to the owner while submerged. Maximum three creatures per owner, safely cleaned up in other conditions. Dry death causes seven *visual* lightning strikes and a phasing 12-second dolphin, attacking for 4.5 hearts, Slowness II for 3 seconds, then disappearing. The dead owner cannot be targeted by their own dolphin.
+- **Hades:** maximum health reduced by 6 hearts. On successful ordinary totem save, after immediate survival the player becomes a ghost in Spectator mode for 3 seconds and returns to Survival or the prior gamemode at the chosen safe loaded location. Gamemode is recovered on logout/restart; kills grant golden hearts equal to the target's max health, capped at 10 hearts per kill and 20 hearts total. Existing monster neutrality, ghast assistance and conditional revival are unchanged.
+- Corrected an additional Wither-boss particle to use typed purple DUST to avoid Purpur's missing-data exceptions.
+- All item models and textures unchanged. Requires Java 25 and Paper/Purpur 26.3. Server compilation/startup tests do not replace gameplay testing.
