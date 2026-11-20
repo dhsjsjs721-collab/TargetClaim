@@ -232,7 +232,7 @@ double chance=held.getType()==Material.PUMPKIN_PIE?.78:.52;
 consume(player,held);
 if(random.nextDouble()<chance){
 pig.getPersistentDataContainer().set(ownerKey,PersistentDataType.STRING,player.getUniqueId().toString());
-pig.setSaddle(false);
+pig.setSaddle(true);
 // A successfully tamed pig becomes a winged companion that circles its owner.
 if(!marked(pig,flyingKey))flyingPig(pig);
 pig.setCustomName(null);pig.setCustomNameVisible(false);
@@ -256,13 +256,9 @@ pig.getWorld().spawnParticle(Particle.HEART,pig.getLocation().add(0,.8,0),5,.3,.
 return;
 }
 e.setCancelled(true);
-if(!player.isSneaking()||!pig.getPassengers().isEmpty()||player.isInsideVehicle())return;
-// Mount after Shift is RELEASED. Mounting while Shift remains pressed makes
-// the client immediately dismount, which feels like a broken interaction.
-UUID playerId=player.getUniqueId();
-UUID pigId=pig.getUniqueId();
-pendingMount.put(playerId,pigId);
-Bukkit.getScheduler().runTaskLater(this,()->pendingMount.remove(playerId,pigId),100L);
+if(!pig.isAdult()||!pig.getPassengers().isEmpty()||player.isInsideVehicle())return;
+if(player.isSneaking()){pendingMount.put(player.getUniqueId(),pig.getUniqueId());return;}
+Bukkit.getScheduler().runTask(this,()->mountFlyingPig(player,pig));
 }
 private void breedWingedPigs(){
 // Winged pigs are not controlled by vanilla pathfinding. Match willing parents
@@ -314,9 +310,7 @@ if(!owned(pig,player))return;
 UUID id=player.getUniqueId();
 long until=tick+240;
 dismountFall.put(id,until);
-Bukkit.getScheduler().runTask(this,()->{
-if(pig.isValid()&&pig.getPassengers().isEmpty())pig.setSaddle(false);
-});
+// Keep a companion's saddle after dismount. The next click always works.
 Bukkit.getScheduler().runTaskLater(this,()->{
 if(dismountFall.getOrDefault(id,0L)==until)dismountFall.remove(id);
 },240L);
@@ -343,6 +337,32 @@ pig.getWorld().playSound(pig.getLocation(),Sound.ENTITY_PHANTOM_SWOOP,.8f,1.35f)
 }
 }
 
+private void mountFlyingPig(Player player,Pig pig){
+if(!player.isOnline()||!pig.isValid()||player.isInsideVehicle()||!pig.getPassengers().isEmpty()
+||!owned(pig,player)||!pig.isAdult())return;
+pig.setAI(true);pig.setSaddle(true);
+approachRiderUntil.remove(pig.getUniqueId());
+roamTargets.remove(pig.getUniqueId());
+flightVectors.remove(pig.getUniqueId());
+if(pig.addPassenger(player))player.sendActionBar("§aСвинка осёдлана: WASD — ход, Пробел — вверх");
+}
+private void senseJumpingOwners(){
+for(Player player:Bukkit.getOnlinePlayers()){
+if(player.isInsideVehicle()||player.isDead()||!player.getCurrentInput().isJump())continue;
+Vector look=player.getEyeLocation().getDirection().normalize();
+Pig bestPig=null;double nearest=6.5*6.5;
+for(Entity candidate:player.getNearbyEntities(6.5,5.5,6.5)){
+if(!(candidate instanceof Pig pig)||!marked(pig,flyingKey)||!pig.isAdult()
+||!owned(pig,player)||!pig.getPassengers().isEmpty())continue;
+Vector towards=pig.getLocation().toVector().subtract(player.getEyeLocation().toVector());
+double sq=towards.lengthSquared();
+if(sq<nearest&&sq>.01&&look.dot(towards.normalize())>.45){bestPig=pig;nearest=sq;}
+}
+if(bestPig==null)continue;
+approachRiderUntil.put(bestPig.getUniqueId(),tick+70);
+if(nearest<2.2*2.2)mountFlyingPig(player,bestPig);
+}
+}
 private void mountedTick(){
 for(Player player:Bukkit.getOnlinePlayers()){
 if(!(player.getVehicle() instanceof Pig pig)||!pig.isValid()||!pig.hasSaddle())continue;
@@ -353,6 +373,7 @@ try{ride(pig,player,fly);}catch(RuntimeException ex){pigProblem(pig.getUniqueId(
 }
 private void step(){
 tick+=3;
+senseJumpingOwners();
 for(UUID id:new ArrayList<>(wings)){
 Entity e=Bukkit.getEntity(id);
 if(!(e instanceof Pig p)||!p.isValid()){
@@ -439,7 +460,7 @@ if(distance<lureDistance){lure=candidate;lureDistance=distance;}
 }
 }
 Location destination;
-double speed=Math.max(.14,Math.min(.85,getConfig().getDouble("flying-pig-speed",.48)));
+double speed=Math.max(.12,Math.min(.36,getConfig().getDouble("flying-pig-speed",.23)));
 LivingEntity attackTarget=null;
 if(fear!=null){
 Vector escape=here.toVector().subtract(fear.getLocation().toVector());
@@ -1148,11 +1169,8 @@ UUID pigId=pendingMount.remove(player.getUniqueId());
 if(pigId==null)return;
 Bukkit.getScheduler().runTask(this,()->{
 Entity entity=Bukkit.getEntity(pigId);
-if(!(entity instanceof Pig pig)||!pig.isValid()||!player.isOnline()
-||player.isInsideVehicle()||!owned(pig,player)||!pig.getPassengers().isEmpty())return;
-pig.setAI(true);pig.setAware(false);
-pig.setSaddle(true);
-if(!pig.addPassenger(player))pig.setSaddle(false);
+if(!(entity instanceof Pig pig)||!pig.isValid())return;
+mountFlyingPig(player,pig);
 });
 }
 @EventHandler public void playerInput(PlayerInputEvent e){inputCache.put(e.getPlayer().getUniqueId(),e.getInput());}
