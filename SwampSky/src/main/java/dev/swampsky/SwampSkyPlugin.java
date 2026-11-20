@@ -1096,11 +1096,46 @@ if(!pig.addPassenger(player))pig.setSaddle(false);
 @EventHandler public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();inputCache.remove(id);pendingMount.remove(id);airborne.remove(id);fallSpeed.remove(id);bounceLocked.remove(id);groundedTicks.remove(id);}
 @Override public boolean onCommand(CommandSender sender,Command cmd,String label,String[] a){
 if(a.length==0||a[0].equalsIgnoreCase("help")){
-sender.sendMessage("§aSwampSky §7| /swampsky spawn <flying_pig|giant_frog>");
+sender.sendMessage("§aSwampSky 1.6.0 §7| /swampsky spawn <flying_pig|giant_frog>");
+sender.sendMessage("§7/ss status §8(диагностика AI и скорости свинок)");
+sender.sendMessage("§7/ss repair §8(перезапуск поведения свинок поблизости)");
 sender.sendMessage("§7/swampsky give <ник> <hide|boots|leggings|wings> [1-64]");
 return true;
 }
 if(!sender.hasPermission("swampsky.admin")){sender.sendMessage("§cНет прав.");return true;}
+if(a[0].equalsIgnoreCase("status")){
+sender.sendMessage("§aSwampSky §7| Летающих свинок отслеживается: §f"+wings.size()+"§7, гигантских лягушек: §f"+frogs.size());
+if(sender instanceof Player viewer){
+Pig nearest=null;double nearestDistance=32*32;
+for(Entity entity:viewer.getWorld().getNearbyEntities(viewer.getLocation(),32,32,32)){
+if(!(entity instanceof Pig candidate)||!marked(candidate,flyingKey))continue;
+double d=entity.getLocation().distanceSquared(viewer.getLocation());
+if(d<nearestDistance){nearest=candidate;nearestDistance=d;}
+}
+if(nearest==null)sender.sendMessage("§7Рядом (32 блока) нет летающей свинки.");
+else{
+UUID id=nearest.getUniqueId();Vector velocity=nearest.getVelocity();
+sender.sendMessage("§7Свиника: §f"+(int)Math.sqrt(nearestDistance)+" блоков §7| AI="+nearest.hasAI()+" aware="+nearest.isAware()+" gravity="+nearest.hasGravity());
+sender.sendMessage("§7Скорость: §f"+String.format(java.util.Locale.ROOT,"%.2f",velocity.length())+" §7| цель="+(roamTargets.containsKey(id)?"свободный полёт":onlineOwner(nearest)!=null?"владелец / цель":"поиск"));
+sender.sendMessage("§7Застревания подряд: §f"+motionStalls.getOrDefault(id,0));
+}
+}
+return true;
+}
+if(a[0].equalsIgnoreCase("repair")){
+if(!(sender instanceof Player player)){sender.sendMessage("§cЭту команду выполняй в игре.");return true;}
+int count=0;
+for(Entity entity:player.getWorld().getNearbyEntities(player.getLocation(),48,36,48)){
+if(!(entity instanceof Pig pig)||!marked(pig,flyingKey))continue;
+UUID id=pig.getUniqueId();
+pig.setAI(true);pig.setAware(false);pig.setGravity(false);pig.setCollidable(false);
+roamTargets.remove(id);roamExpiry.remove(id);motionStalls.remove(id);motionSamples.remove(id);flightVectors.remove(id);
+roamHomes.put(id,pig.getLocation().clone());wings.add(id);
+count++;
+}
+sender.sendMessage("§aСостояние обновлено у "+count+" летающих свинок в радиусе 48 блоков.");
+return true;
+}
 if(a[0].equalsIgnoreCase("spawn")){
 if(!(sender instanceof Player p)){sender.sendMessage("§cТолько игрок.");return true;}
 if(a.length<2){sender.sendMessage("§cУкажи тип.");return true;}
@@ -1125,7 +1160,7 @@ return false;
 }
 @Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] a){
 if(!sender.hasPermission("swampsky.admin"))return List.of();
-if(a.length==1)return List.of("spawn","give","help");
+if(a.length==1)return List.of("spawn","give","status","repair","help");
 if(a.length==2&&a[0].equalsIgnoreCase("spawn"))return List.of("flying_pig","giant_frog");
 if(a.length==2&&a[0].equalsIgnoreCase("give"))return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
 if(a.length==3&&a[0].equalsIgnoreCase("give"))return List.of("hide","boots","leggings","wings");
