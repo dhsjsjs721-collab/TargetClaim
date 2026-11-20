@@ -133,9 +133,13 @@ private MerchantRecipe recipe(Offer offer) {
 MerchantRecipe result=new MerchantRecipe(offer.result().clone(),offer.maxUses());
 result.setExperienceReward(false);
 result.setPriceMultiplier(0.0f);
-int first=Math.min(64,offer.diamonds());
+double divisor=Math.max(2.0,Math.min(3.0,plugin.getConfig().getDouble("trader-price-divisor",2.5)));
+int price=isCharm(offer.result())
+?Math.max(1,Math.min(64,plugin.getConfig().getInt("trader-charm-price",5)))
+:Math.max(1,(int)Math.ceil(offer.diamonds()/divisor));
+int first=Math.min(64,price);
 result.addIngredient(new ItemStack(Material.DIAMOND,first));
-if (offer.diamonds()>64) result.addIngredient(new ItemStack(Material.DIAMOND,offer.diamonds()-64));
+if (price>64) result.addIngredient(new ItemStack(Material.DIAMOND,price-64));
 return result;
 }
 
@@ -175,7 +179,7 @@ private List<MerchantRecipe> makeOffers() {
 List<Offer> selected=new ArrayList<>();
 List<Offer> pool=new ArrayList<>();
 // Guaranteed, useful offers on every trader.
-selected.add(new Offer(charm(),36,3));
+selected.add(new Offer(charm(),5,3));
 selected.add(new Offer(soulboundBook.clone(),28,3));
 selected.add(new Offer(tripleShotBook.clone(),24,3));
 add(selected,Material.TOTEM_OF_UNDYING,1,40,2);
