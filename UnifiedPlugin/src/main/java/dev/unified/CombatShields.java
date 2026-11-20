@@ -38,7 +38,7 @@ meta.setLore(List.of("§7Блокирует и крадёт здоровье и 
 case "turtle" -> {
 meta.setDisplayName("§2§lЧерепаший щит");
 meta.setLore(List.of("§7Защищает спину, если не поднят","§7Удвоенная прочность и сопротивление отбрасыванию","§7Отталкивает близких противников"));
-meta.setMaxDamage(Material.SHIELD.getMaxDurability()*2);
+if(meta instanceof org.bukkit.inventory.meta.Damageable damage)damage.setMaxDamage(Material.SHIELD.getMaxDurability()*2);
 }
 case "crusher" -> {
 meta.setDisplayName("§6§lЩит крушителя");
