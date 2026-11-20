@@ -52,6 +52,7 @@ private final Map<String,Altar> altars=new HashMap<>();
 private final Map<UUID,UUID> holograms=new HashMap<>();
 private final Map<UUID,UUID> relicDisplays=new HashMap<>();
 private final Map<UUID,Integer> wrathStreak=new HashMap<>();
+private final Map<UUID,Double> hungerFractions=new HashMap<>();
 private final Map<UUID,Long> wrathLastCrit=new HashMap<>();
 private final Map<UUID,Long> agesInvulnerableUntil=new HashMap<>();
 private final Map<UUID,ShieldRing> shieldRings=new HashMap<>();
@@ -124,7 +125,7 @@ if(hookListener!=null)hookListener.shutdown();
 for(UUID id:holograms.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 for(UUID id:relicDisplays.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 for(ShieldRing ring:shieldRings.values())removeShieldVisuals(ring);
-shieldRings.clear();relicDisplays.clear();agesInvulnerableUntil.clear();wrathStreak.clear();wrathLastCrit.clear();
+shieldRings.clear();relicDisplays.clear();agesInvulnerableUntil.clear();wrathStreak.clear();wrathLastCrit.clear();hungerFractions.clear();
 for(UUID id:ghostDolphins.keySet()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 holograms.clear();ghostDolphins.clear();trackedDrops.clear();
 for(Player p:Bukkit.getOnlinePlayers()){
@@ -151,7 +152,7 @@ lore.add("§8Работает в любой руке");
 lore.add(t.lives==0?"§cНе спасает от обычной смерти":"§7Спасений от смерти: §e"+lives+"/"+t.lives);
 lore.add(t==Talisman.POSEIDON?"§cНе спасает от бездны":t==Talisman.END?"§bБесконечное спасение от бездны":"§bСпасает от бездны, но исчезает");
 switch(t){
-case MAIMING -> {lore.add("§c−0.5 сердца, Голод I");lore.add("§5Удары: Иссушение I, 5 секунд");lore.add("§8Крит: Слабость I на 3 секунды");}
+case MAIMING -> {lore.add("§c−0.5 сердца, Голод I");lore.add("§5Удары: Иссушение I, 5 секунд");lore.add("§8Крит: Слабость I на 3 секунды");lore.add("§6Удар по игроку: кража 0.5 сытости");}
 case WRATH -> {lore.add("§c−2 сердца, без воскрешения");lore.add("§6Сила II, +30% скорость атаки");lore.add("§c+35% прямого урона оружием");lore.add("§6Серия критов: износ брони до ×1.5");}
 case DEFIANCE -> {lore.add("§c−2 сердца, Поглощение II");lore.add("§bЩит невозможно временно отключить");lore.add("§bПосле последнего спасения: три защитных щита");}
 case JOKER -> {lore.add("§dОдин шанс: 50% спастись от смерти");lore.add("§7Неудача: талисман исчезнет");lore.add("§aУдача: 1–3 случайных усиления");lore.add("§7Скорость II / Сила II / Сопротивление I");lore.add("§7Каждый эффект длится 20 сек. – 5 минут");lore.add("§5Клыки призывателя атакуют существ рядом");}
@@ -693,7 +694,7 @@ Talisman t=held(attacker);if(t==null)return;
 if(t==Talisman.WRATH){e.setDamage(e.getDamage()*1.35);if(e.getEntity() instanceof Player armorVictim)wrathCritical(attacker,armorVictim,critical(attacker));else if(!critical(attacker)){wrathStreak.remove(attacker.getUniqueId());wrathLastCrit.remove(attacker.getUniqueId());}}
 if(t==Talisman.HADES&&e.getEntity() instanceof LivingEntity victim)ghastAssist(attacker,victim);
 if(e.getEntity() instanceof LivingEntity victim){
-if(t==Talisman.MAIMING){victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER,100,0));if(critical(attacker))victim.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,60,0));}
+if(t==Talisman.MAIMING){victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER,100,0));if(critical(attacker))victim.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,60,0));if(victim instanceof Player other)stealHunger(attacker,other);}
 if(t==Talisman.POSEIDON&&isRaining(attacker)&&victim.getHealth()<=victim.getAttribute(Attribute.MAX_HEALTH).getValue()*.5)victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,70,1));
 if(t==Talisman.END&&!(victim instanceof Player)&&critical(attacker)){
 Bukkit.getScheduler().runTask(this,()->{if(victim.isValid()&&!victim.isDead()){
@@ -701,6 +702,21 @@ victim.getWorld().strikeLightningEffect(victim.getLocation());victim.setHealth(M
 }});
 }
 }
+}
+private void stealHunger(Player attacker,Player victim){
+if(attacker==victim||victim.getFoodLevel()<=0)return;
+UUID victimId=victim.getUniqueId(),attackerId=attacker.getUniqueId();
+// Vanilla foodLevel uses whole units. Accumulate halves and apply one food point every second hit.
+double stolen=Math.min(.5,victim.getFoodLevel()-hungerFractions.getOrDefault(victimId,0.0));
+if(stolen<=0)return;
+double pending=hungerFractions.getOrDefault(victimId,0.0)+stolen;
+if(pending>=1.0){victim.setFoodLevel(Math.max(0,victim.getFoodLevel()-1));pending-=1.0;}
+if(pending>0)hungerFractions.put(victimId,pending);else hungerFractions.remove(victimId);
+// Transfer only food actually taken; a full attacker cannot gain more than 20.
+if(attacker.getFoodLevel()>=20)return;
+double gain=hungerFractions.getOrDefault(attackerId,0.0)+stolen;
+if(gain>=1.0){attacker.setFoodLevel(Math.min(20,attacker.getFoodLevel()+1));gain-=1.0;}
+if(gain>0)hungerFractions.put(attackerId,gain);else hungerFractions.remove(attackerId);
 }
 private void ghastAssist(Player owner,LivingEntity enemy){
 if(enemy==owner||!enemy.isValid()||enemy.isDead()||!owner.getWorld().equals(enemy.getWorld()))return;
@@ -1012,7 +1028,7 @@ return List.of();
 }
 @EventHandler public void quit(PlayerQuitEvent e){
 UUID id=e.getPlayer().getUniqueId();active.remove(id);safeLocations.remove(id);ghastCooldowns.remove(id);pathCenters.remove(id);pathRefresh.remove(id);
-wrathStreak.remove(id);wrathLastCrit.remove(id);agesInvulnerableUntil.remove(id);
+wrathStreak.remove(id);wrathLastCrit.remove(id);agesInvulnerableUntil.remove(id);hungerFractions.remove(id);
 ShieldRing ring=shieldRings.remove(id);if(ring!=null)removeShieldVisuals(ring);
 }
 }
