@@ -104,3 +104,11 @@ Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil o
 - **Hades:** maximum health reduced by 6 hearts. On successful ordinary totem save, after immediate survival the player becomes a ghost in Spectator mode for 3 seconds and returns to Survival or the prior gamemode at the chosen safe loaded location. Gamemode is recovered on logout/restart; kills grant golden hearts equal to the target's max health, capped at 10 hearts per kill and 20 hearts total. Existing monster neutrality, ghast assistance and conditional revival are unchanged.
 - Corrected an additional Wither-boss particle to use typed purple DUST to avoid Purpur's missing-data exceptions.
 - All item models and textures unchanged. Requires Java 25 and Paper/Purpur 26.3. Server compilation/startup tests do not replace gameplay testing.
+
+## TalismanForge 2.7.0 — Joker, Zeus and grappling hook
+
+- Joker successful resurrection now summons a giant Evoker illusion for three seconds to swing its arms at the last attacker and stuns the actual attacker for five seconds. Victim targeting uses recent damage attribution, including projectiles, and ignores allies. NPC AI is restored after the stun.
+- Zeus golden swords now pursue the last enemy up to 40 blocks using boomerang movements with flame particles. Below half health one sword changes into a protective shield and cancels/reflects every second incoming hit. The other attacks a little faster at long range.
+- Grappling hook: 21-second cooldown, 6-point impact damage plus Slowness II, two-second capped pull time, light chain and speed cap, reflected by an actively blocking shield (reducing hook durability). Puller and target cannot attack each other during the pull. The new Magnet I upgrade is made by combining a grappling hook with Lodestone in an anvil and applies mild auto-aim.
+- Defiance's already working three floating shield system remains in place; it is spawned after the final resurrection.
+- Existing texture/model IDs remain unchanged until a tested unified resourcepack update.
