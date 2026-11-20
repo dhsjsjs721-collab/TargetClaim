@@ -215,7 +215,8 @@ for(Player player:Bukkit.getOnlinePlayers()){
 UUID id=player.getUniqueId();
 boolean turtle="turtle".equals(held(player))&&!player.isBlocking();
 if(!turtle){clearDisplay(id);continue;}
-Entity entity=Bukkit.getEntity(backDisplays.get(id));
+UUID previousDisplay=backDisplays.get(id);
+Entity entity=previousDisplay==null?null:Bukkit.getEntity(previousDisplay);
 ItemDisplay display;
 if(!(entity instanceof ItemDisplay existing)||!entity.isValid()){
 display=player.getWorld().spawn(player.getLocation(),ItemDisplay.class,d->{
