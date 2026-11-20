@@ -52,7 +52,8 @@ private final Map<String,Altar> altars=new HashMap<>();
 private final Map<UUID,UUID> holograms=new HashMap<>();
 private final Map<UUID,UUID> relicDisplays=new HashMap<>();
 private final Map<UUID,Integer> wrathStreak=new HashMap<>();
-private final Map<UUID,Double> hungerFractions=new HashMap<>();
+private final Map<UUID,Double> hungerTakenFractions=new HashMap<>();
+private final Map<UUID,Double> hungerGivenFractions=new HashMap<>();
 private final Map<UUID,Long> wrathLastCrit=new HashMap<>();
 private final Map<UUID,Long> agesInvulnerableUntil=new HashMap<>();
 private final Map<UUID,ShieldRing> shieldRings=new HashMap<>();
@@ -125,7 +126,7 @@ if(hookListener!=null)hookListener.shutdown();
 for(UUID id:holograms.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 for(UUID id:relicDisplays.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 for(ShieldRing ring:shieldRings.values())removeShieldVisuals(ring);
-shieldRings.clear();relicDisplays.clear();agesInvulnerableUntil.clear();wrathStreak.clear();wrathLastCrit.clear();hungerFractions.clear();
+shieldRings.clear();relicDisplays.clear();agesInvulnerableUntil.clear();wrathStreak.clear();wrathLastCrit.clear();hungerTakenFractions.clear();hungerGivenFractions.clear();
 for(UUID id:ghostDolphins.keySet()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 holograms.clear();ghostDolphins.clear();trackedDrops.clear();
 for(Player p:Bukkit.getOnlinePlayers()){
@@ -707,16 +708,16 @@ private void stealHunger(Player attacker,Player victim){
 if(attacker==victim||victim.getFoodLevel()<=0)return;
 UUID victimId=victim.getUniqueId(),attackerId=attacker.getUniqueId();
 // Vanilla foodLevel uses whole units. Accumulate halves and apply one food point every second hit.
-double stolen=Math.min(.5,victim.getFoodLevel()-hungerFractions.getOrDefault(victimId,0.0));
+double stolen=Math.min(.5,victim.getFoodLevel()-hungerTakenFractions.getOrDefault(victimId,0.0));
 if(stolen<=0)return;
-double pending=hungerFractions.getOrDefault(victimId,0.0)+stolen;
+double pending=hungerTakenFractions.getOrDefault(victimId,0.0)+stolen;
 if(pending>=1.0){victim.setFoodLevel(Math.max(0,victim.getFoodLevel()-1));pending-=1.0;}
-if(pending>0)hungerFractions.put(victimId,pending);else hungerFractions.remove(victimId);
+if(pending>0)hungerTakenFractions.put(victimId,pending);else hungerTakenFractions.remove(victimId);
 // Transfer only food actually taken; a full attacker cannot gain more than 20.
 if(attacker.getFoodLevel()>=20)return;
-double gain=hungerFractions.getOrDefault(attackerId,0.0)+stolen;
+double gain=hungerGivenFractions.getOrDefault(attackerId,0.0)+stolen;
 if(gain>=1.0){attacker.setFoodLevel(Math.min(20,attacker.getFoodLevel()+1));gain-=1.0;}
-if(gain>0)hungerFractions.put(attackerId,gain);else hungerFractions.remove(attackerId);
+if(gain>0)hungerGivenFractions.put(attackerId,gain);else hungerGivenFractions.remove(attackerId);
 }
 private void ghastAssist(Player owner,LivingEntity enemy){
 if(enemy==owner||!enemy.isValid()||enemy.isDead()||!owner.getWorld().equals(enemy.getWorld()))return;
@@ -1028,7 +1029,7 @@ return List.of();
 }
 @EventHandler public void quit(PlayerQuitEvent e){
 UUID id=e.getPlayer().getUniqueId();active.remove(id);safeLocations.remove(id);ghastCooldowns.remove(id);pathCenters.remove(id);pathRefresh.remove(id);
-wrathStreak.remove(id);wrathLastCrit.remove(id);agesInvulnerableUntil.remove(id);hungerFractions.remove(id);
+wrathStreak.remove(id);wrathLastCrit.remove(id);agesInvulnerableUntil.remove(id);hungerTakenFractions.remove(id);hungerGivenFractions.remove(id);
 ShieldRing ring=shieldRings.remove(id);if(ring!=null)removeShieldVisuals(ring);
 }
 }
