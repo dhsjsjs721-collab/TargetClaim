@@ -60,6 +60,9 @@ private final Map<UUID,Long> wrathLastCrit=new HashMap<>();
 private final Map<UUID,Long> wrathCritRechargeUntil=new HashMap<>();
 private final Map<UUID,Long> swordExpiry=new HashMap<>(),swordCooldown=new HashMap<>();
 private final Map<UUID,UUID> swordTarget=new HashMap<>();
+private final Map<UUID,UUID> lastAttacker=new HashMap<>(),lastAttackerAttribution=new HashMap<>();
+private final Map<UUID,Long> lastAttackerTime=new HashMap<>(),jokerStunnedUntil=new HashMap<>();
+private final Map<UUID,Integer> endShieldHits=new HashMap<>();
 private final Map<UUID,List<UUID>> swordVisuals=new HashMap<>();
 private final Map<UUID,List<UUID>> poseidonCompanions=new HashMap<>();
 private final Map<UUID,Map<UUID,Long>> companionAttackCooldown=new HashMap<>();
@@ -948,7 +951,12 @@ p.sendMessage(t==Talisman.END?"§dЗевс перенёс тебя из безд
 p.getWorld().spawnParticle(Particle.PORTAL,p.getLocation(),90,.7,1,.7,.25);
 }
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)public void moved(PlayerMoveEvent e){
-Player p=e.getPlayer();if(e.getTo()==null||held(p)==null)return;
+Player p=e.getPlayer();
+if(e.getTo()!=null&&System.currentTimeMillis()<jokerStunnedUntil.getOrDefault(p.getUniqueId(),0L)){
+Location frozen=e.getFrom().clone();frozen.setYaw(e.getTo().getYaw());frozen.setPitch(e.getTo().getPitch());
+e.setTo(frozen);return;
+}
+if(e.getTo()==null||held(p)==null)return;
 if(held(p)==Talisman.AGES)spawnPath(p,e.getTo(),e);
 if(e.getTo().getY()<p.getWorld().getMinHeight()+6){if(voidSlot(p)!=null)voidRescue(p);return;}
 if(e.getTo().getY()<p.getWorld().getMinHeight()+12)return;
@@ -1019,6 +1027,18 @@ punished.getWorld().spawnParticle(Particle.CRIT,punished.getEyeLocation(),5,.15,
 });
 }
 }
+if(e.getEntity() instanceof Player victim){
+LivingEntity source=null;
+if(e.getDamager() instanceof LivingEntity direct)source=direct;
+else if(e.getDamager() instanceof Projectile shot&&shot.getShooter() instanceof LivingEntity shooter)source=shooter;
+if(source!=null&&source!=victim){
+lastAttacker.put(victim.getUniqueId(),source.getUniqueId());
+lastAttackerTime.put(victim.getUniqueId(),System.currentTimeMillis());
+}
+}
+if(e.getDamager() instanceof Player source&&System.currentTimeMillis()<jokerStunnedUntil.getOrDefault(source.getUniqueId(),0L)){
+e.setCancelled(true);return;
+}
 if(!(e.getDamager() instanceof Player attacker))return;
 Talisman t=held(attacker);if(t==null)return;
 if(t==Talisman.WRATH){boolean crit=critical(attacker);int combo=wrathCritical(attacker,crit);e.setDamage(e.getDamage()*1.35*(1+combo*.01));if(combo>1&&e.getEntity() instanceof Player armorVictim)wrathArmorWear(armorVictim,combo);if(crit)grantWrathCritRecharge(attacker);}
@@ -1083,6 +1103,46 @@ ghast.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME,ghast.getEyeLocation(),8
 fired++;if(fired>=2)break;
 }
 if(fired>0)ghastCooldowns.put(owner.getUniqueId(),now);
+}
+private void summonJokerAvenger(Player owner){
+UUID attackerId=lastAttacker.get(owner.getUniqueId());
+long since=System.currentTimeMillis()-lastAttackerTime.getOrDefault(owner.getUniqueId(),0L);
+if(attackerId==null||since>4500)return;
+Entity raw=Bukkit.getEntity(attackerId);
+if(!(raw instanceof LivingEntity victim)||!victim.isValid()||victim.isDead()||victim.getWorld()!=owner.getWorld())return;
+if(victim instanceof Player player&&friendly(owner,player))return;
+long until=System.currentTimeMillis()+5000;
+jokerStunnedUntil.put(victim.getUniqueId(),until);
+if(victim instanceof Player player){
+player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,105,7));
+player.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE,105,3));
+}else{
+victim.setAI(false);
+Bukkit.getScheduler().runTaskLater(this,()->{if(victim.isValid())victim.setAI(true);},100L);
+}
+Location where=victim.getLocation().clone().add(victim.getLocation().getDirection().multiply(-2));
+Evoker avenger=owner.getWorld().spawn(where,Evoker.class,entity->{
+entity.setAI(false);entity.setGravity(false);entity.setCollidable(false);
+entity.setInvulnerable(true);entity.setSilent(true);entity.setPersistent(false);
+org.bukkit.attribute.AttributeInstance size=entity.getAttribute(Attribute.SCALE);
+if(size!=null)size.setBaseValue(2.65);
+});
+owner.getWorld().playSound(where,Sound.ENTITY_EVOKER_PREPARE_ATTACK,1.25f,.55f);
+new org.bukkit.scheduler.BukkitRunnable(){
+int elapsed=0;
+@Override public void run(){
+if(!avenger.isValid()||elapsed>=60){
+if(avenger.isValid())avenger.remove();
+cancel();return;
+}
+if(elapsed%10==0){
+avenger.swingMainHand();
+avenger.getWorld().spawnParticle(Particle.WITCH,avenger.getEyeLocation(),18,.5,.8,.5,.08);
+}
+elapsed+=5;
+}
+}.runTaskTimer(this,1L,5L);
+owner.sendMessage("§dДжокер вызвал великого мстителя! Обидчик оглушён на 5 секунд.");
 }
 private void jokerBonuses(Player player){
 List<PotionEffectType> choices=new ArrayList<>(List.of(
@@ -1178,6 +1238,7 @@ beginHadesSpectator(p);
 if(t==Talisman.JOKER){
 jokerBonuses(p);
 jokerFangs(p);
+summonJokerAvenger(p);
 }
 if(t==Talisman.AGES&&current==2){
 agesInvulnerableUntil.put(p.getUniqueId(),System.currentTimeMillis()+3000L);
@@ -1455,5 +1516,6 @@ return List.of();
 UUID id=e.getPlayer().getUniqueId();active.remove(id);safeLocations.remove(id);ghastCooldowns.remove(id);pathCenters.remove(id);pathRefresh.remove(id);
 wrathStreak.remove(id);wrathLastCrit.remove(id);removeWrathCritRecharge(e.getPlayer());restoreHadesMode(e.getPlayer());clearEndSwords(id);removePoseidonCompanions(id);agesInvulnerableUntil.remove(id);hungerTakenFractions.remove(id);hungerGivenFractions.remove(id);grantedEffects.remove(id);
 ShieldRing ring=shieldRings.remove(id);if(ring!=null)removeShieldVisuals(ring);
+lastAttacker.remove(id);lastAttackerTime.remove(id);jokerStunnedUntil.remove(id);endShieldHits.remove(id);
 }
 }
