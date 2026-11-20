@@ -69,3 +69,14 @@ Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil o
 - Ages temporary paths vary moss types over water, choose stone suitable to the neighboring Nether or underground terrain over lava, and restore submerged plant block data (kelp/seagrass) where replaced. Legacy pad saves are still loaded.
 - Joker, Poseidon, Hades, End/Zeus are unchanged.
 - For the resource pack addon, include the supplied `assets/talismanforge/items/reliquary.json`, `assets/talismanforge/models/block/reliquary.json` and matching PNG textures. Without the updated pack the BARRIER base block appears invisible.
+
+
+## v2.5.6 — lightweight gameplay tuning; no new textures
+- Maiming (Увечья): PvP hits steal exactly 0.5 raw food point (half a `foodLevel` unit), accumulated across two hits to handle Minecraft's integer food bar. The stolen food is transferred to the wielder without exceeding their cap. Wither and critical-hit Weakness are unchanged.
+- Wrath (Кары): no HUD bar, maximum 4 consecutive critical hits, reset after a non-critical or 5 seconds between hits. Bonus damage is only +1, +2, +3, +4% on top of existing Wrath base; a critical combo sometimes wears **one** equipped armor piece by one additional durability, respecting Unbreaking.
+- Joker (Джокер): newly generated items randomly have 1–3 resurrection attempts. Success consumes one attempt but restores the item if any remain; failure destroys it. Without Luck success is 50%; while under a Luck potion effect it is 75%. The original random effects and fangs remain.
+- Poseidon: the short-lived ghost dolphin is 1.65× normal size, non-collidable, non-gravitational, and chases by direct teleports through walls. Its original brief duration and damage are retained.
+- Defiance: keep the three ordinary SHIELD item displays (2 hearts each, incoming hits individually absorbed) with saved state; no new entity models or textures.
+- Potion housekeeping: periodic short effects from talismans are tracked so that replacing/removing talismans does not intentionally strip separate longer or stronger vanilla potion effects; consumed Absorption hearts are not refilled by the plugin's refresh.
+- Small existing-particle/sound polish for Maiming, Poseidon and End; ghasts check line of sight before supporting Hades.
+- Reliquary and all model/texture pack assets remain as in 2.5.5, with no new texture requirement introduced by this release.
