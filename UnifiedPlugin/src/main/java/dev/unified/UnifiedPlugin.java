@@ -33,6 +33,16 @@ return;
 }
 }
 getLogger().info("All five modules loaded in one JAR. Legacy data folders and item namespaces preserved.");
+org.bukkit.command.PluginCommand diagnostics=getCommand("unified");
+if(diagnostics!=null)diagnostics.setExecutor((sender,command,label,args)->{
+sender.sendMessage("§aMinecraftUnified 1.0.1 §7| модулей: §f"+enabledModules.size()+"/5");
+for(ModuleBridge module:enabledModules){
+sender.sendMessage("§7• §a"+module.getName()+" §8(запущен)");
+}
+sender.sendMessage("§7Проверка существ: §f/ss spawn giant_frog §7или §f/ss spawn flying_pig");
+sender.sendMessage("§7Торговец: §f/ce trader");
+return true;
+});
 }
 @Override public void onDisable(){
 for(int i=enabledModules.size()-1;i>=0;i--){
