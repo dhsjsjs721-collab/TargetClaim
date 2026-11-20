@@ -9,6 +9,7 @@ import pathlib
 import tempfile
 import zipfile
 from PIL import Image
+from new_equipment_assets_20261121 import assets as new_equipment_assets
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 PACK=ROOT/"resourcepacks"/"TalismanForge-2.0.0-ResourcePack.zip"
@@ -47,6 +48,7 @@ def main():
         image=Image.open(io.BytesIO(raw))
         image.verify()
         incoming[name]=raw
+    incoming.update(new_equipment_assets())
     incoming.update({
         "assets/targetclaim/items/chest_key.json":j({
             "model":{"type":"minecraft:model","model":"targetclaim:item/chest_key"}
@@ -60,7 +62,7 @@ def main():
         }),
         "assets/talismanforge/models/block/reliquary.json":j(build_reliquary()),
         "pack.mcmeta":j({
-            "pack":{"description":"TalismanForge + SwampSky + TargetClaim | unified textures 2026-11-20",
+            "pack":{"description":"TalismanForge + SwampSky + TargetClaim + Shields | unified 2026-11-21",
                     "min_format":[97,1],"max_format":[97,1]}})
     })
     with zipfile.ZipFile(PACK) as zip_in:
@@ -85,6 +87,6 @@ def main():
     sha=hashlib.sha1(PACK.read_bytes()).hexdigest()
     (PACK.parent/"TalismanForge-2.0.0-ResourcePack.sha1").write_text(sha+"\n")
     print("MAIN PACK:",PACK.name,"entries:",len(old),"sha1:",sha,"bytes:",PACK.stat().st_size)
-    for ns in ("talismanforge","swampsky","targetclaim"):
+    for ns in ("talismanforge","swampsky","targetclaim","minecraftunified"):
         print(ns,sum(k.startswith("assets/"+ns+"/") for k in old))
 if __name__=="__main__":main()
