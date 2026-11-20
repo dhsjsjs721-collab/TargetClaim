@@ -52,7 +52,8 @@ private final Map<UUID,Long> aggroUntil=new HashMap<>(),attackCooldown=new HashM
 private final Map<UUID,Integer> hitCount=new HashMap<>();
 private final Map<UUID,Vector> flightVectors=new HashMap<>();
 // Stable per-pig targets prevent the old aimless oscillation around a constantly moving target.
-private final Map<UUID,Location> roamHomes=new HashMap<>(),roamTargets=new HashMap<>(),motionSamples=new HashMap<>();
+private final Map<UUID,Location> roamHomes=new HashMap<>(),roamTargets=new HashMap<>(),motionSamples=new HashMap<>(),groundTargets=new HashMap<>();
+private final Map<UUID,Long> groundPathUntil=new HashMap<>();
 private final Map<UUID,Long> roamExpiry=new HashMap<>(),motionCheckAt=new HashMap<>(),pigErrorLogAt=new HashMap<>();
 private final Map<UUID,Integer> motionStalls=new HashMap<>();
 private final Set<UUID> airborne=new HashSet<>(), bounceLocked=new HashSet<>();
@@ -83,7 +84,7 @@ Bukkit.getScheduler().runTaskTimer(this,this::upgradeOnlineEquipment,40L,100L);
 @Override public void onDisable(){
 for(UUID id:new ArrayList<>(displays.keySet()))pigClear(id);
 aggro.clear();aggroUntil.clear();attackCooldown.clear();hitWindow.clear();hitCount.clear();flightVectors.clear();
-roamHomes.clear();roamTargets.clear();motionSamples.clear();roamExpiry.clear();motionCheckAt.clear();motionStalls.clear();pigErrorLogAt.clear();
+roamHomes.clear();roamTargets.clear();motionSamples.clear();roamExpiry.clear();motionCheckAt.clear();motionStalls.clear();pigErrorLogAt.clear();groundTargets.clear();groundPathUntil.clear();
 dismountFall.clear();knockbackUntil.clear();pendingMount.clear();
 for(UUID id:ground){Entity e=Bukkit.getEntity(id);if(e instanceof Pig p){p.setAI(true);p.setAware(true);}}
 for(UUID id:wings){
@@ -169,7 +170,7 @@ Bukkit.getScheduler().runTask(this,()->{if(e.getChunk().isLoaded())scan(e.getChu
 for(Entity entity:e.getChunk().getEntities())if(entity instanceof Pig){
 pigClear(entity.getUniqueId());
 forgetFlight(entity.getUniqueId());
-if(!marked(entity,flyingKey))ground.remove(entity.getUniqueId());
+if(!marked(entity,flyingKey)){ground.remove(entity.getUniqueId());groundTargets.remove(entity.getUniqueId());groundPathUntil.remove(entity.getUniqueId());}
 }
 }
 @EventHandler public void dead(EntityDeathEvent e){
@@ -177,7 +178,7 @@ Entity entity=e.getEntity();
 UUID id=entity.getUniqueId();
 if(entity instanceof Pig){
 if(marked(entity,flyingKey))e.getDrops().add(new ItemStack(Material.PHANTOM_MEMBRANE,1+random.nextInt(2)));
-wings.remove(id);ground.remove(id);pigClear(id);
+wings.remove(id);ground.remove(id);pigClear(id);groundTargets.remove(id);groundPathUntil.remove(id);
 forgetFlight(id);
 aggro.remove(id);aggroUntil.remove(id);attackCooldown.remove(id);hitWindow.remove(id);hitCount.remove(id);knockbackUntil.remove(id);
 }
@@ -330,8 +331,10 @@ try{drawWings(p);}catch(RuntimeException ex){pigProblem(id,ex,"wing rendering");
 }
 for(UUID id:new ArrayList<>(ground)){
 Entity e=Bukkit.getEntity(id);
-if(!(e instanceof Pig pig)||!pig.isValid()){ground.remove(id);continue;}
-movePig(pig,false);
+if(!(e instanceof Pig pig)||!pig.isValid()){
+ground.remove(id);groundTargets.remove(id);groundPathUntil.remove(id);continue;
+}
+try{movePig(pig,false);}catch(RuntimeException ex){pigProblem(id,ex,"ground pathfinding");}
 }
 if(tick%21==0)for(Player p:Bukkit.getOnlinePlayers())armor(p);
 if(tick%30==0)breedWingedPigs();
@@ -360,7 +363,7 @@ ride(pig,rider,fly);
 return;
 }
 if(!pig.hasAI())pig.setAI(true);
-if(!fly){pig.setGravity(true);moveGroundPig(pig);return;}
+if(!fly){if(!pig.hasGravity())pig.setGravity(true);moveGroundPig(pig);return;}
 // Paper's setAI(false) freezes movement even if plugins set velocity.
 // Keep AI enabled but disable vanilla pathfinding only for our flying pig.
 if(pig.isAware())pig.setAware(false);
@@ -565,22 +568,37 @@ motionSamples.put(id,rescue.clone());
 motionStalls.remove(id);
 }
 private void moveGroundPig(Pig pig){
-Player lure=null;double best=12*12;
+UUID id=pig.getUniqueId();
+// Vanilla pathfinding is more reliable than setVelocity on a grounded animal.
+// The previous code setAware(false) whenever a pumpkin appeared, which could
+// leave pigs apparently frozen when the velocity was interrupted by physics.
+if(!pig.isAware())pig.setAware(true);
+if(pig.isLeashed()||!pig.getPassengers().isEmpty())return;
+Player lure=null;
+double best=12*12;
 for(Player p:pig.getWorld().getPlayers()){
+if(p.isDead()||p.getGameMode()==GameMode.SPECTATOR)continue;
 if(!food(p.getInventory().getItemInMainHand())&&!food(p.getInventory().getItemInOffHand()))continue;
-double d=p.getLocation().distanceSquared(pig.getLocation());
-if(d<best){best=d;lure=p;}
+double distance=p.getLocation().distanceSquared(pig.getLocation());
+if(distance<best){best=distance;lure=p;}
 }
-if(lure==null){pig.setAware(true);return;}
-pig.setAware(false);
-Vector movement=lure.getLocation().toVector().subtract(pig.getLocation().toVector()).setY(0);
-if(movement.lengthSquared()<2){pig.setVelocity(new Vector(0,pig.getVelocity().getY(),0));return;}
-movement.normalize().multiply(.29);
-Location front=pig.getLocation().add(movement.clone().multiply(2));
-if(!front.getBlock().isPassable()&&front.clone().add(0,1,0).getBlock().isPassable()&&pig.isOnGround())movement.setY(.47);
-else movement.setY(pig.getVelocity().getY());
-pig.setVelocity(movement);
-faceVector(pig,movement);
+if(lure==null){
+if(groundTargets.remove(id)!=null)pig.getPathfinder().stopPathfinding();
+return;
+}
+Location target=lure.getLocation();
+if(best<2.4*2.4){
+if(groundTargets.remove(id)!=null)pig.getPathfinder().stopPathfinding();
+return;
+}
+Location old=groundTargets.get(id);
+// Only update the path when the target meaningfully moves or the path expires.
+if(old==null||old.getWorld()!=target.getWorld()||old.distanceSquared(target)>2*2
+||tick>=groundPathUntil.getOrDefault(id,0L)){
+groundTargets.put(id,target.clone());
+groundPathUntil.put(id,tick+24);
+pig.getPathfinder().moveTo(target,1.18);
+}
 }
 private boolean onSnowOrIce(Location location){
 Material below=location.clone().subtract(0,1,0).getBlock().getType();
