@@ -1,5 +1,5 @@
 name: TalismanForge
-version: 2.5.5
+version: 2.5.6
 main: dev.talismanforge.TalismanForgePlugin
 api-version: '26.3'
 author: TalismanForge
@@ -11,4 +11,4 @@ commands:
 permissions:
   talismanforge.admin:
     default: op
-    description: May give special talismans and chests
+    description: May give special talismans and relics
