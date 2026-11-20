@@ -1,0 +1,41 @@
+name: Update one unified Minecraft resourcepack
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "resourcepacks/unified-assets-20261120.json"
+      - "tools/update_unified_resourcepack_20261120.py"
+      - ".github/workflows/update-unified-resourcepack.yml"
+permissions:
+  contents: write
+concurrency:
+  group: unified-resourcepack-main
+  cancel-in-progress: false
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install texture verification dependency
+        run: python -m pip install Pillow
+      - name: Merge into existing main pack at its unchanged path
+        run: python tools/update_unified_resourcepack_20261120.py
+      - name: Publish the existing main pack ZIP (no new URL)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add resourcepacks/TalismanForge-2.0.0-ResourcePack.zip resourcepacks/TalismanForge-2.0.0-ResourcePack.sha1
+          if ! git diff --cached --quiet; then
+            git commit -m "Unify TargetClaim key, Reliquary, TalismanForge and SwampSky textures [skip ci]"
+            git push origin HEAD:main
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Unified-Minecraft-ResourcePack
+          path: resourcepacks/TalismanForge-2.0.0-ResourcePack.zip
