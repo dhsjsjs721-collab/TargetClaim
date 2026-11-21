@@ -1291,7 +1291,7 @@ if(nearest==null)sender.sendMessage("§7Рядом (32 блока) нет лет
 else{
 UUID id=nearest.getUniqueId();Vector velocity=nearest.getVelocity();
 sender.sendMessage("§7Свиника: §f"+(int)Math.sqrt(nearestDistance)+" блоков §7| AI="+nearest.hasAI()+" aware="+nearest.isAware()+" gravity="+nearest.hasGravity());
-sender.sendMessage("§7Скорость: §f"+String.format(java.util.Locale.ROOT,"%.2f",velocity.length())+" §7| цель="+(roamTargets.containsKey(id)?"свободный полёт":onlineOwner(nearest)!=null?"владелец / цель":"поиск"));
+sender.sendMessage("§7Скорость: §f"+String.format(java.util.Locale.ROOT,"%.2f",velocity.length())+" §7| режим="+(nearest.getPassengers().isEmpty()?(nearest.hasGravity()?"приземлён / ходит":"управляемый полёт"):"верховая езда"));
 sender.sendMessage("§7Застревания подряд: §f"+motionStalls.getOrDefault(id,0));
 }
 }
@@ -1303,7 +1303,8 @@ int count=0;
 for(Entity entity:player.getWorld().getNearbyEntities(player.getLocation(),48,36,48)){
 if(!(entity instanceof Pig pig)||!marked(pig,flyingKey))continue;
 UUID id=pig.getUniqueId();
-pig.setAI(true);pig.setAware(false);pig.setGravity(false);pig.setCollidable(false);
+boolean grounded=pig.isOnGround()||!pig.getLocation().clone().subtract(0,.45,0).getBlock().isPassable();
+pig.setAI(true);pig.setAware(grounded);pig.setGravity(grounded);pig.setCollidable(true);
 scaleWingedPig(pig);
 roamTargets.remove(id);roamExpiry.remove(id);motionStalls.remove(id);motionSamples.remove(id);flightVectors.remove(id);
 roamHomes.put(id,pig.getLocation().clone());wings.add(id);
