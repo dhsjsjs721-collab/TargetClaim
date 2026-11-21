@@ -1,4 +1,4 @@
-# MinecraftUnified 1.1.4 — One JAR for all five Paper plugins
+# MinecraftUnified 1.1.5 — One JAR for all five Paper plugins
 
 A **real single Paper plugin** (not an installer ZIP) built from the latest maintained source branches of TargetClaim, TalismanForge 2.6.0, EnchantmentForge 1.2.0, SwampSky 1.7.1 and ImageMaps 1.1.0. The compile-time generator converts the existing five JavaPlugin subclasses into hosted listener/command modules, retaining their features and original data identifiers.
 
@@ -8,7 +8,7 @@ A **real single Paper plugin** (not an installer ZIP) built from the latest main
 
 1. Stop the server, **back up the entire world and existing plugin data**.
 2. Remove the old five separate JARs from `plugins/`. Do not keep the five old plugins alongside this file: duplicate recipes and event handlers would conflict.
-3. Place only `MinecraftUnified-1.1.4.jar` in `plugins/`.
+3. Place only `MinecraftUnified-1.1.5.jar` in `plugins/`.
 4. Keep using the single `resourcepacks/TalismanForge-2.0.0-ResourcePack.zip` from the main branch, with the SHA1 shown in the main repo; it includes the SwampSky equipment, TargetClaim key and Reliquary artwork.
 5. Start the server and run `/unified`: all five modules should appear as loaded.
 
@@ -109,7 +109,7 @@ Automated CI boot checks five module startup, original obsidian trap and the new
 - The updated trader marker reconfigures old existing trader entities. Offers are picked once per entity and not rerolled on right-click. All trader spawning methods, `/u trader`, and all existing 1.0.9 gameplay modules remain.
 - **Deployment:** back up both your world and `plugins/TargetClaim/data.yml` because existing claims change their physical dimensions at all levels. Only install this one combined JAR, not TargetClaim/EnchantmentForge separate JARs. Main unified resource pack unchanged; original SHA1 remains valid. New functionality needs in-world testing, as the CI smoke test only validates server startup and command dispatch.
 
-## MinecraftUnified 1.1.4: claim counters and trader inventory
+## MinecraftUnified 1.1.5: claim counters and trader inventory
 
 New normal claim caps are tracked per dimension/world: two in the Overworld, two in the Nether, one in The End, two in other worlds. The independently purchased **20-diamond** non-upgradable level-2 claim has a separate **global quota of 3 per player, across every world combined**; it does not count against ordinary limits. All five original modules, three special shields and FunTime-style obsidian traps still live in one JAR.
 
@@ -125,7 +125,7 @@ Ordinary claims have separate active quotas per world (two in normal/Nether worl
 
 EnchantmentForge 1.4.0 uses new default trader spawning every five minutes, with up to four traders per regular world, preference for players visiting villages and real walking behavior toward loaded villagers, all bounded to loaded chunks. Normal custom 14–21 item trades and the always-20-diamond independent claim are unchanged. Use `/u trader` for admin testing. No changes to resources, textures or installed file structure. Player tests should check merchants in villages versus ordinary terrain.
 
-## MinecraftUnified 1.1.4 — agreed Deepslate craft
+## MinecraftUnified 1.1.5 — agreed Deepslate craft
 
 The *only new gameplay feature compared with 1.1.3* is a vanilla crafting-table shaped recipe for **8 Deepslate**, available to all races/players:
 
@@ -141,4 +141,15 @@ B = Basalt (4), K = Blackstone (4), O = Obsidian (1). The produced item is ordin
 
 **Not included:** the proposed playable races (Elf, Dwarf, Deepborn), flower arrows, the proposed eight unapproved craftable items and new race bonuses. These remain concepts; no unrequested mechanics have been activated.
 
-**Upgrade:** replace `MinecraftUnified-1.1.3.jar` with `MinecraftUnified-1.1.4.jar` after making a backup of worlds and plugin data. Do not install both. No resourcepack change required.
+**Upgrade:** replace `MinecraftUnified-1.1.3.jar` with `MinecraftUnified-1.1.5.jar` after making a backup of worlds and plugin data. Do not install both. No resourcepack change required.
+
+## 1.1.5 — pig AI/steering repair and 3D guardian shields
+
+- **Pig riding:** no automatic mounting on jumps. Ordinary right-click mounts tame flying pigs. Ordinary saddled pigs now move and turn with horse-like acceleration, braking, Space jump and steering. Flying pigs use reduced speed, Space ascent, and look down+W descent with collision predictions to prevent digging into solid blocks.
+- **Calm companion:** a winged pig stands/lands when within about 8.5 blocks of its owner, follows behind on foot until far away, and flies only to catch up. Wild pigs have short flight bursts separated by prolonged resting and normal land wandering. Descending from altitude and upgrading previously saved flying pigs are handled without free-fall deaths; `/ss repair` respects landing state.
+- **Camera/guardian items:** End swords stay behind the character and rotate with their owner, including the low-HP transformed shield. Defiance's three spectral guardian shields remain in a small row **behind** the player instead of orbiting at camera height. Turtle's shield back display follows yaw and re-creates correctly after world changes.
+- **Real 3D meshes:** the Wither, Turtle, Crusher and Spectral shields use extruded block geometry with raised front panel, center boss and back handle. This is in the one main resource pack, same file name and hosting path. SHA-1: `742640f383fdbaab59680bbcf9143e3b403f4738`. Players must download the updated pack and servers must update the resource-pack-sha1 when forcing a pack.
+- **Preserved:** Deepslate craft (4 basalt + 4 blackstone + obsidian -> 8 Deepslate), 5 modules, claim quotas, trader rotation, PvP trap, enchantments, talismans and ordinary frog mechanics. No new races are implemented.
+- **Verification:** Gradle CI compiles and starts a real Purpur 26.3 server with five modules and the extra shields/recipe. Actual visual appearance, live mounted handling and PvP still require player-in-world testing.
+
+Upgrade by stopping the server, backing up worlds and data, removing `MinecraftUnified-1.1.4.jar`, installing **only** `MinecraftUnified-1.1.5.jar`, replacing the existing resource pack with its updated ZIP and restarting. Do not keep old and new plugin JARs simultaneously.
