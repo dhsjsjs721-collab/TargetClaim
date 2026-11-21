@@ -319,6 +319,15 @@ public void dismount(EntityDismountEvent e){
 if(!(e.getEntity() instanceof Player player)||!(e.getDismounted() instanceof Pig pig))return;
 heldJump.remove(player.getUniqueId());nextMountedJump.remove(pig.getUniqueId());mountedMomentum.remove(pig.getUniqueId());
 if(!owned(pig,player))return;
+if(marked(pig,flyingKey)){
+pig.setGravity(true);
+pig.setAware(true);
+// Leave the vehicle hovering only briefly. When dismounted it gently
+// returns to ground, and the following tick picks a safe walking goal.
+Vector v=pig.getVelocity().clone();
+pig.setVelocity(new Vector(v.getX()*.25,Math.min(v.getY(),-.07),v.getZ()*.25));
+pig.setFallDistance(0f);
+}
 UUID id=player.getUniqueId();
 long until=tick+240;
 dismountFall.put(id,until);
@@ -353,6 +362,11 @@ private void mountFlyingPig(Player player,Pig pig){
 if(!player.isOnline()||!pig.isValid()||player.isInsideVehicle()||!pig.getPassengers().isEmpty()
 ||!owned(pig,player)||!pig.isAdult())return;
 pig.setAI(true);pig.setSaddle(true);
+pig.getPathfinder().stopPathfinding();
+mountedMomentum.remove(pig.getUniqueId());
+followStalls.remove(pig.getUniqueId());
+followCheckpoints.remove(pig.getUniqueId());
+assistTakeoffUntil.remove(pig.getUniqueId());
 settleUntil.remove(pig.getUniqueId());
 roamTargets.remove(pig.getUniqueId());
 flightVectors.remove(pig.getUniqueId());
@@ -559,7 +573,8 @@ if(sq<=8.5*8.5){
 assistTakeoffUntil.remove(id);followStalls.remove(id);
 restWingedPig(pig,false);return;
 }
-if(sq<=21*21&&pig.isOnGround()&&tick>=assistTakeoffUntil.getOrDefault(id,0L)){
+boolean lowCeiling=pig.isOnGround()&&!clearForPig(here.clone().add(0,1.4,0));
+if((sq<=21*21||lowCeiling)&&pig.isOnGround()&&tick>=assistTakeoffUntil.getOrDefault(id,0L)){
 walkWingedToOwner(pig,own);return;
 }
 if(sq<=21*21&&pig.isOnGround()&&tick<assistTakeoffUntil.getOrDefault(id,0L)){
@@ -1212,6 +1227,12 @@ event.setResult(null);
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void fall(EntityDamageEvent e){
+if(e.getEntity() instanceof Pig winged&&marked(winged,flyingKey)
+&&e.getCause()==EntityDamageEvent.DamageCause.FALL){
+e.setCancelled(true);
+winged.setFallDistance(0f);
+return;
+}
 if(e.getEntity() instanceof Player p && e.getCause()==EntityDamageEvent.DamageCause.FALL){
 UUID id=p.getUniqueId();
 Long until=dismountFall.get(id);
