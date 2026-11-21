@@ -1,5 +1,5 @@
 name: EnchantmentForge
-version: 1.3.1
+version: 1.4.0
 main: dev.enchantmentforge.EnchantmentForgePlugin
 api-version: '26.3'
 author: EnchantmentForge
