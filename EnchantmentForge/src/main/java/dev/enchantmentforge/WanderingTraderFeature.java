@@ -8,9 +8,12 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.CreatureSpawner;
+import org.bukkit.block.Block;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Villager;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.TraderLlama;
 import org.bukkit.entity.WanderingTrader;
 import org.bukkit.event.EventHandler;
@@ -33,6 +36,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Random;
 
 final class WanderingTraderFeature implements Listener {
@@ -43,6 +51,8 @@ private final NamespacedKey traderKey;
 private final ItemStack soulboundBook;
 private final ItemStack tripleShotBook;
 private final Random random=new Random();
+private final Map<UUID,Long> nextJourney=new HashMap<>();
+private final Set<UUID> configuredPaths=new HashSet<>();
 
 WanderingTraderFeature(JavaPlugin plugin, ItemStack soulboundBook, ItemStack tripleShotBook) {
 this.plugin=plugin;
@@ -63,8 +73,10 @@ if (llama.isLeashed() && llama.getLeashHolder() instanceof WanderingTrader) llam
 }
 }
 },2L);
-long interval=Math.max(5,Math.min(180,plugin.getConfig().getLong("trader-spawn-minutes",25)));
+// New keys intentionally override legacy 25-minute configs on existing servers.
+long interval=Math.max(2,Math.min(30,plugin.getConfig().getLong("trader-journey-spawn-minutes",5)));
 Bukkit.getScheduler().runTaskTimer(plugin,this::periodicSpawn,interval*1200L,interval*1200L);
+Bukkit.getScheduler().runTaskTimer(plugin,this::travelTick,140L,160L);
 }
 
 ItemStack charm() {
@@ -137,6 +149,9 @@ if(entity instanceof TraderLlama llama&&llama.isLeashed()&&llama.getLeashHolder(
 }
 }
 private void configure(WanderingTrader trader) {
+if (!trader.isValid()||trader.isDead()) return;
+if (!trader.hasAI()) trader.setAI(true);
+trader.setAware(true);
 if (trader.getPersistentDataContainer().has(traderKey,PersistentDataType.BYTE)) return;
 trader.setCustomName("§6Странствующий торговец");
 trader.setCustomNameVisible(false);
@@ -376,20 +391,114 @@ for (Offer offer:selected) recipes.add(recipe(offer));
 return recipes;
 }
 
+private int maxTraders(World world){
+return Math.max(1,Math.min(6,plugin.getConfig().getInt("trader-journey-max-per-world",4)));
+}
+private List<Villager> nearbyVillagers(Location place,double distance){
+List<Villager> found=new ArrayList<>();
+if(place.getWorld()==null)return found;
+for(Entity nearby:place.getWorld().getNearbyEntities(place,distance,18,distance)){
+if(nearby instanceof Villager villager&&villager.isValid()&&!villager.isDead())found.add(villager);
+}
+return found;
+}
+private boolean inVillage(Player player){
+// Vanilla villages are represented here by nearby loaded villagers.
+// No synchronous village structure search and no chunk generation.
+return nearbyVillagers(player.getLocation(),45).size()>=2;
+}
 private void periodicSpawn() {
 List<Player> players=new ArrayList<>();
-for (Player player:Bukkit.getOnlinePlayers()) {
-if (player.getWorld().getEnvironment()==World.Environment.NORMAL && !player.isDead()) players.add(player);
+List<Player> villages=new ArrayList<>();
+for(Player player:Bukkit.getOnlinePlayers()){
+if(player.isDead()||player.getWorld().getEnvironment()!=World.Environment.NORMAL)continue;
+if(player.getGameMode()==org.bukkit.GameMode.SPECTATOR)continue;
+players.add(player);
+if(inVillage(player))villages.add(player);
 }
-if (players.isEmpty()) return;
+if(players.isEmpty())return;
 Collections.shuffle(players,random);
-for (Player player:players) {
+Collections.shuffle(villages,random);
+double preference=Math.max(0,Math.min(1,plugin.getConfig().getDouble("trader-journey-village-preference",.75)));
+// Visit a village first in ~75% of intervals if an inhabited one is loaded.
+boolean villageFirst=!villages.isEmpty()&&random.nextDouble()<preference;
+List<Player> order=new ArrayList<>();
+if(villageFirst)order.addAll(villages);
+for(Player player:players)if(!order.contains(player))order.add(player);
+for(Player player:order){
 World world=player.getWorld();
-int limit=Math.max(1,Math.min(5,plugin.getConfig().getInt("trader-max-per-world",2)));
-if (world.getEntitiesByClass(WanderingTrader.class).size()>=limit) continue;
-if (!spawnNear(player)) continue;
-if (random.nextDouble()<0.25 && world.getEntitiesByClass(WanderingTrader.class).size()<limit) spawnNear(player);
-break; // Max one player selected per interval.
+if(world.getEntitiesByClass(WanderingTrader.class).size()>=maxTraders(world))continue;
+if(!spawnNear(player,villageFirst&&inVillage(player)))continue;
+// At most one merchant spawned in an interval, avoiding server floods.
+break;
+}
+}
+private Location walkable(Location center,int dx,int dz,int maxHeightDelta){
+World world=center.getWorld();
+if(world==null)return null;
+int x=center.getBlockX()+dx,z=center.getBlockZ()+dz;
+if(!world.isChunkLoaded(x>>4,z>>4))return null;
+int y=world.getHighestBlockYAt(x,z);
+if(y<=world.getMinHeight()||y>=world.getMaxHeight()-3||Math.abs(y-center.getBlockY())>maxHeightDelta)return null;
+Block below=world.getBlockAt(x,y,z);
+Block feet=world.getBlockAt(x,y+1,z);
+Block head=world.getBlockAt(x,y+2,z);
+if(!below.getType().isSolid()||below.isLiquid()
+||feet.isLiquid()||head.isLiquid()
+||!feet.isPassable()||!head.isPassable())return null;
+Material surface=below.getType();
+if(surface==Material.MAGMA_BLOCK||surface==Material.CACTUS||surface==Material.CAMPFIRE
+||surface==Material.SOUL_CAMPFIRE||surface==Material.SWEET_BERRY_BUSH)return null;
+Location point=new Location(world,x+.5,y+1,z+.5);
+if(!world.getWorldBorder().isInside(point))return null;
+return point;
+}
+private void travelTick(){
+if(!plugin.getConfig().getBoolean("trader-journey-roam-enabled",true))return;
+long now=System.currentTimeMillis();
+int handled=0;
+for(World world:Bukkit.getWorlds()){
+if(world.getEnvironment()!=World.Environment.NORMAL)continue;
+for(WanderingTrader trader:world.getEntitiesByClass(WanderingTrader.class)){
+if(handled++>=30)return; // bounded work across all worlds
+if(!trader.isValid()||trader.isDead()||trader.isTrading()||!trader.hasAI()||!trader.isAware())continue;
+UUID id=trader.getUniqueId();
+if(now<nextJourney.getOrDefault(id,0L))continue;
+nextJourney.put(id,now+13_000+random.nextInt(13_000));
+Location start=trader.getLocation();
+Location destination=null;
+// In villages, wander between villagers' homes rather than pacing
+// near the same position. Targets must be in already loaded chunks.
+List<Villager> residents=nearbyVillagers(start,26);
+if(!residents.isEmpty()&&random.nextDouble()<.7){
+Villager resident=residents.get(random.nextInt(residents.size()));
+Location home=resident.getLocation();
+for(int attempt=0;attempt<8;attempt++){
+destination=walkable(home,random.nextInt(9)-4,random.nextInt(9)-4,5);
+if(destination!=null&&destination.distanceSquared(start)>16&&destination.distanceSquared(start)<28*28)break;
+destination=null;
+}
+}
+if(destination==null){
+for(int attempt=0;attempt<10;attempt++){
+int dx=(random.nextBoolean()?1:-1)*(5+random.nextInt(14));
+int dz=(random.nextBoolean()?1:-1)*(5+random.nextInt(14));
+destination=walkable(start,dx,dz,6);
+if(destination!=null)break;
+}
+}
+if(destination==null)continue;
+double speed=Math.max(.35,Math.min(1.2,plugin.getConfig().getDouble("trader-journey-speed",.78)));
+try{trader.getPathfinder().moveTo(destination,speed);}
+catch(RuntimeException ex){plugin.getLogger().fine("Trader could not navigate to waypoint: "+ex.getMessage());}
+}
+}
+// Keep bookkeeping bounded as traders despawn or chunks unload.
+if(nextJourney.size()>128){
+Set<UUID> active=new HashSet<>();
+for(World world:Bukkit.getWorlds())
+for(WanderingTrader trader:world.getEntitiesByClass(WanderingTrader.class))active.add(trader.getUniqueId());
+nextJourney.keySet().retainAll(active);
 }
 }
 
@@ -409,24 +518,24 @@ trader.setDespawnDelay(Math.max(24000,Math.min(144000,plugin.getConfig().getInt(
 configure(trader);
 return true;
 }
-boolean spawnNear(Player player) {
+boolean spawnNear(Player player,boolean preferVillage) {
 World world=player.getWorld();
-if (world.getEnvironment()!=World.Environment.NORMAL) return false;
+if(world.getEnvironment()!=World.Environment.NORMAL)return false;
 Location center=player.getLocation();
-for (int attempt=0;attempt<18;attempt++) {
-int dx=(random.nextBoolean()?1:-1)*(22+random.nextInt(21));
-int dz=(random.nextBoolean()?1:-1)*(22+random.nextInt(21));
-int x=center.getBlockX()+dx;
-int z=center.getBlockZ()+dz;
-if (!world.isChunkLoaded(x>>4,z>>4)) continue;
-int y=world.getHighestBlockYAt(x,z);
-if (y<=world.getMinHeight() || y>=world.getMaxHeight()-3) continue;
-Location point=new Location(world,x+0.5,y+1,z+0.5);
-if (!world.getWorldBorder().isInside(point)) continue;
-if (!world.getBlockAt(x,y,z).getType().isSolid()) continue;
-if (!world.getBlockAt(x,y+1,z).getType().isAir() || !world.getBlockAt(x,y+2,z).getType().isAir()) continue;
+if(preferVillage){
+List<Villager> villagers=nearbyVillagers(center,48);
+if(villagers.size()>=2)center=villagers.get(random.nextInt(villagers.size())).getLocation();
+}
+for(int attempt=0;attempt<28;attempt++){
+int minimum=preferVillage?7:18;
+int maximum=preferVillage?20:43;
+int dx=(random.nextBoolean()?1:-1)*(minimum+random.nextInt(maximum-minimum));
+int dz=(random.nextBoolean()?1:-1)*(minimum+random.nextInt(maximum-minimum));
+Location point=walkable(center,dx,dz,10);
+if(point==null)continue;
 WanderingTrader trader=world.spawn(point,WanderingTrader.class);
 trader.setDespawnDelay(Math.max(24000,Math.min(144000,plugin.getConfig().getInt("trader-despawn-ticks",48000))));
+configure(trader);
 return true;
 }
 return false;
