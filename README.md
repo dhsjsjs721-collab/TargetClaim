@@ -1,6 +1,6 @@
-# TargetClaim 1.6.0 (development test)
+# TargetClaim 1.7.0 (development test)
 
-Minecraft Paper 26.3, Java 25. **Two claims per player.**
+Minecraft Paper 26.3, Java 25. **Normal claims: two per world, one in The End. Trader claims: three per owner globally, independent of normal limits.**
 
 - Unique target core (TARGET), crafted with 3 paper and 6 amethyst shards; when its claim is deleted, only 3 paper drop (no upgrade materials).
 - One-use special chest key (TRIPWIRE_HOOK), crafted as **one key** from a vertical column: top 1 amethyst shard, bottom 1 stick; the rest of the crafting grid is empty. /p givekey <nick> gives one key for admin testing.
@@ -41,9 +41,17 @@ GitHub Actions / Build plugin JAR; then download the artifact from the completed
 - The existing special-key PDC tag, theft mechanics and recipe are unchanged. Players' already-crafted keys are migrated on login.
 - Merge the `assets/targetclaim` namespace into the **single main resourcepack** (`resourcepacks/TalismanForge-2.0.0-ResourcePack.zip`). That same main pack also includes the TalismanForge and SwampSky assets and the Reliquary model; no other packs should be enabled simultaneously.
 
-## TargetClaim 1.6.0 — 2 territories and independent claim
+## TargetClaim 1.7.0 — 2 territories and independent claim
 
 - Maximum **2 claims per player**, each independently protected, managed, deleted, and saved by its own claim UUID. `/p list` displays both; `/p 1` or `/p 2` opens the respective claim, or use the compass inside its GUI. `/p` selects the claim at the player's current location or the first owned claim.
 - New standard 3D sizes by levels 0–4: **32×48×32**, **64³**, **96³**, **144³**, **210³**. The last size is 210 blocks on each side. Upgrade recipes have not changed.
 - Trader exclusive **independent claim core** is a server-tagged TARGET with a fixed **96×96×96** region (same size as ordinary level 2). It is NOT upgradeable, even with Shift+materials. It occupies 1 of the player's 2 available slots and has all normal owner/team/border/deletion protections.
 - Saved data remains in `plugins/TargetClaim/data.yml`. The loader reads the old format (claim key = owner UUID) and rewrites it to the new format (claim key = unique claim UUID, separate owner field) on the next save, without deleting existing claims. **Back up the file before upgrading**, and review any increased region overlaps after the size change.
+
+## v1.7.0: per-world and global independent claim counters
+
+- Ordinary crafted TARGET cores: at most **2 in each Overworld/Nether/custom world**, but **1 in each End world**. A normal core in one world does not consume the quota in another.
+- Traders' golden **independent** TARGET core (20 diamonds, always offered): fixed size **96×96×96** (level-2 size), cannot be upgraded, cannot be crafted. At most **3 active independent claims globally across all worlds** for an owner, counted separately from all normal-world quotas.
+- Each claim has a separate permanent UUID. The existing `plugins/TargetClaim/data.yml` owner-keyed entries are loaded compatibly, including their team/build settings. Back up `data.yml` before upgrading.
+- `/p list` shows all claims, world names, coordinates and usage counters. `/p 1`, `/p 2`, `/p 3`, etc. open any owned claim. The 27-slot GUI has a compass in slot 22 that cycles over all claims, including other worlds. `/p` prefers the current-world or current-location claim.
+- Upgrade levels for normal claims: **32×48×32**, **64³**, **96³**, **144³**, **210³**. Independent cores stay at **96³**. All existing claims use the updated per-level sizes: check for overlapping old claims before production use, as expanded dimensions can now overlap after migrating from older versions.
