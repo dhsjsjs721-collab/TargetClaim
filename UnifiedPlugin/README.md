@@ -1,4 +1,4 @@
-# MinecraftUnified 1.0.9 — One JAR for all five Paper plugins
+# MinecraftUnified 1.1.1 — One JAR for all five Paper plugins
 
 A **real single Paper plugin** (not an installer ZIP) built from the latest maintained source branches of TargetClaim, TalismanForge 2.6.0, EnchantmentForge 1.2.0, SwampSky 1.7.1 and ImageMaps 1.1.0. The compile-time generator converts the existing five JavaPlugin subclasses into hosted listener/command modules, retaining their features and original data identifiers.
 
@@ -8,7 +8,7 @@ A **real single Paper plugin** (not an installer ZIP) built from the latest main
 
 1. Stop the server, **back up the entire world and existing plugin data**.
 2. Remove the old five separate JARs from `plugins/`. Do not keep the five old plugins alongside this file: duplicate recipes and event handlers would conflict.
-3. Place only `MinecraftUnified-1.0.9.jar` in `plugins/`.
+3. Place only `MinecraftUnified-1.1.1.jar` in `plugins/`.
 4. Keep using the single `resourcepacks/TalismanForge-2.0.0-ResourcePack.zip` from the main branch, with the SHA1 shown in the main repo; it includes the SwampSky equipment, TargetClaim key and Reliquary artwork.
 5. Start the server and run `/unified`: all five modules should appear as loaded.
 
@@ -108,3 +108,11 @@ Automated CI boot checks five module startup, original obsidian trap and the new
 - Traders now carry **14–21** varied items instead of the whole catalog. Most prices vary slightly (about ±12%) and follow rarity tiers: crops and food are cheap, spawn eggs and enchantments moderate, while spawners, netherite templates and Elytra are expensive. A trader has 22% chance to carry a single random spawner, not all five. Special enchant-book recipes retain their original non-diamond ingredients.
 - The updated trader marker reconfigures old existing trader entities. Offers are picked once per entity and not rerolled on right-click. All trader spawning methods, `/u trader`, and all existing 1.0.9 gameplay modules remain.
 - **Deployment:** back up both your world and `plugins/TargetClaim/data.yml` because existing claims change their physical dimensions at all levels. Only install this one combined JAR, not TargetClaim/EnchantmentForge separate JARs. Main unified resource pack unchanged; original SHA1 remains valid. New functionality needs in-world testing, as the CI smoke test only validates server startup and command dispatch.
+
+## MinecraftUnified 1.1.1: claim counters and trader inventory
+
+New normal claim caps are tracked per dimension/world: two in the Overworld, two in the Nether, one in The End, two in other worlds. The independently purchased **20-diamond** non-upgradable level-2 claim has a separate **global quota of 3 per player, across every world combined**; it does not count against ordinary limits. All five original modules, three special shields and FunTime-style obsidian traps still live in one JAR.
+
+TargetClaim 1.7.0 includes /p list and /p N selection, UUID-keyed multi-claim save data with backward compatibility for existing owner-keyed saves, and all ordinary levels up to 210 blocks in width. EnchantmentForge 1.3.1 rotates traders' stock and uses proportional rarity-sensitive pricing with mild randomized discounts; the independent claim always costs 20 diamonds. Keep the SAME unified resourcepack ZIP; no new textures are needed for the special core, which uses the vanilla TARGET.
+
+Important: the increase from earlier 16–160-size levels can cause existing nearby claim volumes to overlap. Back up existing `plugins/TargetClaim/data.yml` and worlds and verify claim boundaries after upgrade.
