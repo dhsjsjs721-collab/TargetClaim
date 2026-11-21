@@ -392,16 +392,69 @@ private void forgetFlight(UUID id){
 flightVectors.remove(id);roamHomes.remove(id);roamTargets.remove(id);roamExpiry.remove(id);
 motionSamples.remove(id);motionCheckAt.remove(id);motionStalls.remove(id);pigErrorLogAt.remove(id);
 }
+private void restWingedPig(Pig pig,boolean wild){
+UUID id=pig.getUniqueId();
+Location here=pig.getLocation();
+// Old flying code could push pigs into the terrain. Only use a local
+// vertical rescue when the present position is already obstructed.
+if(!clearForPig(here)){
+for(int dy=1;dy<=6;dy++){
+Location safe=here.clone().add(0,dy,0);
+if(clearForPig(safe)){
+pig.teleport(safe);
+here=safe;break;
+}
+}
+}
+Vector motion=pig.getVelocity();
+boolean ground=pig.isOnGround();
+boolean nearFloor=false;
+for(double dy=.30;dy<=1.8;dy+=.3){
+if(!here.clone().subtract(0,dy,0).getBlock().isPassable()){nearFloor=true;break;}
+}
+if(ground||nearFloor){
+// Natural gravity completes the last short landing without tunneling
+// through a block. Idle pets stay still instead of hovering at eye level.
+pig.setGravity(true);
+pig.setAware(wild);
+if(!wild)pig.getPathfinder().stopPathfinding();
+pig.setFallDistance(0f);
+pig.setVelocity(new Vector(motion.getX()*.08,Math.min(0,motion.getY()),motion.getZ()*.08));
+}else{
+pig.setGravity(false);
+pig.setAware(false);
+pig.setVelocity(new Vector(motion.getX()*.14,-.11,motion.getZ()*.14));
+}
+flightVectors.remove(id);
+roamTargets.remove(id);
+motionStalls.remove(id);
+}
+private Location ownerFollowPosition(Player owner){
+Vector forward=owner.getLocation().getDirection().setY(0);
+if(forward.lengthSquared()<.01)forward=new Vector(0,0,1);
+forward.normalize();
+return owner.getLocation().clone().subtract(forward.multiply(4.5));
+}
+private void walkWingedToOwner(Pig pig,Player owner){
+UUID id=pig.getUniqueId();
+if(!pig.hasGravity())pig.setGravity(true);
+if(!pig.isAware())pig.setAware(true);
+Location destination=ownerFollowPosition(owner);
+if(tick>=groundPathUntil.getOrDefault(id,0L)){
+groundPathUntil.put(id,tick+45);
+if(destination.getWorld()!=null&&destination.getWorld().isChunkLoaded(destination.getBlockX()>>4,destination.getBlockZ()>>4)
+&&clearForPig(destination))pig.getPathfinder().moveTo(destination,.92);
+else pig.getPathfinder().moveTo(owner.getLocation(),.78);
+}
+flightVectors.remove(id);
+}
 private void movePig(Pig pig,boolean fly){
 Player rider=null;
 for(Entity passenger:pig.getPassengers())if(passenger instanceof Player p){rider=p;break;}
 if(rider!=null&&(fly?owned(pig,rider):pig.hasSaddle()))return;
 if(!pig.hasAI())pig.setAI(true);
 if(!fly){if(!pig.hasGravity())pig.setGravity(true);moveGroundPig(pig);return;}
-// Paper's setAI(false) freezes movement even if plugins set velocity.
-// Keep AI enabled but disable vanilla pathfinding only for our flying pig.
-if(pig.isAware())pig.setAware(false);
-if(pig.hasGravity())pig.setGravity(false);
+// Winged pigs are predominantly grounded animals, not perpetual drones.
 UUID id=pig.getUniqueId();
 if(tick<knockbackUntil.getOrDefault(id,-1L))return;
 Location here=pig.getLocation();
@@ -442,8 +495,30 @@ double distance=here.distanceSquared(candidate.getLocation());
 if(distance<lureDistance){lure=candidate;lureDistance=distance;}
 }
 }
+// Tamed companions ignore pumpkin bait while following their owners.
+// They must neither jump into the player's camera nor chase held food in circles.
+if(own!=null){lure=null;if(spiderDistance>4*4)spider=null;}
+if(own!=null&&leashHolder==null&&fear==null&&attacker==null&&spider==null){
+double sq=here.distanceSquared(own.getLocation());
+if(sq<=8.5*8.5){restWingedPig(pig,false);return;}
+if(sq<=21*21&&pig.isOnGround()){walkWingedToOwner(pig,own);return;}
+}
+// Wild pigs explore the air in short excursions and then land/rest.
+// Their rest state is persistent while loaded; it is NOT randomised each tick.
+if(own==null&&leashHolder==null&&fear==null&&attacker==null&&lure==null&&spider==null){
+long flightUntil=wildFlightUntil.getOrDefault(id,0L);
+if(tick>=flightUntil){
+long restUntil=settleUntil.computeIfAbsent(id,unused->tick+240+random.nextInt(280));
+if(tick<restUntil){restWingedPig(pig,true);return;}
+wildFlightUntil.put(id,tick+65+random.nextInt(65));
+settleUntil.put(id,tick+550+random.nextInt(450));
+}
+}
+if(!pig.hasAI())pig.setAI(true);
+if(pig.isAware())pig.setAware(false);
+if(pig.hasGravity())pig.setGravity(false);
 Location destination;
-double speed=Math.max(.12,Math.min(.33,getConfig().getDouble("flying-pig-speed",.23)));
+double speed=Math.max(.12,Math.min(.32,getConfig().getDouble("flying-pig-speed",.21)));
 LivingEntity attackTarget=null;
 if(fear!=null){
 Vector escape=here.toVector().subtract(fear.getLocation().toVector());
@@ -467,24 +542,14 @@ attackTarget=spider;
 destination=swoopTarget(pig,spider);
 speed=.29;
 }else if(own!=null){
-double phase=tick*.025+Math.floorMod(id.hashCode(),211)*.07;
-boolean comingToMount=tick<approachRiderUntil.getOrDefault(id,0L);
-double radius=comingToMount?.75:2.1+Math.sin(phase*.31)*.45;
-double altitude=comingToMount?.15:1.75+Math.sin(phase*.72)*.35;
-destination=own.getLocation().clone().add(Math.cos(phase)*radius,altitude,Math.sin(phase)*radius);
-speed=comingToMount?.30:.22;
-// Keep short stable orbital waypoints: don't reverse direction every AI tick.
-if(!comingToMount&&here.distanceSquared(own.getLocation())<4.5*4.5){
-Location oldGoal=roamTargets.get(id);
-if(oldGoal!=null&&tick<roamExpiry.getOrDefault(id,0L)&&oldGoal.getWorld()==here.getWorld())destination=oldGoal.clone();
-else {roamTargets.put(id,destination.clone());roamExpiry.put(id,tick+40);}
-}else{roamTargets.remove(id);}
-
-// Catch up when the owner teleports; never force-load chunks.
+destination=ownerFollowPosition(own).add(0,1.45,0);
+// Keep behind the owner's back and stop once the animal gets close enough.
+speed=.23;
 if(here.distanceSquared(own.getLocation())>42*42&&!pig.isLeashed()){
-Location behind=own.getLocation().clone().add(0,3.4,0);
+Location behind=ownerFollowPosition(own).add(0,.75,0);
 if(clearForPig(behind)){
 pig.teleport(behind);
+restWingedPig(pig,false);
 flightVectors.remove(id);motionSamples.remove(id);motionStalls.remove(id);
 return;
 }
@@ -546,6 +611,16 @@ if(here.getY()<pig.getWorld().getMinHeight()+4)delta.setY(Math.max(delta.getY(),
 Vector previous=flightVectors.getOrDefault(id,pig.getVelocity()).clone();
 Vector smooth=previous.multiply(.76).add(delta.multiply(.24));
 if(smooth.lengthSquared()>speed*speed)smooth.normalize().multiply(speed);
+// Never inject a velocity that enters terrain at the next physics tick.
+// On obstruction, climb gently or cancel the blocked axis.
+Location next=here.clone().add(smooth);
+if(!clearForPig(next)){
+Location up=here.clone().add(0,.29,0);
+Location level=here.clone().add(smooth.getX()*.25,0,smooth.getZ()*.25);
+if(clearForPig(up))smooth=new Vector(0,.21,0);
+else if(clearForPig(level))smooth=new Vector(smooth.getX()*.25,0,smooth.getZ()*.25);
+else smooth=new Vector(0,0,0);
+}
 flightVectors.put(id,smooth.clone());
 pig.setVelocity(smooth);
 faceVector(pig,smooth);
