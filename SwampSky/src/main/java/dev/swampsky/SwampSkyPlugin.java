@@ -518,7 +518,7 @@ if(!pig.hasAI())pig.setAI(true);
 if(pig.isAware())pig.setAware(false);
 if(pig.hasGravity())pig.setGravity(false);
 Location destination;
-double speed=Math.max(.12,Math.min(.32,getConfig().getDouble("flying-pig-speed",.21)));
+double speed=Math.max(.10,Math.min(.30,getConfig().getDouble("flying-pig-safe-speed",.21)));
 LivingEntity attackTarget=null;
 if(fear!=null){
 Vector escape=here.toVector().subtract(fear.getLocation().toVector());
@@ -776,9 +776,9 @@ boolean moving=desired.lengthSquared()>.001;
 if(moving)desired.normalize();
 Location here=pig.getLocation();
 boolean water=pig.isInWater()||here.getBlock().isLiquid();
-double speed=fly?getConfig().getDouble("pig-speed",.30):
-water?getConfig().getDouble("pig-swim-speed",.27):
-getConfig().getDouble("pig-ground-ride-speed",.39);
+double speed=fly?getConfig().getDouble("pig-safe-flight-ride-speed",.29):
+water?getConfig().getDouble("pig-horse-swim-speed",.26):
+getConfig().getDouble("pig-horse-ride-speed",.38);
 if(input.isSprint())speed*=fly?1.15:1.22;
 if(snow(here)&&!water)speed*=getConfig().getDouble("snow-multiplier",.55);
 speed=Math.max(.08,Math.min(fly?.42:.56,speed));
@@ -1266,7 +1266,7 @@ new Quaternionf()
 @EventHandler public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();inputCache.remove(id);heldJump.remove(id);airborne.remove(id);fallSpeed.remove(id);bounceLocked.remove(id);groundedTicks.remove(id);}
 @Override public boolean onCommand(CommandSender sender,Command cmd,String label,String[] a){
 if(a.length==0||a[0].equalsIgnoreCase("help")){
-sender.sendMessage("§aSwampSky 1.8.0 §7| /swampsky spawn <flying_pig|giant_frog>");
+sender.sendMessage("§aSwampSky 1.9.0 §7| /swampsky spawn <flying_pig|giant_frog>");
 sender.sendMessage("§7/ss status §8(диагностика AI и скорости свинок)");
 sender.sendMessage("§7/ss repair §8(перезапуск поведения свинок поблизости)");
 sender.sendMessage("§7/swampsky give <ник> <hide|boots|leggings|wings> [1-64]");
