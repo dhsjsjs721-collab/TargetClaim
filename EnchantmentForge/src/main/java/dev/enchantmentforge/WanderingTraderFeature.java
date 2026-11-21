@@ -47,7 +47,7 @@ private final Random random=new Random();
 WanderingTraderFeature(JavaPlugin plugin, ItemStack soulboundBook, ItemStack tripleShotBook) {
 this.plugin=plugin;
 this.charmKey=new NamespacedKey(plugin,"inventory_charm");
-this.traderKey=new NamespacedKey(plugin,"improved_trader_v3_full_catalog");
+this.traderKey=new NamespacedKey(plugin,"improved_trader_v4_rotating");
 this.soulboundBook=soulboundBook.clone();
 this.tripleShotBook=tripleShotBook.clone();
 }
@@ -144,6 +144,37 @@ trader.setRecipes(makeOffers());
 trader.getPersistentDataContainer().set(traderKey,PersistentDataType.BYTE,(byte)1);
 }
 
+private ItemStack independentClaim(){
+ItemStack item=new ItemStack(Material.TARGET);
+ItemMeta meta=item.getItemMeta();
+meta.setDisplayName("§6§lНезависимый приват");
+meta.setLore(List.of("§7Размер: §e96×96×96 §7(как уровень 2)","§cНе улучшается","§7Занимает один из 2 приватов","§6Цена: 20 алмазов"));
+meta.getPersistentDataContainer().set(new NamespacedKey("targetclaim","claim_target"),PersistentDataType.BYTE,(byte)1);
+meta.getPersistentDataContainer().set(new NamespacedKey("targetclaim","independent_claim"),PersistentDataType.BYTE,(byte)1);
+item.setItemMeta(meta);
+return item;
+}
+private int fairPrice(Offer offer){
+Material type=offer.result().getType();
+int base=offer.diamonds();
+if(type==Material.TARGET)return 20;
+if(isCharm(offer.result()))return 5;
+// Price by rarity and number of items in each bundle, not one flat
+// discount across rare tools, spawners and ordinary crops.
+if(type==Material.SPAWNER||type==Material.ELYTRA||type==Material.TRIDENT||
+type==Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE||type==Material.TOTEM_OF_UNDYING)return base;
+if(type==Material.ENCHANTED_BOOK)return Math.max(8,Math.round(base*.75f));
+if(type.name().endsWith("_SPAWN_EGG"))return Math.max(10,Math.round(base*.75f));
+if(type==Material.SUGAR||type==Material.SUGAR_CANE||type==Material.WHEAT_SEEDS||
+type==Material.POTATO||type==Material.CARROT||type==Material.KELP||
+type==Material.CACTUS||type==Material.PAPER||type==Material.BAMBOO||
+type==Material.COBBLESTONE||type==Material.STONE_BRICKS||
+type==Material.SAND||type==Material.GRAVEL||type==Material.TORCH)return Math.max(1,(int)Math.ceil(base*.38));
+if(type.isEdible())return Math.max(1,(int)Math.ceil(base*.50));
+if(base<=12)return Math.max(2,(int)Math.round(base*.65));
+if(base<=35)return Math.max(5,(int)Math.round(base*.80));
+return base;
+}
 private MerchantRecipe recipe(Offer offer) {
 MerchantRecipe result=new MerchantRecipe(offer.result().clone(),offer.maxUses());
 result.setExperienceReward(false);
@@ -159,10 +190,12 @@ result.addIngredient(new ItemStack(Material.DIAMOND_BLOCK,1));
 result.addIngredient(new ItemStack(Material.BOOK,1));
 return result;
 }
-double divisor=Math.max(2.0,Math.min(3.0,plugin.getConfig().getDouble("trader-price-divisor",2.5)));
-int price=isCharm(offer.result())
-?Math.max(1,Math.min(64,plugin.getConfig().getInt("trader-charm-price",5)))
-:Math.max(1,(int)Math.ceil(offer.diamonds()/divisor));
+int price=fairPrice(offer);
+if(offer.result().getType()!=Material.TARGET&&!isCharm(offer.result())){
+double variation=.88+random.nextDouble()*.25; // ~-12% to +13%
+price=(int)Math.round(price*variation);
+}
+price=Math.max(1,Math.min(128,price));
 int first=Math.min(64,price);
 result.addIngredient(new ItemStack(Material.DIAMOND,first));
 if (price>64) result.addIngredient(new ItemStack(Material.DIAMOND,price-64));
@@ -204,14 +237,17 @@ list.add(new Offer(spawner(type,name),price,1));
 private List<MerchantRecipe> makeOffers() {
 List<Offer> selected=new ArrayList<>();
 List<Offer> pool=new ArrayList<>();
-// Every wandering trader now sells the same COMPLETE, ordered catalog. No random variations.
-selected.add(new Offer(charm(),5,3));
-selected.add(new Offer(soulboundBook.clone(),28,3));
-selected.add(new Offer(tripleShotBook.clone(),24,3));
-add(selected,Material.TOTEM_OF_UNDYING,1,40,2);
-add(selected,Material.ENDER_EYE,4,18,4);
-add(selected,Material.MAP,8,5,6);
-add(selected,Material.COOKED_BEEF,32,6,8);
+// Every merchant offers the fixed-price independent claim. The remaining
+// catalog changes between individual traders rather than flooding the UI.
+selected.add(new Offer(independentClaim(),20,2));
+List<Offer> featured=new ArrayList<>();
+featured.add(new Offer(charm(),5,3));
+featured.add(new Offer(soulboundBook.clone(),28,3));
+featured.add(new Offer(tripleShotBook.clone(),24,3));
+add(featured,Material.TOTEM_OF_UNDYING,1,40,2);
+add(featured,Material.ENDER_EYE,4,18,4);
+add(featured,Material.MAP,8,5,6);
+add(featured,Material.COOKED_BEEF,32,6,8);
 // One guaranteed functional mob spawner.
 List<Offer> spawners=new ArrayList<>();
 addSpawner(spawners,EntityType.ZOMBIE,"Зомби",88);
@@ -219,7 +255,8 @@ addSpawner(spawners,EntityType.SKELETON,"Скелет",92);
 addSpawner(spawners,EntityType.SPIDER,"Паук",84);
 addSpawner(spawners,EntityType.BLAZE,"Ифрит",112);
 addSpawner(spawners,EntityType.CAVE_SPIDER,"Пещерный паук",96);
-selected.addAll(spawners);
+// Rare merchant specialization: at most one random spawner, never all five.
+if(random.nextDouble()<.22)selected.add(spawners.get(random.nextInt(spawners.size())));
 
 // Ordinary useful goods, sold in convenient bundles.
 add(pool,Material.GOLDEN_CARROT,32,10,6);
@@ -327,10 +364,13 @@ addEgg(pool,"BLAZE_SPAWN_EGG",38);
 addEgg(pool,"SLIME_SPAWN_EGG",34);
 addEgg(pool,"ZOMBIE_SPAWN_EGG",30);
 addEgg(pool,"SKELETON_SPAWN_EGG",30);
-// All eggs, enchanted books and useful goods are available on EVERY trader.
-// Trades are generated once per merchant, not regenerated at every click.
-// A lengthy vanilla merchant scrolling menu is intentional for full selection.
-selected.addAll(pool);
+// Each trader has a stable but different selection of 14-21 offers total.
+// Shuffling occurs ONCE when the entity is configured, never on clicks.
+Collections.shuffle(featured,random);
+selected.addAll(featured.subList(0,Math.min(featured.size(),2+random.nextInt(3))));
+Collections.shuffle(pool,random);
+int offered=Math.min(pool.size(),11+random.nextInt(5));
+selected.addAll(pool.subList(0,offered));
 List<MerchantRecipe> recipes=new ArrayList<>();
 for (Offer offer:selected) recipes.add(recipe(offer));
 return recipes;
