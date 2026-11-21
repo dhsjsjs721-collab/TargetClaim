@@ -36,7 +36,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: SwampSky-Plugin-JAR
-          path: SwampSky/build/libs/SwampSky-1.8.0.jar
+          path: SwampSky/build/libs/SwampSky-1.9.0.jar
       - uses: actions/upload-artifact@v4
         with:
           name: SwampSky-ResourcePack
@@ -46,17 +46,7 @@ jobs:
           name: TalismanForge-SwampSky-Combined-Pack
           path: SwampSky/build/TalismanForge-SwampSky-Combined.zip
 
-      - name: Publish JAR and combined pack to GitHub branch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/swampsky-creatures'
-        run: |
-          mkdir -p builds resourcepacks
-          cp SwampSky/build/libs/SwampSky-1.8.0.jar builds/SwampSky-1.8.0.jar
-          cp SwampSky/build/TalismanForge-SwampSky-Combined.zip resourcepacks/TalismanForge-SwampSky-Complete.zip
-          sha1sum resourcepacks/TalismanForge-SwampSky-Complete.zip | awk '{print $1}' > resourcepacks/TalismanForge-SwampSky-Complete.sha1
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add builds/SwampSky-1.8.0.jar resourcepacks/TalismanForge-SwampSky-Complete.zip resourcepacks/TalismanForge-SwampSky-Complete.sha1
-          if ! git diff --cached --quiet; then
-            git commit -m 'Publish SwampSky 1.8.0 jar and combined resourcepack [skip ci]'
-            git push origin HEAD:feature/swampsky-creatures
-          fi
+      # The user's server installs MinecraftUnified only. Keep the standalone
+      # test JAR and pack as Actions artifacts rather than pushing binary files
+      # back to the development branch (concurrent runs caused non-fast-forward
+      # failures and unrelated stale pack copies).
