@@ -124,7 +124,7 @@ The pig and frog vanilla skins and the existing resourcepack remain unchanged in
 - Ordinary saddled pigs are still steerable without carrot-on-a-stick, and pig health/scale and custom equipment are unchanged.
 - This needs real-world player validation; CI only compiles and verifies a server boot.
 
-## SwampSky 1.9.0 — safer, calmer pigs
+## SwampSky 1.9.1 — safer, calmer pigs
 
 - The old auto-mount when an owner jumped in the direction of a winged pig has been REMOVED. To mount, use ordinary right-click on your own adult winged pig. Sneaking does not force an accidental mount.
 - Tamed winged pigs stop circling your head. Within ~8.5 blocks of their owner they descend gently and stand; farther away they follow behind on foot using pathfinding. At long distance they can fly after the owner, but always target the space behind rather than the owner's camera. They ignore pumpkin lure when already tame.
@@ -132,3 +132,11 @@ The pig and frog vanilla skins and the existing resourcepack remain unchanged in
 - Mounted ordinary pigs now use smooth acceleration/braking, turning with direction of travel and horse-like WASD and Space jumping, without carrot-on-a-stick. Mounted winged pigs use safer low-speed movement: Space ascends, looking down while holding W descends. Predicted block collision prevents entering the floor or ceiling.
 - When dismounted at altitude, winged pigs use controlled descent, not a free fall. Previously saved flying pigs suspended high above terrain remain suspended on chunk load until our descent code parks them safely. `/ss repair` also preserves the new physics and restores collision.
 - Mounted steering speeds use new configuration keys, so stale fast values from old `config.yml` files do not undo these fixes. Real two-player and terrain gameplay tests are recommended after updating.
+
+## SwampSky 1.9.1 — responsive wings, natural pet AI and faster pig mounts
+
+- Normal saddled pigs travel **0.97 blocks/tick** (old base 0.38), **2.55 times faster**; sprint up to 1.14 blocks/tick. Water 0.64 blocks/tick. Steering now supports gradual acceleration/braking, small obstacle auto-jumps and multiple collision probes. New `pig-horse-ride-speed-v2` / `pig-horse-swim-speed-v2` config keys ignore stale old server settings.
+- Wing displays update **every server tick**, formerly once every three ticks. Teleport interpolation is disabled and wing placement predicts a fraction of next-step motion. The slightly enlarged 0.70-scale flying pig and wings help prevent the passenger seat clipping into ground.
+- Tamed companions follow ~5.4 blocks behind and slightly to the side, no perpetual orbit or jump-triggered mount. Following path updates faster; when repeatedly blocked they attempt a short aerial rescue. Under a low ceiling they prefer walking. Wild pigs settle after short flying trips and wait ~3s after pumpkin bait is put away before changing direction.
+- Flying collision probes the body's full width, not just its center. Mounted flight and descent check terrain, winged pigs do not take fall damage on landing, and dismount initiates a controlled descent.
+- Gameplay, steering and anticheat behavior still require live user testing; CI can verify only compilation and server boot.

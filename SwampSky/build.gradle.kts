@@ -2,7 +2,7 @@ plugins {
     java
 }
 group = "dev.swampsky"
-version = "1.9.0"
+version = "1.9.1"
 repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
 }
@@ -16,5 +16,5 @@ tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
 }
 tasks.jar {
-    archiveFileName.set("SwampSky-1.9.0.jar")
+    archiveFileName.set("SwampSky-1.9.1.jar")
 }

@@ -1398,7 +1398,7 @@ new Quaternionf()
 @EventHandler public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();inputCache.remove(id);heldJump.remove(id);airborne.remove(id);fallSpeed.remove(id);bounceLocked.remove(id);groundedTicks.remove(id);}
 @Override public boolean onCommand(CommandSender sender,Command cmd,String label,String[] a){
 if(a.length==0||a[0].equalsIgnoreCase("help")){
-sender.sendMessage("§aSwampSky 1.9.0 §7| /swampsky spawn <flying_pig|giant_frog>");
+sender.sendMessage("§aSwampSky 1.9.1 §7| /swampsky spawn <flying_pig|giant_frog>");
 sender.sendMessage("§7/ss status §8(диагностика AI и скорости свинок)");
 sender.sendMessage("§7/ss repair §8(перезапуск поведения свинок поблизости)");
 sender.sendMessage("§7/swampsky give <ник> <hide|boots|leggings|wings> [1-64]");
