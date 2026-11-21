@@ -1,4 +1,4 @@
-# SwampSky 1.7.0, Minecraft Java 26.3
+# SwampSky 1.9.0, Minecraft Java 26.3
 # Flying-pig AI uses stable roam waypoints; ordinary pigs use vanilla pathfinder.
 # New keys work with existing configuration files via fallback defaults
 flying-chance: 0.28
@@ -35,3 +35,11 @@ flying-pig-speed: 0.48
 pig-retaliation-hits: 3
 pig-retaliation-hit-window-ticks: 240
 pig-retaliation-duration-ticks: 400
+
+# v1.9 safe riding: separate keys avoid carrying over excessively fast old values
+pig-horse-ride-speed: 0.38
+pig-horse-swim-speed: 0.26
+pig-safe-flight-ride-speed: 0.29
+flying-pig-safe-speed: 0.21
+# Winged pigs normally stand / walk, and only take short airborne trips.
+# Space ascends while mounted. Looking down + W descends, never through blocks.
