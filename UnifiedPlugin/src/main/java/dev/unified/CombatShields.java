@@ -230,18 +230,28 @@ if(!turtle){clearDisplay(id);continue;}
 UUID previousDisplay=backDisplays.get(id);
 Entity entity=previousDisplay==null?null:Bukkit.getEntity(previousDisplay);
 ItemDisplay display;
-if(!(entity instanceof ItemDisplay existing)||!entity.isValid()){
+if(!(entity instanceof ItemDisplay existing)||!entity.isValid()||entity.getWorld()!=player.getWorld()){
+if(entity!=null)entity.remove();
 display=player.getWorld().spawn(player.getLocation(),ItemDisplay.class,d->{
-d.setItemStack(create("turtle"));d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
-d.setPersistent(false);d.setInvulnerable(true);d.setTeleportDuration(4);
+d.setItemStack(create("turtle"));
+d.setBillboard(org.bukkit.entity.Display.Billboard.FIXED);
+d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+d.setPersistent(false);d.setInvulnerable(true);
+d.setTeleportDuration(2);d.setViewRange(1.15f);
+d.setTransformation(new org.bukkit.util.Transformation(
+new org.joml.Vector3f(0,0,0),new org.joml.Quaternionf(),
+new org.joml.Vector3f(.58f,.65f,.58f),new org.joml.Quaternionf()));
 });
 backDisplays.put(id,display.getUniqueId());
 }else display=existing;
 Vector forward=player.getLocation().getDirection().setY(0);
 if(forward.lengthSquared()<.01)forward=new Vector(0,0,1);
 forward.normalize();
-Location back=player.getLocation().clone().subtract(forward.clone().multiply(.30)).add(0,1.35,0);
-back.setYaw(player.getLocation().getYaw()+180);
+// 3D model stays behind the backplate, not in front of the eyes.
+// Rotate with the player's horizontal body direction and never billboard.
+Location back=player.getLocation().clone().subtract(forward.clone().multiply(.70)).add(0,1.23,0);
+back.setYaw(player.getLocation().getYaw()+180f);
+back.setPitch(0f);
 display.teleport(back);
 for(Entity raw:player.getNearbyEntities(1.65,1.5,1.65)){
 if(!(raw instanceof LivingEntity mob)||ally(player,mob)||raw instanceof ArmorStand)continue;
