@@ -48,6 +48,9 @@ private final Map<UUID,List<UUID>> displays=new HashMap<>();
 private final Map<UUID,Input> inputCache=new HashMap<>();
 private final Map<UUID,Vector> mountedMomentum=new HashMap<>();
 private final Map<UUID,Long> wildFlightUntil=new HashMap<>();
+private final Map<UUID,Long> assistTakeoffUntil=new HashMap<>();
+private final Map<UUID,Integer> followStalls=new HashMap<>();
+private final Map<UUID,Location> followCheckpoints=new HashMap<>();
 private final Map<UUID,Long> lureHysteresisUntil=new HashMap<>();
 private final Map<UUID,UUID> rememberedLure=new HashMap<>();
 private final Map<UUID,Long> settleUntil=new HashMap<>(),frogIdleUntil=new HashMap<>();
@@ -94,7 +97,7 @@ Bukkit.getScheduler().runTaskTimer(this,this::upgradeOnlineEquipment,40L,100L);
 for(UUID id:new ArrayList<>(displays.keySet()))pigClear(id);
 aggro.clear();aggroUntil.clear();attackCooldown.clear();hitWindow.clear();hitCount.clear();flightVectors.clear();
 roamHomes.clear();roamTargets.clear();motionSamples.clear();roamExpiry.clear();motionCheckAt.clear();motionStalls.clear();pigErrorLogAt.clear();groundTargets.clear();groundPathUntil.clear();
-dismountFall.clear();knockbackUntil.clear();mountedMomentum.clear();wildFlightUntil.clear();heldJump.clear();nextMountedJump.clear();
+dismountFall.clear();knockbackUntil.clear();mountedMomentum.clear();wildFlightUntil.clear();assistTakeoffUntil.clear();followStalls.clear();followCheckpoints.clear();heldJump.clear();nextMountedJump.clear();
 lureHysteresisUntil.clear();rememberedLure.clear();settleUntil.clear();frogIdleGoals.clear();frogIdleUntil.clear();
 for(UUID id:ground){Entity e=Bukkit.getEntity(id);if(e instanceof Pig p){p.setAI(true);p.setAware(true);}}
 for(UUID id:wings){
@@ -114,7 +117,7 @@ private boolean isSnow(Material m){return m==Material.SNOW||m==Material.SNOW_BLO
 
 private void scaleWingedPig(Pig pig){
 AttributeInstance size=pig.getAttribute(Attribute.SCALE);
-if(size!=null&&Math.abs(size.getBaseValue()-.5)>.001)size.setBaseValue(.5);
+if(size!=null&&Math.abs(size.getBaseValue()-.70)>.001)size.setBaseValue(.70);
 }
 private void flyingPig(Pig p){
 if(marked(p,flyingKey))return;
@@ -409,7 +412,7 @@ getLogger().warning("SwampSky pig "+id+" "+operation+" failed: "+exception.getCl
 }
 private void forgetFlight(UUID id){
 flightVectors.remove(id);roamHomes.remove(id);roamTargets.remove(id);roamExpiry.remove(id);
-rememberedLure.remove(id);lureHysteresisUntil.remove(id);settleUntil.remove(id);wildFlightUntil.remove(id);
+rememberedLure.remove(id);lureHysteresisUntil.remove(id);settleUntil.remove(id);wildFlightUntil.remove(id);assistTakeoffUntil.remove(id);followStalls.remove(id);followCheckpoints.remove(id);
 motionSamples.remove(id);motionCheckAt.remove(id);motionStalls.remove(id);pigErrorLogAt.remove(id);
 }
 private void restWingedPig(Pig pig,boolean wild){
@@ -463,8 +466,19 @@ if(!pig.isAware())pig.setAware(true);
 Location destination=ownerFollowPosition(owner);
 if(tick>=groundPathUntil.getOrDefault(id,0L)){
 groundPathUntil.put(id,tick+18);
-// A stable trailing path, refreshed once a second: the pig no longer
-// cuts in front of the owner's camera or continually repaths per tick.
+Location previous=followCheckpoints.put(id,pig.getLocation().clone());
+if(previous!=null&&previous.getWorld()==pig.getWorld()
+&&previous.distanceSquared(pig.getLocation())<.42*.42
+&&pig.getLocation().distanceSquared(owner.getLocation())>11*11){
+if(followStalls.merge(id,1,Integer::sum)>=3){
+// An impassable cliff, water pit or fence should not freeze the pet
+// indefinitely. One short aerial rescue runs with safe route checks.
+assistTakeoffUntil.put(id,tick+90);
+followStalls.remove(id);
+pig.getPathfinder().stopPathfinding();
+return;
+}
+}else followStalls.remove(id);
 if(destination.getWorld()!=null&&destination.getWorld().isChunkLoaded(destination.getBlockX()>>4,destination.getBlockZ()>>4)
 &&clearForPig(destination))pig.getPathfinder().moveTo(destination,1.17);
 else pig.getPathfinder().moveTo(owner.getLocation(),1.04);
@@ -541,8 +555,17 @@ restWingedPig(pig,true);return;
 }
 if(own!=null&&leashHolder==null&&fear==null&&attacker==null&&spider==null){
 double sq=here.distanceSquared(own.getLocation());
-if(sq<=8.5*8.5){restWingedPig(pig,false);return;}
-if(sq<=21*21&&pig.isOnGround()){walkWingedToOwner(pig,own);return;}
+if(sq<=8.5*8.5){
+assistTakeoffUntil.remove(id);followStalls.remove(id);
+restWingedPig(pig,false);return;
+}
+if(sq<=21*21&&pig.isOnGround()&&tick>=assistTakeoffUntil.getOrDefault(id,0L)){
+walkWingedToOwner(pig,own);return;
+}
+if(sq<=21*21&&pig.isOnGround()&&tick<assistTakeoffUntil.getOrDefault(id,0L)){
+// The anti-stuck flight is short and must remain behind the owner.
+pig.setVelocity(new Vector(0,.20,0));
+}
 }
 // Wild pigs explore the air in short excursions and then land/rest.
 // Their rest state is persistent while loaded; it is NOT randomised each tick.
@@ -1313,7 +1336,7 @@ double yaw=Math.toRadians(at.getYaw());
 // Local basis relative to the pig's body: sideways and back, not up by its ears.
 Vector right=new Vector(-Math.cos(yaw),0,-Math.sin(yaw));
 Vector back=new Vector(Math.sin(yaw),0,-Math.cos(yaw));
-double size=.5;
+double size=.70;
 double flap=Math.sin(tick*.065)*.085;
 for(int j=0;j<2;j++){
 Entity e=Bukkit.getEntity(list.get(j));
