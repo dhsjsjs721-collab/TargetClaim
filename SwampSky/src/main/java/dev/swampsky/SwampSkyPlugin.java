@@ -345,7 +345,7 @@ pig.setAI(true);pig.setSaddle(true);
 settleUntil.remove(pig.getUniqueId());
 roamTargets.remove(pig.getUniqueId());
 flightVectors.remove(pig.getUniqueId());
-if(pig.addPassenger(player))player.sendActionBar("§aСвинка осёдлана: WASD — ход, Пробел — вверх");
+if(pig.addPassenger(player))player.sendActionBar("§aСвинка: WASD — управление, Пробел — прыжок/вверх, взгляд вниз+W — спуск");
 }
 private void mountedTick(){
 for(Player player:Bukkit.getOnlinePlayers()){
@@ -753,68 +753,91 @@ return target.getLocation().clone().add(0,1.25,0);
 return target.getLocation().clone().add(Math.cos(angle+1.4)*3.5,3.2,Math.sin(angle+1.4)*3.5);
 }
 
-private void ride(Pig pig,Player p,boolean fly){
+private void ride(Pig pig,Player player,boolean fly){
 if(!pig.hasAI())pig.setAI(true);
-if(fly){
+// Vanilla autonomous pathfinding fights the player steering when riding a
+// normal saddled pig. Keep server AI active, but suspend wandering goals.
 if(pig.isAware())pig.setAware(false);
-if(pig.hasGravity())pig.setGravity(false);
-}else{
-if(!pig.isAware())pig.setAware(true);
-if(!pig.hasGravity())pig.setGravity(true);
-}
-// A saddle and movement keys suffice; no carrot-on-a-stick is required.
-Input in=inputCache.getOrDefault(p.getUniqueId(),p.getCurrentInput());
-Vector forward=p.getLocation().getDirection().setY(0);
+if(pig.hasGravity()==fly)pig.setGravity(!fly);
+pig.getPathfinder().stopPathfinding();
+// The actual 26.3 input is refreshed every server tick, not a stale
+// PlayerInputEvent snapshot from a previous mount.
+Input input=player.getCurrentInput();
+Vector forward=player.getLocation().getDirection().setY(0);
 if(forward.lengthSquared()<.001)forward=new Vector(0,0,1);
 forward.normalize();
-Vector right=new Vector(-forward.getZ(),0,forward.getX());
-Vector dir=new Vector();
-if(in.isForward())dir.add(forward);
-if(in.isBackward())dir.subtract(forward);
-if(in.isLeft())dir.add(right);
-if(in.isRight())dir.subtract(right);
+Vector left=new Vector(-forward.getZ(),0,forward.getX());
+Vector desired=new Vector(0,0,0);
+if(input.isForward())desired.add(forward);
+if(input.isBackward())desired.subtract(forward);
+if(input.isLeft())desired.add(left);
+if(input.isRight())desired.subtract(left);
+boolean moving=desired.lengthSquared()>.001;
+if(moving)desired.normalize();
 Location here=pig.getLocation();
-boolean inWater=pig.isInWater()||here.getBlock().isLiquid();
-double speed=fly?getConfig().getDouble("pig-speed",.43)*1.08:
-inWater?getConfig().getDouble("pig-swim-speed",.40):
-getConfig().getDouble("pig-ground-ride-speed",.49);
-if(in.isSprint())speed*=fly?1.13:1.30;
-if(!inWater&&snow(here))speed*=getConfig().getDouble("snow-multiplier",.35);
-speed=Math.max(.07,Math.min(.80,speed));
-boolean slope=false;
-if(dir.lengthSquared()>.01){
-dir.normalize();
-Location front=here.clone().add(dir.clone().multiply(1.1));
-boolean solid=front.getBlock().getType().isSolid();
-slope=(!front.getBlock().isPassable()&&front.clone().add(0,1,0).getBlock().isPassable())
-||(!fly&&!inWater&&solid&&front.clone().add(0,1.2,0).getBlock().isPassable());
-if(slope&&!inWater)speed=Math.min(.80,speed*getConfig().getDouble("slope-multiplier",1.20));
-dir.multiply(speed);
-}
-UUID playerId=p.getUniqueId();
-boolean pressingJump=in.isJump();
+boolean water=pig.isInWater()||here.getBlock().isLiquid();
+double speed=fly?getConfig().getDouble("pig-speed",.30):
+water?getConfig().getDouble("pig-swim-speed",.27):
+getConfig().getDouble("pig-ground-ride-speed",.39);
+if(input.isSprint())speed*=fly?1.15:1.22;
+if(snow(here)&&!water)speed*=getConfig().getDouble("snow-multiplier",.55);
+speed=Math.max(.08,Math.min(fly?.42:.56,speed));
+desired.multiply(speed);
+UUID mountId=pig.getUniqueId();
+Vector old=mountedMomentum.getOrDefault(mountId,pig.getVelocity().clone().setY(0)).clone().setY(0);
+double keep=moving?(fly?.73:.70):(fly?.36:.46);
+Vector horizontal=old.multiply(keep).add(desired.multiply(1-keep));
+if(horizontal.lengthSquared()<.00015)horizontal.zero();
+mountedMomentum.put(mountId,horizontal.clone());
+UUID playerId=player.getUniqueId();
+boolean pressingJump=input.isJump();
 boolean newJump=pressingJump&&!heldJump.contains(playerId);
 if(pressingJump)heldJump.add(playerId);else heldJump.remove(playerId);
-double y=pig.getVelocity().getY();
+double vertical=pig.getVelocity().getY();
+boolean slope=false;
+if(horizontal.lengthSquared()>.005){
+Vector toward=horizontal.clone().normalize();
+Location ahead=here.clone().add(toward.multiply(.9));
+slope=!ahead.getBlock().isPassable()&&ahead.clone().add(0,1,0).getBlock().isPassable();
+}
 if(fly){
-y=0;
-if(pressingJump)y=.28;
-else if(in.isForward()&&p.getLocation().getPitch()>35)y=-.17;
-else if(in.isForward()&&p.getLocation().getPitch()<-35)y=.13;
-else if(slope)y=.17;
-if(snow(here))y=Math.max(.10,y);
-}else if(inWater){
-y=pressingJump?.27:.075;
-if(in.isSneak())y=-.10;
+vertical=0;
+if(pressingJump)vertical=.19;
+else if(moving&&player.getLocation().getPitch()>32)vertical=-.12;
+else if(moving&&player.getLocation().getPitch()<-37)vertical=.08;
+else if(slope)vertical=.13;
+if(snow(here))vertical=Math.max(.08,vertical);
+// Flying descent must never drive the pig through the floor, ceiling or
+// low cave roof: cancel the unsafe velocity axis before world physics.
+Location predicted=here.clone().add(horizontal).add(0,vertical,0);
+if(!clearForPig(predicted)){
+Location sameHeight=here.clone().add(horizontal);
+if(clearForPig(sameHeight))vertical=0;
+else{
+Location up=here.clone().add(0,.22,0);
+if(clearForPig(up)){horizontal.zero();vertical=.15;}
+else{horizontal.zero();vertical=0;}
+}
+}
+if(vertical<0){
+// Look at the pig's projected lower body, not just its centre.
+Location feet=here.clone().add(horizontal).add(0,vertical-.24,0);
+if(!feet.getBlock().isPassable())vertical=0;
+}
+}else if(water){
+vertical=pressingJump?.19:.045;
+if(input.isSneak())vertical=-.08;
 }else{
-boolean jumpReady=tick>=nextMountedJump.getOrDefault(pig.getUniqueId(),0L);
-if(jumpReady&&pig.isOnGround()&&(newJump||slope)){
-y=newJump?.57:.44;
-nextMountedJump.put(pig.getUniqueId(),tick+12);
+boolean ready=tick>=nextMountedJump.getOrDefault(mountId,0L);
+if(ready&&pig.isOnGround()&&(newJump||(slope&&moving))){
+vertical=newJump?.51:.36;
+nextMountedJump.put(mountId,tick+11);
 }
+Location ahead=here.clone().add(horizontal);
+if(!ahead.getBlock().isPassable()&&vertical<=.05&&pig.isOnGround())horizontal.zero();
 }
-pig.setVelocity(new Vector(dir.getX(),y,dir.getZ()));
-pig.setRotation(p.getLocation().getYaw(),0f);
+pig.setVelocity(new Vector(horizontal.getX(),vertical,horizontal.getZ()));
+if(horizontal.lengthSquared()>.002)faceVector(pig,horizontal);
 }
 private boolean ready(Map<UUID,Long> state,UUID id,long gap){
 if(tick-state.getOrDefault(id,-9999L)<gap)return false;
