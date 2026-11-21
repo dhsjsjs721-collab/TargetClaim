@@ -118,3 +118,9 @@ Paper 26.3, Java 25. Ages creates temporary moss on source water and soul soil o
 - Joker creates the 3-second giant avenger on *every* successful resurrection; only recent living attackers receive the 5-second stun (environmental deaths still get the visual event).
 - Zeus swords keep chasing the last attacker up to 40 blocks for 20 seconds. When under half HP, one sword transforms into a shielding display and every second eligible damaging event is reflected. No additional changes to talisman model IDs.
 - Grappling chain is now textured as compact ItemDisplay links rather than oversized block displays. This matches the updated main unified resource pack's new chain-link and hook icon assets.
+
+## TalismanForge 2.8.0 — guardian visuals behind the player
+
+- End/Zeus sword displays always appear behind the owner's shoulders, never halfway between the owner and target, and turn according to the player's yaw. Remote attack mechanics and cooldowns are unchanged; impacts happen at target location, and first-person visibility is not obstructed.
+- Below half health one sword becomes a compact 3D spectral shield **behind** the owner; Defiance's three spectral shields are also arranged in a rear-facing row instead of orbiting through the camera. Shield absorption/reflecting logic is unchanged.
+- This requires the updated single main resource pack with `minecraftunified:shield_spectral` 3D model. The standalone source may display a fallback shield without the pack.
