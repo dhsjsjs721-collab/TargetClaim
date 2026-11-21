@@ -1,4 +1,4 @@
-# MinecraftUnified 1.1.3 — One JAR for all five Paper plugins
+# MinecraftUnified 1.1.4 — One JAR for all five Paper plugins
 
 A **real single Paper plugin** (not an installer ZIP) built from the latest maintained source branches of TargetClaim, TalismanForge 2.6.0, EnchantmentForge 1.2.0, SwampSky 1.7.1 and ImageMaps 1.1.0. The compile-time generator converts the existing five JavaPlugin subclasses into hosted listener/command modules, retaining their features and original data identifiers.
 
@@ -8,7 +8,7 @@ A **real single Paper plugin** (not an installer ZIP) built from the latest main
 
 1. Stop the server, **back up the entire world and existing plugin data**.
 2. Remove the old five separate JARs from `plugins/`. Do not keep the five old plugins alongside this file: duplicate recipes and event handlers would conflict.
-3. Place only `MinecraftUnified-1.1.3.jar` in `plugins/`.
+3. Place only `MinecraftUnified-1.1.4.jar` in `plugins/`.
 4. Keep using the single `resourcepacks/TalismanForge-2.0.0-ResourcePack.zip` from the main branch, with the SHA1 shown in the main repo; it includes the SwampSky equipment, TargetClaim key and Reliquary artwork.
 5. Start the server and run `/unified`: all five modules should appear as loaded.
 
@@ -109,7 +109,7 @@ Automated CI boot checks five module startup, original obsidian trap and the new
 - The updated trader marker reconfigures old existing trader entities. Offers are picked once per entity and not rerolled on right-click. All trader spawning methods, `/u trader`, and all existing 1.0.9 gameplay modules remain.
 - **Deployment:** back up both your world and `plugins/TargetClaim/data.yml` because existing claims change their physical dimensions at all levels. Only install this one combined JAR, not TargetClaim/EnchantmentForge separate JARs. Main unified resource pack unchanged; original SHA1 remains valid. New functionality needs in-world testing, as the CI smoke test only validates server startup and command dispatch.
 
-## MinecraftUnified 1.1.3: claim counters and trader inventory
+## MinecraftUnified 1.1.4: claim counters and trader inventory
 
 New normal claim caps are tracked per dimension/world: two in the Overworld, two in the Nether, one in The End, two in other worlds. The independently purchased **20-diamond** non-upgradable level-2 claim has a separate **global quota of 3 per player, across every world combined**; it does not count against ordinary limits. All five original modules, three special shields and FunTime-style obsidian traps still live in one JAR.
 
@@ -121,6 +121,24 @@ Important: the increase from earlier 16–160-size levels can cause existing nea
 
 Ordinary claims have separate active quotas per world (two in normal/Nether worlds, one in End worlds). Independently purchased no-upgrade claims have a shared maximum of three across all worlds combined. A world's absence at plugin enable time no longer discards saved claims from that world: TargetClaim stores each world's UUID even while unloaded. The independent core remains a fixed-price 20-diamond trader item and the shared resource pack is unchanged.
 
-## 1.1.3 — traveling Wandering Traders
+## 1.1.4 — traveling Wandering Traders
 
 EnchantmentForge 1.4.0 uses new default trader spawning every five minutes, with up to four traders per regular world, preference for players visiting villages and real walking behavior toward loaded villagers, all bounded to loaded chunks. Normal custom 14–21 item trades and the always-20-diamond independent claim are unchanged. Use `/u trader` for admin testing. No changes to resources, textures or installed file structure. Player tests should check merchants in villages versus ordinary terrain.
+
+## MinecraftUnified 1.1.4 — agreed Deepslate craft
+
+The *only new gameplay feature compared with 1.1.3* is a vanilla crafting-table shaped recipe for **8 Deepslate**, available to all races/players:
+
+```
+B K B
+K O K
+B K B
+```
+
+B = Basalt (4), K = Blackstone (4), O = Obsidian (1). The produced item is ordinary `minecraft:deepslate`, stackable and usable in vanilla recipes. No creative-mode permission or special custom item is required. The crafting recipe is registered once at server enable and removed on disable. `/u status` reports its registration.
+
+**Unchanged from 1.1.3:** all five main systems; random wandering village traders (roughly five minutes, maximum four per world), the 20-diamond independent claim, 2 regular privates per ordinary world / Nether, 1 regular private per End world, 3 independent privates globally, 210-block maximum normal claim size, all talismans, custom shields, obsidian PvP trap, flying pigs and giant frogs, and existing one resourcepack.
+
+**Not included:** the proposed playable races (Elf, Dwarf, Deepborn), flower arrows, the proposed eight unapproved craftable items and new race bonuses. These remain concepts; no unrequested mechanics have been activated.
+
+**Upgrade:** replace `MinecraftUnified-1.1.3.jar` with `MinecraftUnified-1.1.4.jar` after making a backup of worlds and plugin data. Do not install both. No resourcepack change required.
