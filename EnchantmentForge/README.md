@@ -130,3 +130,9 @@ Every Wandering Trader (natural spawn, `/summon wandering_trader`, existing on d
 - A trader has **14–21 distinct offers** per appearance instead of the entire massive catalog. Usually includes 2–4 featured offers, 11–15 random supplies, and sometimes one rare spawner (22% chance), plus the independent claim. Each individual merchant stores its offers; reopening the UI does not reroll them.
 - Prices use category-weighted bases, e.g. crops/foods/building supplies less, books/eggs medium, rare spawners/Elytra/netherite expensive. Many have about ±12% random price variation per offer; the independent claim and the two custom book recipes have fixed prices. Old trader-price-divisor setting is obsolete and ignored.
 - New trader v4 marker reconfigures pre-existing traders on chunk load, interaction, server startup or new spawn, without llama caravans.
+
+## v1.3.1: merchant independent cores and proportional random stock
+
+Every natural or forced Wandering Trader sells a fixed-price independent TargetClaim core for **20 diamonds**. The core creates a non-upgradable **96³** claim and the plugin TargetClaim limits these to 3 per owner globally across all worlds (normal claim quotas are separate). This special core is only usable when the compatible TargetClaim module is installed — both are included in MinecraftUnified 1.1.1.
+
+Each trader offers approximately 14–21 purchases total, with a different stable selection chosen on merchant initialization; established full-catalog traders are refreshed by the new PDC v4 marker. Common foods/crops/building blocks are inexpensive; rare spawners, elytra and netherite items remain much more costly. Most offered prices have a small ±12% variance, but the independent claim is always exactly 20 diamonds and specialty book ingredient recipes remain fixed.
