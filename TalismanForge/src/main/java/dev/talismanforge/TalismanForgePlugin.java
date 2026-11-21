@@ -570,24 +570,49 @@ if(displays!=null){for(UUID display:displays)swordCooldown.remove(display);}
 removeDisplays(displays);
 swordTarget.remove(id);swordExpiry.remove(id);
 }
+private Location guardianBehind(Player owner,double side,double height,double distance){
+Vector backward=owner.getLocation().getDirection().setY(0);
+if(backward.lengthSquared()<.001)backward=new Vector(0,0,1);
+backward.normalize();
+Vector right=new Vector(-backward.getZ(),0,backward.getX());
+Location result=owner.getLocation().clone().subtract(backward.multiply(distance))
+.add(right.multiply(side)).add(0,height,0);
+result.setYaw(owner.getLocation().getYaw()+180f);
+result.setPitch(0f);
+return result;
+}
+private ItemStack spectralShield(){
+ItemStack shield=new ItemStack(Material.SHIELD);
+ItemMeta meta=shield.getItemMeta();
+meta.setItemModel(new NamespacedKey("minecraftunified","shield_spectral"));
+shield.setItemMeta(meta);
+return shield;
+}
 private void endSwordTick(){
 long now=System.currentTimeMillis();
 for(Player owner:Bukkit.getOnlinePlayers()){
 UUID id=owner.getUniqueId();
 if(owner.isDead()||held(owner)!=Talisman.END){clearEndSwords(id);endShieldHits.remove(id);continue;}
 List<UUID> ids=swordVisuals.get(id);
-if(ids==null||ids.size()!=2||ids.stream().anyMatch(uuid->!(Bukkit.getEntity(uuid) instanceof ItemDisplay))){
+boolean expired=ids==null||ids.size()!=2;
+if(!expired)for(UUID swordId:ids){
+Entity e=Bukkit.getEntity(swordId);
+if(!(e instanceof ItemDisplay)||!e.isValid()||e.getWorld()!=owner.getWorld()){expired=true;break;}
+}
+if(expired){
 if(ids!=null)for(UUID previous:ids)swordCooldown.remove(previous);
 removeDisplays(swordVisuals.remove(id));
 ids=new ArrayList<>();
 for(int i=0;i<2;i++){
-ItemDisplay display=owner.getWorld().spawn(owner.getLocation().clone().add(0,1.3,0),ItemDisplay.class,d->{
-d.setPersistent(false);d.setInvulnerable(true);d.setTeleportDuration(5);d.setViewRange(1.4f);
-d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.THIRDPERSON_RIGHTHAND);
+ItemDisplay display=owner.getWorld().spawn(guardianBehind(owner,i==0?-.48:.48,1.27,.86),ItemDisplay.class,d->{
+d.setPersistent(false);d.setInvulnerable(true);
+d.setBillboard(Display.Billboard.FIXED);
+d.setTeleportDuration(2);d.setViewRange(1.2f);
+d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
 d.setItemStack(new ItemStack(Material.GOLDEN_SWORD));
 });
 ids.add(display.getUniqueId());
-swordCooldown.put(display.getUniqueId(),now+i*850);
+swordCooldown.put(display.getUniqueId(),now+i*650);
 }
 swordVisuals.put(id,ids);
 }
@@ -595,48 +620,40 @@ LivingEntity enemy=null;
 if(swordExpiry.getOrDefault(id,0L)>now){
 UUID targetId=swordTarget.get(id);
 Entity raw=targetId==null?null:Bukkit.getEntity(targetId);
-if(raw instanceof LivingEntity e&&e.isValid()&&!e.isDead()&&e.getWorld()==owner.getWorld()
-&&e.getLocation().distanceSquared(owner.getLocation())<=40*40&&!friendly(owner,e))enemy=e;
+if(raw instanceof LivingEntity found&&found.isValid()&&!found.isDead()
+&&found.getWorld()==owner.getWorld()
+&&found.getLocation().distanceSquared(owner.getLocation())<=40*40
+&&!friendly(owner,found))enemy=found;
 }
-org.bukkit.attribute.AttributeInstance max=owner.getAttribute(Attribute.MAX_HEALTH);
-boolean shieldMode=max!=null&&owner.getHealth()<=max.getValue()*.5;
-double phase=now/620.0;
+org.bukkit.attribute.AttributeInstance health=owner.getAttribute(Attribute.MAX_HEALTH);
+boolean shieldMode=health!=null&&owner.getHealth()<=health.getValue()*.5;
 for(int i=0;i<2;i++){
 UUID swordId=ids.get(i);
 Entity raw=Bukkit.getEntity(swordId);
 if(!(raw instanceof ItemDisplay display)||!display.isValid())continue;
 boolean guard=shieldMode&&i==0;
-Material wanted=guard?Material.SHIELD:Material.GOLDEN_SWORD;
-if(display.getItemStack().getType()!=wanted)display.setItemStack(new ItemStack(wanted));
-double angle=phase+i*Math.PI;
-Location point=owner.getLocation().clone().add(Math.cos(angle)*.9,1.35+Math.sin(phase+i)*.18,Math.sin(angle)*.9);
-if(guard){
-Vector front=owner.getLocation().getDirection().setY(0);
-if(front.lengthSquared()<.01)front=new Vector(0,0,1);
-point=owner.getLocation().clone().add(front.normalize().multiply(.9)).add(0,1.25,0);
-point.setYaw(owner.getLocation().getYaw());
-}else if(enemy!=null){
-// Boomerang flight: the sword pursues the last attacker up to 40 blocks.
-// It curves through space instead of teleporting into the opponent's face.
-Vector toward=enemy.getEyeLocation().toVector().subtract(owner.getEyeLocation().toVector());
-double fraction=.55+.32*Math.sin(phase*1.5+i*Math.PI);
-fraction=Math.max(.15,Math.min(.90,fraction));
-point=owner.getEyeLocation().clone().add(toward.multiply(fraction));
-point.add(Math.cos(angle)*.4,Math.sin(phase+i)*.20,Math.sin(angle)*.4);
-if(now>=swordCooldown.getOrDefault(swordId,0L)&&owner.hasLineOfSight(enemy)){
-swordCooldown.put(swordId,now+(shieldMode?1250L:1900L));
-final LivingEntity target=enemy;
+ItemStack current=display.getItemStack();
+boolean currentGuard=current.getType()==Material.SHIELD;
+if(guard!=currentGuard)display.setItemStack(guard?spectralShield():new ItemStack(Material.GOLDEN_SWORD));
+// The weapon always stays BEHIND the player. Never move between camera
+// and opponent even when its server-side boomerang attack is active.
+Location point=guardianBehind(owner,i==0?-.58:.58,guard?1.16:1.36,guard?.77:.95);
+display.teleport(point);
+float tilt=guard?0f:(i==0?-.25f:.25f);
+display.setTransformation(new org.bukkit.util.Transformation(
+new org.joml.Vector3f(0,0,0),
+new org.joml.Quaternionf().rotationXYZ(0f,0f,tilt),
+new org.joml.Vector3f(guard?.52f:.58f,guard?.64f:.58f,guard?.52f:.58f),
+new org.joml.Quaternionf()));
+if(guard||enemy==null||now<swordCooldown.getOrDefault(swordId,0L)||!owner.hasLineOfSight(enemy))continue;
+swordCooldown.put(swordId,now+(shieldMode?1300L:1750L));
+final LivingEntity victim=enemy;
 Bukkit.getScheduler().runTask(this,()->{
-if(target.isValid()&&!target.isDead()&&owner.isOnline()&&held(owner)==Talisman.END
-&&target.getWorld()==owner.getWorld()&&target.getLocation().distanceSquared(owner.getLocation())<=1600){
-target.damage(shieldMode?3.5:3.0,owner);
-target.getWorld().spawnParticle(Particle.SMALL_FLAME,target.getEyeLocation(),10,.25,.25,.25,.04);
-}
+if(!victim.isValid()||victim.isDead()||!owner.isOnline()||held(owner)!=Talisman.END
+||victim.getWorld()!=owner.getWorld()||victim.getLocation().distanceSquared(owner.getLocation())>1600)return;
+victim.damage(shieldMode?3.5:3.0,owner);
+victim.getWorld().spawnParticle(Particle.SMALL_FLAME,victim.getEyeLocation(),9,.2,.3,.2,.03);
 });
-}
-owner.getWorld().spawnParticle(Particle.FLAME,point,2,.1,.1,.1,.02);
-}
-if(point.getWorld()!=null&&point.getWorld().isChunkLoaded(point.getBlockX()>>4,point.getBlockZ()>>4))display.teleport(point);
 }
 }
 for(UUID id:new ArrayList<>(swordVisuals.keySet()))if(Bukkit.getPlayer(id)==null)clearEndSwords(id);
@@ -731,15 +748,17 @@ p.getPersistentDataContainer().remove(new NamespacedKey(this,"defiance_shield_he
 private void spawnShieldVisuals(Player p,ShieldRing ring){
 for(int i=0;i<3;i++){
 if(i<ring.index){ring.visuals.add(null);continue;}
-ItemDisplay d=p.getWorld().spawn(p.getLocation().clone().add(0,1.2,0),ItemDisplay.class,display->{
-display.setItemStack(new ItemStack(Material.SHIELD));display.setBillboard(Display.Billboard.CENTER);display.setPersistent(false);display.setInvulnerable(true);
-display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
-display.setTeleportDuration(5);display.setViewRange(1.6f);
-display.setTransformation(new org.bukkit.util.Transformation(
-new org.joml.Vector3f(0f,0f,0f),new org.joml.Quaternionf(),
-new org.joml.Vector3f(.75f,.75f,.75f),new org.joml.Quaternionf()));
+final int slot=i;
+ItemDisplay display=p.getWorld().spawn(guardianBehind(p,(i-1)*.68,1.20,.95),ItemDisplay.class,d->{
+d.setItemStack(spectralShield());
+d.setBillboard(Display.Billboard.FIXED);
+d.setPersistent(false);d.setInvulnerable(true);
+d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+d.setTeleportDuration(2);d.setViewRange(1.2f);
+d.setTransformation(new org.bukkit.util.Transformation(new org.joml.Vector3f(0f,0f,0f),
+new org.joml.Quaternionf(),new org.joml.Vector3f(.45f,.56f,.45f),new org.joml.Quaternionf()));
 });
-ring.visuals.add(d.getUniqueId());
+ring.visuals.add(display.getUniqueId());
 }
 }
 private void restoreShieldRing(Player p){
@@ -764,15 +783,14 @@ private void moveShieldVisuals(){
 for(Iterator<Map.Entry<UUID,ShieldRing>> it=shieldRings.entrySet().iterator();it.hasNext();){
 Map.Entry<UUID,ShieldRing> entry=it.next();Player p=Bukkit.getPlayer(entry.getKey());ShieldRing ring=entry.getValue();
 if(p==null||!p.isOnline()||p.isDead()){removeShieldVisuals(ring);it.remove();continue;}
-double phase=System.currentTimeMillis()/850.0;
 boolean brokenVisual=false;
 for(int i=ring.index;i<3;i++){
 UUID visualId=i<ring.visuals.size()?ring.visuals.get(i):null;
 Entity entity=visualId==null?null:Bukkit.getEntity(visualId);
 if(!(entity instanceof ItemDisplay display)||!display.isValid()||display.getWorld()!=p.getWorld()){brokenVisual=true;continue;}
-double a=phase+i*Math.PI*2/3;
-Location loc=p.getLocation().clone().add(Math.cos(a)*.95,1.12+Math.sin(phase*2+i)*.08,Math.sin(a)*.95);
-display.teleport(loc);
+// Shield rows are behind the shoulders, never circling into the player's view.
+// The model is 3D and turns in lockstep with the player's body.
+display.teleport(guardianBehind(p,(i-1)*.68,1.18,.95));
 }
 if(brokenVisual){removeShieldVisuals(ring);ring.visuals.clear();spawnShieldVisuals(p,ring);}
 }
