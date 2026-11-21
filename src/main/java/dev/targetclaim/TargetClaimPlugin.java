@@ -49,7 +49,10 @@ String ownerName;
 int x,y,z,level;
 boolean teamBuild=false,independent=false;
 Claim(UUID owner,String name,Location loc){this(UUID.randomUUID(),owner,name,loc);}
-Claim(UUID id,UUID owner,String name,Location loc){this.id=id;this.owner=owner;ownerName=name;world=loc.getWorld().getUID();x=loc.getBlockX();y=loc.getBlockY();z=loc.getBlockZ();}
+Claim(UUID id,UUID owner,String name,Location loc){this(id,owner,name,loc.getWorld().getUID(),loc.getBlockX(),loc.getBlockY(),loc.getBlockZ());}
+Claim(UUID id,UUID owner,String name,UUID world,int x,int y,int z){
+this.id=id;this.owner=owner;ownerName=name;this.world=world;this.x=x;this.y=y;this.z=z;
+}
 int minX(){return x-SIZE[level]/2;}
 int maxX(){return minX()+SIZE[level]-1;}
 int minZ(){return z-SIZE[level]/2;}
@@ -142,9 +145,10 @@ if(claimsSection!=null)for(String id:claimsSection.getKeys(false))try{
 UUID claimId=UUID.fromString(id);
 UUID owner=UUID.fromString(y.getString("claims."+id+".owner",id));
 String root="claims."+id+".";
-World w=Bukkit.getWorld(UUID.fromString(Objects.requireNonNull(y.getString(root+"world"))));
-if(w==null){getLogger().warning("Skipping claim with unloaded world: "+id);continue;}
-Claim c=new Claim(claimId,owner,y.getString(root+"name","unknown"),new Location(w,y.getInt(root+"x"),y.getInt(root+"y"),y.getInt(root+"z")));
+UUID world=UUID.fromString(Objects.requireNonNull(y.getString(root+"world")));
+if(Bukkit.getWorld(world)==null)getLogger().info("Preserving claim "+id+" in not-yet-loaded world "+world);
+Claim c=new Claim(claimId,owner,y.getString(root+"name","unknown"),world,
+y.getInt(root+"x"),y.getInt(root+"y"),y.getInt(root+"z"));
 c.level=Math.max(0,Math.min(4,y.getInt(root+"level",0)));
 c.independent=y.getBoolean(root+"independent",false);
 if(c.independent)c.level=2;
