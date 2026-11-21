@@ -25,8 +25,8 @@ import java.io.*;
 import java.util.*;
 
 public final class TargetClaimPlugin extends JavaPlugin implements Listener, CommandExecutor, TabCompleter {
-private static final int[] SIZE = {16,40,80,120,160};
-private static final int[] HEIGHT = {32,48,80,120,160};
+private static final int[] SIZE = {32,64,96,144,210};
+private static final int[] HEIGHT = {48,64,96,144,210};
 private static final Material[] COST = {Material.AMETHYST_SHARD,Material.AMETHYST_SHARD,Material.NETHERITE_SCRAP,Material.DRAGON_EGG};
 private static final int[] AMOUNT = {23,64,3,1};
 private static final ChatColor[] COLORS = {ChatColor.AQUA,ChatColor.BLUE,ChatColor.GOLD,ChatColor.GREEN,ChatColor.LIGHT_PURPLE,ChatColor.RED,ChatColor.YELLOW,ChatColor.DARK_AQUA,ChatColor.DARK_GREEN,ChatColor.DARK_PURPLE,ChatColor.DARK_RED,ChatColor.WHITE,ChatColor.GRAY};
@@ -40,15 +40,16 @@ private final Map<UUID,Viewer> viewers = new HashMap<>();
 private final Map<UUID,org.bukkit.scheduler.BukkitTask> pendingDeletion = new HashMap<>();
 private final Map<UUID,Integer> lastKeyUseTick = new HashMap<>();
 private final Random random = new Random();
-private NamespacedKey targetKey,displayKey,raidKey;
+private NamespacedKey targetKey,displayKey,raidKey,independentKey;
 private File dataFile;
 
 private static final class Claim {
-UUID owner,world;
+UUID id,owner,world;
 String ownerName;
 int x,y,z,level;
-boolean teamBuild=false;
-Claim(UUID id,String name,Location loc){owner=id;ownerName=name;world=loc.getWorld().getUID();x=loc.getBlockX();y=loc.getBlockY();z=loc.getBlockZ();}
+boolean teamBuild=false,independent=false;
+Claim(UUID owner,String name,Location loc){this(UUID.randomUUID(),owner,name,loc);}
+Claim(UUID id,UUID owner,String name,Location loc){this.id=id;this.owner=owner;ownerName=name;world=loc.getWorld().getUID();x=loc.getBlockX();y=loc.getBlockY();z=loc.getBlockZ();}
 int minX(){return x-SIZE[level]/2;}
 int maxX(){return minX()+SIZE[level]-1;}
 int minZ(){return z-SIZE[level]/2;}
@@ -75,6 +76,7 @@ boolean borders=true;
 targetKey=new NamespacedKey(this,"claim_target");
 displayKey=new NamespacedKey(this,"display_owner");
 raidKey=new NamespacedKey(this,"chest_key");
+independentKey=new NamespacedKey(this,"independent_claim");
 dataFile=new File(getDataFolder(),"data.yml");getDataFolder().mkdirs();
 loadAll();
 for(Claim claim:claims.values())indexClaim(claim);
@@ -105,9 +107,18 @@ getLogger().info("TargetClaim 1.5.1: "+claims.size()+" claims, "+groups.size()+"
 private ItemStack specialTarget(){
 ItemStack item=new ItemStack(Material.TARGET);
 ItemMeta meta=item.getItemMeta();meta.setDisplayName("§d§l✦ Ядро привата ✦");
-meta.setLore(List.of("§7Особая мишень территории","§7Лимит: §f1 приват на игрока","§7ПКМ: §fменю настроек","§cПри удалении возвращается только бумага"));
+meta.setLore(List.of("§7Особая мишень территории","§7Лимит: §f2 привата на игрока","§7ПКМ: §fменю настроек","§cПри удалении возвращается только бумага"));
 meta.getPersistentDataContainer().set(targetKey,PersistentDataType.BYTE,(byte)1);item.setItemMeta(meta);return item;
 }
+public ItemStack independentTarget(){
+ItemStack item=specialTarget();
+ItemMeta meta=item.getItemMeta();
+meta.setDisplayName("§6§lНезависимый приват");
+meta.setLore(List.of("§7Размер: §e96×96×96 §7(как уровень 2)","§cБез улучшений","§7Занимает один из двух приватов","§6Цена торговца: 20 алмазов"));
+meta.getPersistentDataContainer().set(independentKey,PersistentDataType.BYTE,(byte)1);
+item.setItemMeta(meta);return item;
+}
+private boolean isIndependent(ItemStack item){return isSpecial(item)&&item.getItemMeta().getPersistentDataContainer().has(independentKey,PersistentDataType.BYTE);}
 private boolean isSpecial(ItemStack item){return item!=null&&item.getType()==Material.TARGET&&item.hasItemMeta()&&Byte.valueOf((byte)1).equals(item.getItemMeta().getPersistentDataContainer().get(targetKey,PersistentDataType.BYTE));}
 private ItemStack specialChestKey(){
 ItemStack key=new ItemStack(Material.TRIPWIRE_HOOK,1);
@@ -128,14 +139,17 @@ File sourceFile=dataFile.isFile()?dataFile:new File(getDataFolder(),"claims.yml"
 YamlConfiguration y=YamlConfiguration.loadConfiguration(sourceFile);
 ConfigurationSection claimsSection=y.getConfigurationSection("claims");
 if(claimsSection!=null)for(String id:claimsSection.getKeys(false))try{
-UUID owner=UUID.fromString(id);
+UUID claimId=UUID.fromString(id);
+UUID owner=UUID.fromString(y.getString("claims."+id+".owner",id));
 String root="claims."+id+".";
 World w=Bukkit.getWorld(UUID.fromString(Objects.requireNonNull(y.getString(root+"world"))));
 if(w==null){getLogger().warning("Skipping claim with unloaded world: "+id);continue;}
-Claim c=new Claim(owner,y.getString(root+"name","unknown"),new Location(w,y.getInt(root+"x"),y.getInt(root+"y"),y.getInt(root+"z")));
+Claim c=new Claim(claimId,owner,y.getString(root+"name","unknown"),new Location(w,y.getInt(root+"x"),y.getInt(root+"y"),y.getInt(root+"z")));
 c.level=Math.max(0,Math.min(4,y.getInt(root+"level",0)));
+c.independent=y.getBoolean(root+"independent",false);
+if(c.independent)c.level=2;
 c.teamBuild=y.getBoolean(root+"teamBuild",false);
-claims.put(owner,c);
+claims.put(c.id,c);
 }catch(Exception ex){getLogger().warning("Invalid claim "+id+": "+ex.getMessage());}
 ConfigurationSection teamsSection=y.getConfigurationSection("teams");
 if(teamsSection!=null)for(String id:teamsSection.getKeys(false))try{
@@ -159,7 +173,7 @@ v.borders=y.getBoolean(root+"borders",true);viewers.put(uid,v);
 private void saveAll(){
 YamlConfiguration y=new YamlConfiguration();
 for(Claim c:claims.values()){
-String r="claims."+c.owner+".";y.set(r+"name",c.ownerName);y.set(r+"world",c.world.toString());y.set(r+"x",c.x);y.set(r+"y",c.y);y.set(r+"z",c.z);y.set(r+"level",c.level);y.set(r+"teamBuild",c.teamBuild);
+String r="claims."+c.id+".";y.set(r+"owner",c.owner.toString());y.set(r+"name",c.ownerName);y.set(r+"world",c.world.toString());y.set(r+"x",c.x);y.set(r+"y",c.y);y.set(r+"z",c.z);y.set(r+"level",c.level);y.set(r+"teamBuild",c.teamBuild);y.set(r+"independent",c.independent);
 }
 for(Group g:groups.values()){
 String r="teams."+g.id+".";y.set(r+"name",g.name);y.set(r+"leader",g.leader.toString());y.set(r+"color",g.color.name());y.set(r+"members",g.members.stream().map(UUID::toString).toList());y.set(r+"pvpOn",g.pvpOn.stream().map(UUID::toString).toList());
@@ -226,6 +240,16 @@ return world!=null&&minY(c,level)>=world.getMinHeight()&&maxY(c,level)<world.get
 private boolean overlap(Claim c){return wouldOverlap(c,c.level);}
 private Group groupOf(UUID player){UUID id=membership.get(player);return id==null?null:groups.get(id);}
 private boolean allies(UUID a,UUID b){if(a.equals(b))return true;UUID x=membership.get(a);return x!=null&&x.equals(membership.get(b));}
+private List<Claim> ownedClaims(UUID owner){
+return claims.values().stream().filter(c->c.owner.equals(owner))
+.sorted(Comparator.comparing((Claim c)->c.id.toString())).toList();
+}
+private Claim selectedClaim(Player player){
+Claim nearby=claimAt(player.getLocation());
+if(nearby!=null&&nearby.owner.equals(player.getUniqueId()))return nearby;
+List<Claim> mine=ownedClaims(player.getUniqueId());
+return mine.isEmpty()?null:mine.get(0);
+}
 private boolean owner(Player player,Claim c){return player.getUniqueId().equals(c.owner);}
 private boolean canUse(Player player,Claim c){return canBuild(player,c);}
 private boolean canBuild(Player player,Claim c){return owner(player,c)||(c.teamBuild&&allies(player.getUniqueId(),c.owner));}
