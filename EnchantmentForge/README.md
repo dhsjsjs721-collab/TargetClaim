@@ -123,3 +123,10 @@ gradle -p EnchantmentForge build --no-daemon
 ## v1.2.0 — One full catalog for every Wandering Trader
 
 Every Wandering Trader (natural spawn, `/summon wandering_trader`, existing on disk, and `/ce trader`) now receives the same full ordered catalog: all useful goods, all supported enchantment books, all spawn eggs and all selected spawners. Old v1.1 trader markers are upgraded the first time the trader loads, is summoned or is right-clicked. The full long merchant UI intentionally scrolls; there is no random short selection. Missing client recipe assets are not required. Prices remain the same, and traders do not bring llamas. A full server restart is needed after replacing an existing JAR.
+
+## 1.3.0 — limited, varied trader stock and proportional diamond economy
+
+- Every natural, manually summoned, and /ce spawned Wandering Trader now guarantees the **independent level-2 claim** for **exactly 20 diamonds**, purchasable up to two times per trader. It is a special server-tagged TARGET and cannot be upgraded by TargetClaim 1.6.0; it uses one of the player's two claim slots.
+- A trader has **14–21 distinct offers** per appearance instead of the entire massive catalog. Usually includes 2–4 featured offers, 11–15 random supplies, and sometimes one rare spawner (22% chance), plus the independent claim. Each individual merchant stores its offers; reopening the UI does not reroll them.
+- Prices use category-weighted bases, e.g. crops/foods/building supplies less, books/eggs medium, rare spawners/Elytra/netherite expensive. Many have about ±12% random price variation per offer; the independent claim and the two custom book recipes have fixed prices. Old trader-price-divisor setting is obsolete and ignored.
+- New trader v4 marker reconfigures pre-existing traders on chunk load, interaction, server startup or new spawn, without llama caravans.
