@@ -35,4 +35,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: MinecraftUnified-One-JAR
-          path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.5.jar
+          path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.6.jar

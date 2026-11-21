@@ -1,4 +1,4 @@
-# MinecraftUnified 1.1.5 — One JAR for all five Paper plugins
+# MinecraftUnified 1.1.6 — One JAR for all five Paper plugins
 
 A **real single Paper plugin** (not an installer ZIP) built from the latest maintained source branches of TargetClaim, TalismanForge 2.6.0, EnchantmentForge 1.2.0, SwampSky 1.7.1 and ImageMaps 1.1.0. The compile-time generator converts the existing five JavaPlugin subclasses into hosted listener/command modules, retaining their features and original data identifiers.
 
@@ -8,7 +8,7 @@ A **real single Paper plugin** (not an installer ZIP) built from the latest main
 
 1. Stop the server, **back up the entire world and existing plugin data**.
 2. Remove the old five separate JARs from `plugins/`. Do not keep the five old plugins alongside this file: duplicate recipes and event handlers would conflict.
-3. Place only `MinecraftUnified-1.1.5.jar` in `plugins/`.
+3. Place only `MinecraftUnified-1.1.6.jar` in `plugins/`.
 4. Keep using the single `resourcepacks/TalismanForge-2.0.0-ResourcePack.zip` from the main branch, with the SHA1 shown in the main repo; it includes the SwampSky equipment, TargetClaim key and Reliquary artwork.
 5. Start the server and run `/unified`: all five modules should appear as loaded.
 
@@ -153,3 +153,17 @@ B = Basalt (4), K = Blackstone (4), O = Obsidian (1). The produced item is ordin
 - **Verification:** Gradle CI compiles and starts a real Purpur 26.3 server with five modules and the extra shields/recipe. Actual visual appearance, live mounted handling and PvP still require player-in-world testing.
 
 Upgrade by stopping the server, backing up worlds and data, removing `MinecraftUnified-1.1.4.jar`, installing **only** `MinecraftUnified-1.1.5.jar`, replacing the existing resource pack with its updated ZIP and restarting. Do not keep old and new plugin JARs simultaneously.
+
+## 1.1.6 — advanced pig AI, 2.55× faster normal riding and synced wings
+
+**This release improves the previous 1.1.5 behavior rather than adding new race concepts.**
+
+- **2.55× faster normal pigs:** ordinary saddled mounts ride at **0.97 blocks/tick** (versus old 0.38), sprinting at up to 1.14 blocks/tick, swimming at 0.64. Horse-style WASD movement uses gentle acceleration/braking, smooth turning, automatic stepping up one-block obstacles and multiple forward collision probes to handle the increased speed. Compatible settings use NEW keys `pig-horse-ride-speed-v2` and `pig-horse-swim-speed-v2`, even when the old config contains slower speeds.
+- **Wing display sync:** all loaded flying pigs near players render wing positions **every tick** instead of every third tick; remove delayed teleport interpolation and predict a small portion of velocity to reduce visible trailing during fast turns and flying.
+- **Improved flying-pig AI:** stays behind and to the side of its owner, walks when nearby, rests instead of covering the player's view, and flies only when catching up or when navigation is blocked. The AI now checks whether it has stopped moving for several route refreshes and, if so, takes a short obstacle-safe airborne detour. It also avoids flying into low-roofed caves.
+- **Safer ground contact:** the collision check samples the entire pig body, not just the center point. Dismounted flying pigs return to the ground safely and don't take fall damage; the companion is slightly larger (scale 0.70 instead of 0.50) so the rider seat is less likely to enter terrain.
+- **Natural pumpkin behavior:** the wild pig remembers recently held pumpkin bait for ~3 seconds instead of abruptly reversing its flight as soon as food is lowered. A pig near the food-holder lands instead of hovering in the camera.
+- **No automatic mounting on normal jumping.** The flying pig can be mounted only by right-clicking it; the default normal pig still needs a saddle, but not a carrot-on-a-stick.
+- **Other modules retained:** existing five original components, End and Defiance swords/shields behind the player's back, 3D spectral/Turtle/Wither/Crusher models (same updated main resourcepack SHA1 `742640f383fdbaab59680bbcf9143e3b403f4738`), obsidian PvP trap, all claims and merchant rules, Deepslate recipe, talismans and frogs.
+
+Upgrade: back up worlds and plugin data, stop the server, remove the old JAR, install only `MinecraftUnified-1.1.6.jar`, and restart. If updating directly from 1.1.4 or older, also install the latest 3D unified resourcepack and change its server SHA-1. **GitHub Actions validates build and boot but cannot certify actual riding, flight physics, anticheat behavior or visuals in a live client.**

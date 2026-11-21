@@ -98,7 +98,7 @@ getLogger().severe("Deepslate recipe failed to register: "+ex.getMessage());
 if(deepslateCrafts!=null)deepslateCrafts.disable();
 deepslateCrafts=null;
 }
-getLogger().info("MinecraftUnified 1.1.5 started modules "+enabledModules.size()+"/"+modules.size()+
+getLogger().info("MinecraftUnified 1.1.6 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
 private boolean enabled(String module){
@@ -106,7 +106,7 @@ for(ModuleBridge m:enabledModules)if(m.getName().equals(module))return true;
 return false;
 }
 private void status(CommandSender sender){
-sender.sendMessage("§aMinecraftUnified 1.1.5 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
+sender.sendMessage("§aMinecraftUnified 1.1.6 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
 sender.sendMessage(trapItems!=null?"§a✓ PvP-трапки §7активны":"§c✗ PvP-трапки §7не активны");
 sender.sendMessage(combatShields!=null?"§a✓ 3 особых щита §7активны":"§c✗ Особые щиты §7не запущены");
 sender.sendMessage(deepslateCrafts!=null?"§a✓ Крафт сланца §7активен":"§c✗ Крафт сланца §7не запущен");
