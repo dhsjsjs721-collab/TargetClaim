@@ -282,7 +282,23 @@ for(ItemStack rest:recipient.getInventory().addItem(specialTarget()).values())re
 tell(sender,"§aМишень выдана игроку "+recipient.getName());return true;
 }
 if(!(sender instanceof Player p)){tell(sender,"§cЭта команда только для игроков.");return true;}
-Claim c=claims.get(p.getUniqueId());
+Claim c=selectedClaim(p);
+if(args.length>0&&args[0].equalsIgnoreCase("list")){
+List<Claim> mine=ownedClaims(p.getUniqueId());
+tell(p,"§eТвои приваты: "+mine.size()+"/2");
+for(int i=0;i<mine.size();i++){
+Claim own=mine.get(i);
+tell(p,"§7/p "+(i+1)+" §f"+(own.independent?"Независимый":"Обычный")+" §8| §f"+dimension(own.level)+" §7("+own.x+", "+own.y+", "+own.z+")");
+}
+return true;
+}
+if(args.length>0&&(args[0].equals("1")||args[0].equals("2"))){
+List<Claim> mine=ownedClaims(p.getUniqueId());
+int index=Integer.parseInt(args[0])-1;
+if(index<mine.size())showClaimDialog(p,mine.get(index));
+else tell(p,"§cПриват №"+(index+1)+" отсутствует.");
+return true;
+}
 if(c==null){tell(p,"§7Нет привата. Рецепт: §f3 бумаги сверху и 6 аметистов снизу.");return true;}
 if(args.length==0){showClaimDialog(p,c);return true;}
 switch(args[0].toLowerCase(Locale.ROOT)){
@@ -297,13 +313,13 @@ else if(args[1].equalsIgnoreCase("off"))v.borders=false;
 else{tell(p,"§eИспользуй: /p border on|off");return true;}
 saveAll();tell(p,"§eКрасные границы: "+(v.borders?"§aВКЛ":"§cВЫКЛ"));
 }
-case "info" -> {tell(p,"§dУровень "+c.level+"/4, объём: "+SIZE[c.level]+"×"+HEIGHT[c.level]+"×"+SIZE[c.level]+", 1 приват на игрока.");}
+case "info" -> {tell(p,"§d"+(c.independent?"Независимый приват без улучшений":"Уровень "+c.level+"/4")+", размер: "+SIZE[c.level]+"×"+HEIGHT[c.level]+"×"+SIZE[c.level]+", всего "+ownedClaims(p.getUniqueId()).size()+"/2.");}
 default -> showClaimDialog(p,c);
 }
 return true;
 }
 @Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] args){
-if(args.length==1)return starts(cmd.getName().equalsIgnoreCase("p")?List.of("upgrade","border","remove","cancel","info","give","givekey"):List.of("create","invite","accept","deny","leave","kick","disband","pvp","info","menu"),args[0]);
+if(args.length==1)return starts(cmd.getName().equalsIgnoreCase("p")?List.of("list","1","2","upgrade","border","remove","cancel","info","give","givekey"):List.of("create","invite","accept","deny","leave","kick","disband","pvp","info","menu"),args[0]);
 if(args.length==2&&cmd.getName().equalsIgnoreCase("team")&&(args[0].equalsIgnoreCase("invite")||args[0].equalsIgnoreCase("kick")))return starts(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(),args[1]);
 if(args.length==2&&args[0].equalsIgnoreCase("pvp"))return starts(List.of("on","off"),args[1]);
 if(args.length==2&&args[0].equalsIgnoreCase("border"))return starts(List.of("on","off"),args[1]);
@@ -414,13 +430,15 @@ public void place(BlockPlaceEvent e){
 Block b=e.getBlockPlaced();Player p=e.getPlayer();Claim occupied=claimAt(b.getLocation());
 if(occupied!=null&&!canBuild(p,occupied)){e.setCancelled(true);tell(p,"§cСтроительство запрещено.");return;}
 if(!isSpecial(e.getItemInHand()))return;
-if(claims.containsKey(p.getUniqueId())){e.setCancelled(true);tell(p,"§cУ тебя уже один приват.");return;}
+if(ownedClaims(p.getUniqueId()).size()>=2){e.setCancelled(true);tell(p,"§cЛимит: максимум 2 привата на игрока.");return;}
 Claim c=new Claim(p.getUniqueId(),p.getName(),b.getLocation());
+c.independent=isIndependent(e.getItemInHand());
+if(c.independent)c.level=2;
 if(c.minY()<b.getWorld().getMinHeight()||c.maxY()>=b.getWorld().getMaxHeight()){e.setCancelled(true);tell(p,"§cУстанови мишень выше/ниже: область должна помещаться в высоту мира.");return;}
 if(overlap(c)){e.setCancelled(true);tell(p,"§cПриват пересекается с другой территорией.");return;}
-claims.put(c.owner,c);indexClaim(c);
-Bukkit.getScheduler().runTask(this,()->{if(b.getType()!=Material.TARGET){claims.remove(c.owner);unindexClaim(c);return;}ensureDisplay(c);saveAll();});
-tell(p,"§aПриват создан: §f16×32×16. §7ПКМ — меню.");
+claims.put(c.id,c);indexClaim(c);
+Bukkit.getScheduler().runTask(this,()->{if(b.getType()!=Material.TARGET){claims.remove(c.id,c);unindexClaim(c);return;}ensureDisplay(c);saveAll();});
+tell(p,"§a"+(c.independent?"Независимый":"Обычный")+" приват создан: §f"+dimension(c.level)+". §7Приватов: "+ownedClaims(p.getUniqueId()).size()+"/2. ПКМ — меню.");
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void breaking(BlockBreakEvent e){
@@ -436,10 +454,10 @@ Block b=e.getClickedBlock();if(b==null)return;
 Claim core=claimCore(b);
 if(core!=null&&e.getAction()==Action.RIGHT_CLICK_BLOCK){e.setCancelled(true);
 if(e.getHand()!=EquipmentSlot.HAND)return;
-if(e.getPlayer().getUniqueId().equals(core.owner)&&pendingDeletion.containsKey(core.owner)){
+if(e.getPlayer().getUniqueId().equals(core.owner)&&pendingDeletion.containsKey(core.id)){
 cancelDeletion(e.getPlayer(),core);return;
 }
-if(e.getPlayer().isSneaking()&&e.getPlayer().getUniqueId().equals(core.owner)&&core.level<4&&e.getPlayer().getInventory().getItemInMainHand().getType()==COST[core.level]){upgrade(e.getPlayer(),core);return;}
+if(e.getPlayer().isSneaking()&&e.getPlayer().getUniqueId().equals(core.owner)&&!core.independent&&core.level<4&&e.getPlayer().getInventory().getItemInMainHand().getType()==COST[core.level]){upgrade(e.getPlayer(),core);return;}
 showClaimDialog(e.getPlayer(),core);return;
 }
 Claim c=claimAt(b.getLocation());if(c==null)return;
@@ -464,7 +482,7 @@ tell(player,"§cКлюч работает только в выживании и�
 int tick=Bukkit.getCurrentTick();
 if(Objects.equals(lastKeyUseTick.get(player.getUniqueId()),tick))return;
 ItemStack held=player.getInventory().getItemInMainHand();
-if(!isChestKey(held)||held.getAmount()<1||claims.get(c.owner)!=c)return;
+if(!isChestKey(held)||held.getAmount()<1||claims.get(c.id)!=c)return;
 if(!(b.getState() instanceof org.bukkit.block.Chest chest))return;
 Inventory inventory=chest.getInventory();
 if(inventory.getHolder() instanceof org.bukkit.block.DoubleChest doubleChest){
@@ -581,6 +599,7 @@ return false;
 
 private void upgrade(Player p,Claim c){
 if(!p.getUniqueId().equals(c.owner)){tell(p,"§cТолько владелец может улучшать приват.");return;}
+if(c.independent){tell(p,"§cНезависимый приват нельзя улучшить.");return;}
 if(c.level>=4){tell(p,"§aПриват уже максимального уровня.");return;}
 Material type=COST[c.level];int count=AMOUNT[c.level];ItemStack held=p.getInventory().getItemInMainHand();
 if(held.getType()!=type||held.getAmount()<count){tell(p,"§eДержи в основной руке §f"+count+" × "+russian(type)+"§e одним стаком и повтори.");return;}
@@ -607,13 +626,13 @@ saveAll();
 }
 private void startDeletion(Player p,Claim c){
 if(!p.getUniqueId().equals(c.owner))return;
-if(claims.get(c.owner)!=c)return;
+if(claims.get(c.id)!=c)return;
 if(pendingDeletion.containsKey(c.owner)){
 tell(p,"§eУдаление уже запущено. §7ПКМ по ядру или §f/p cancel §7— отменить.");return;
 }
 org.bukkit.scheduler.BukkitTask task=Bukkit.getScheduler().runTaskLater(this,()->{
 pendingDeletion.remove(c.owner);
-if(claims.get(c.owner)!=c)return;
+if(claims.get(c.id)!=c)return;
 removeClaim(c);
 Player online=Bukkit.getPlayer(c.owner);
 if(online!=null){
