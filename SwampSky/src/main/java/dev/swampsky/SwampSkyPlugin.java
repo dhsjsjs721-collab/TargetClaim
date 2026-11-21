@@ -707,10 +707,23 @@ recoverStalledFlight(pig,smooth);
 }
 private boolean clearForPig(Location location){
 World world=location.getWorld();
-if(world==null||!world.isChunkLoaded(location.getBlockX()>>4,location.getBlockZ()>>4))return false;
+if(world==null)return false;
 if(location.getY()<world.getMinHeight()+1||location.getY()>world.getMaxHeight()-3)return false;
-return location.getBlock().isPassable()
-&&location.clone().add(0,1,0).getBlock().isPassable();
+// The old check only tested the pig's center, so a wing or half of its
+// body could clip the wall and then the AI tried to fly vertically into it.
+// Sample the complete body width with a small collision margin.
+final double radius=.40;
+for(double dx:new double[]{-radius,radius}){
+for(double dz:new double[]{-radius,radius}){
+int x=(int)Math.floor(location.getX()+dx);
+int z=(int)Math.floor(location.getZ()+dz);
+if(!world.isChunkLoaded(x>>4,z>>4))return false;
+int y=location.getBlockY();
+if(!world.getBlockAt(x,y,z).isPassable()
+||!world.getBlockAt(x,y+1,z).isPassable())return false;
+}
+}
+return true;
 }
 private Location roamWaypoint(Pig pig,Location here){
 UUID id=pig.getUniqueId();
