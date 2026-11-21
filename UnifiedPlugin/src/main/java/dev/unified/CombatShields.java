@@ -250,7 +250,7 @@ forward.normalize();
 // 3D model stays behind the backplate, not in front of the eyes.
 // Rotate with the player's horizontal body direction and never billboard.
 Location back=player.getLocation().clone().subtract(forward.clone().multiply(.70)).add(0,1.23,0);
-back.setYaw(player.getLocation().getYaw()+180f);
+back.setYaw(player.getLocation().getYaw());
 back.setPitch(0f);
 display.teleport(back);
 for(Entity raw:player.getNearbyEntities(1.65,1.5,1.65)){
