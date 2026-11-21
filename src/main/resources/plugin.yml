@@ -1,12 +1,12 @@
 name: TargetClaim
-version: 1.5.2
+version: 1.6.0
 main: dev.targetclaim.TargetClaimPlugin
 api-version: '26.3'
 author: TargetClaim
 commands:
   p:
     description: Territory protection and inventory menu
-    usage: /p [upgrade|border|remove|cancel|info|give|givekey]
+    usage: /p [list|1|2|upgrade|border|remove|cancel|info|give|givekey]
     aliases: [claim, privat]
   team:
     description: Color teams (3 members maximum)
