@@ -123,3 +123,12 @@ The pig and frog vanilla skins and the existing resourcepack remain unchanged in
 - Giant frogs retain AI-aware vanilla navigation and naturally wander near the swamp even when there are no players in sight, with gently refreshed free-roam goals. Existing random frog hide and slime drops remain.
 - Ordinary saddled pigs are still steerable without carrot-on-a-stick, and pig health/scale and custom equipment are unchanged.
 - This needs real-world player validation; CI only compiles and verifies a server boot.
+
+## SwampSky 1.9.0 — safer, calmer pigs
+
+- The old auto-mount when an owner jumped in the direction of a winged pig has been REMOVED. To mount, use ordinary right-click on your own adult winged pig. Sneaking does not force an accidental mount.
+- Tamed winged pigs stop circling your head. Within ~8.5 blocks of their owner they descend gently and stand; farther away they follow behind on foot using pathfinding. At long distance they can fly after the owner, but always target the space behind rather than the owner's camera. They ignore pumpkin lure when already tame.
+- Wild winged pigs generally stand/wander on land. Their independent short flying excursions are limited to ~3–6.5 seconds followed by a much longer rest; no perpetual idle circling.
+- Mounted ordinary pigs now use smooth acceleration/braking, turning with direction of travel and horse-like WASD and Space jumping, without carrot-on-a-stick. Mounted winged pigs use safer low-speed movement: Space ascends, looking down while holding W descends. Predicted block collision prevents entering the floor or ceiling.
+- When dismounted at altitude, winged pigs use controlled descent, not a free fall. Previously saved flying pigs suspended high above terrain remain suspended on chunk load until our descent code parks them safely. `/ss repair` also preserves the new physics and restores collision.
+- Mounted steering speeds use new configuration keys, so stale fast values from old `config.yml` files do not undo these fixes. Real two-player and terrain gameplay tests are recommended after updating.
