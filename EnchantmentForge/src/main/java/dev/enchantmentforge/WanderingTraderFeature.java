@@ -52,7 +52,6 @@ private final ItemStack soulboundBook;
 private final ItemStack tripleShotBook;
 private final Random random=new Random();
 private final Map<UUID,Long> nextJourney=new HashMap<>();
-private final Set<UUID> configuredPaths=new HashSet<>();
 
 WanderingTraderFeature(JavaPlugin plugin, ItemStack soulboundBook, ItemStack tripleShotBook) {
 this.plugin=plugin;
