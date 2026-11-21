@@ -26,6 +26,7 @@ private final List<ModuleBridge> enabledModules=new ArrayList<>();
 private final Map<String,String> failedModules=new LinkedHashMap<>();
 private TrapItems trapItems;
 private CombatShields combatShields;
+private DeepslateCrafts deepslateCrafts;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("p","p"),Map.entry("private","p"),
 Map.entry("team","team"),
@@ -88,7 +89,16 @@ ex.printStackTrace();
 if(combatShields!=null)try{combatShields.disable();}catch(Throwable ignored){}
 combatShields=null;
 }
-getLogger().info("MinecraftUnified 1.1.3 started modules "+enabledModules.size()+"/"+modules.size()+
+try{
+deepslateCrafts=new DeepslateCrafts(this);
+deepslateCrafts.enable();
+getLogger().info("Deepslate craft enabled: 4 basalt + 4 blackstone + 1 obsidian -> 8 deepslate");
+}catch(Throwable ex){
+getLogger().severe("Deepslate recipe failed to register: "+ex.getMessage());
+if(deepslateCrafts!=null)deepslateCrafts.disable();
+deepslateCrafts=null;
+}
+getLogger().info("MinecraftUnified 1.1.4 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
 private boolean enabled(String module){
@@ -96,9 +106,10 @@ for(ModuleBridge m:enabledModules)if(m.getName().equals(module))return true;
 return false;
 }
 private void status(CommandSender sender){
-sender.sendMessage("§aMinecraftUnified 1.1.3 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
+sender.sendMessage("§aMinecraftUnified 1.1.4 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
 sender.sendMessage(trapItems!=null?"§a✓ PvP-трапки §7активны":"§c✗ PvP-трапки §7не активны");
 sender.sendMessage(combatShields!=null?"§a✓ 3 особых щита §7активны":"§c✗ Особые щиты §7не запущены");
+sender.sendMessage(deepslateCrafts!=null?"§a✓ Крафт сланца §7активен":"§c✗ Крафт сланца §7не запущен");
 for(String name:List.of("TargetClaim","TalismanForge","EnchantmentForge","SwampSky","ImageMaps")){
 if(enabled(name))sender.sendMessage("§a✓ "+name+" §7работает");
 else sender.sendMessage("§c✗ "+name+" §7ошибка запуска: "+failedModules.getOrDefault(name,"неизвестно"));
@@ -115,6 +126,7 @@ sender.sendMessage("§e/u ss give <ник> <hide|boots|leggings|wings> §7— в
 sender.sendMessage("§e/u map §7— окно картинки на карте");
 sender.sendMessage("§e/u trap §7— крафт и использование трапки");
 sender.sendMessage("§e/u shield §7— особые щиты и рецепты");
+sender.sendMessage("§eКрафт: 4 базальта + 4 чернокамня + обсидиан → 8 глубинного сланца");
 sender.sendMessage("§e/u trap give <ник> [количество] §7— выдача для администратора");
 sender.sendMessage("§e/u p list §7— два привата, §e/u p 1/2 §7— переключение");
 sender.sendMessage("§e/u p §7и §e/u team §7— приват и команда");
@@ -192,6 +204,7 @@ return sub.tabComplete(sender,target,rest);
 }catch(Exception ex){return List.of();}
 }
 @Override public void onDisable(){
+if(deepslateCrafts!=null){try{deepslateCrafts.disable();}catch(Throwable ex){getLogger().warning("Recipe cleanup failed: "+ex);}deepslateCrafts=null;}
 if(combatShields!=null){try{combatShields.disable();}catch(Throwable error){getLogger().warning("Shield cleanup failed: "+error);}combatShields=null;}
 if(trapItems!=null){try{trapItems.disable();}catch(Throwable failure){getLogger().warning("PvP trap cleanup failed: "+failure.getMessage());}trapItems=null;}
 for(int i=enabledModules.size()-1;i>=0;i--){
