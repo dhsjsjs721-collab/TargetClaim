@@ -6,6 +6,7 @@ on:
     paths:
       - "resourcepacks/unified-assets-20261120.json"
       - "tools/update_unified_resourcepack_20261120.py"
+      - "tools/new_equipment_assets_20261121.py"
       - ".github/workflows/update-unified-resourcepack.yml"
 permissions:
   contents: write
