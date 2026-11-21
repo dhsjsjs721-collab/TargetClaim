@@ -612,26 +612,26 @@ tell(p,"§aУлучшено до уровня "+c.level+" §7(§f"+SIZE[c.level]
 }
 private String russian(Material material){return switch(material){case AMETHYST_SHARD->"аметистовых осколков";case NETHERITE_SCRAP->"незеритового лома";case DRAGON_EGG->"яйцо дракона";default->material.name();};}
 private void removeClaim(Claim c){
-if(!claims.remove(c.owner,c))return;
+if(!claims.remove(c.id,c))return;
 unindexClaim(c);
-org.bukkit.scheduler.BukkitTask pending=pendingDeletion.remove(c.owner);
+org.bukkit.scheduler.BukkitTask pending=pendingDeletion.remove(c.id);
 if(pending!=null)pending.cancel();
 World w=Bukkit.getWorld(c.world);
 if(w!=null){Block b=w.getBlockAt(c.x,c.y,c.z);if(b.getType()==Material.TARGET){
 b.setType(Material.AIR,false);
 w.dropItemNaturally(new Location(w,c.x+.5,c.y+.5,c.z+.5),new ItemStack(Material.PAPER,3));
 }
-for(Entity entity:w.getNearbyEntities(new Location(w,c.x+.5,c.y+1.7,c.z+.5),2,3,2))if(entity instanceof TextDisplay&&c.owner.toString().equals(entity.getPersistentDataContainer().get(displayKey,PersistentDataType.STRING)))entity.remove();}
+for(Entity entity:w.getNearbyEntities(new Location(w,c.x+.5,c.y+1.7,c.z+.5),2,3,2))if(entity instanceof TextDisplay&&c.id.toString().equals(entity.getPersistentDataContainer().get(displayKey,PersistentDataType.STRING)))entity.remove();}
 saveAll();
 }
 private void startDeletion(Player p,Claim c){
 if(!p.getUniqueId().equals(c.owner))return;
 if(claims.get(c.id)!=c)return;
-if(pendingDeletion.containsKey(c.owner)){
+if(pendingDeletion.containsKey(c.id)){
 tell(p,"§eУдаление уже запущено. §7ПКМ по ядру или §f/p cancel §7— отменить.");return;
 }
 org.bukkit.scheduler.BukkitTask task=Bukkit.getScheduler().runTaskLater(this,()->{
-pendingDeletion.remove(c.owner);
+pendingDeletion.remove(c.id);
 if(claims.get(c.id)!=c)return;
 removeClaim(c);
 Player online=Bukkit.getPlayer(c.owner);
@@ -640,18 +640,18 @@ if(online.getOpenInventory().getTopInventory().getHolder() instanceof ClaimMenu)
 tell(online,"§aПриват удалён. Возвращено §f3 бумаги§a.");
 }
 },200L);
-pendingDeletion.put(c.owner,task);
+pendingDeletion.put(c.id,task);
 if(p.getOpenInventory().getTopInventory().getHolder() instanceof ClaimMenu)p.closeInventory();
 tell(p,"§cУдаление через 10 секунд. §7ПКМ по ядру — отменить. §8(/p cancel)");
 }
 private void cancelDeletion(Player p,Claim c){
 if(!p.getUniqueId().equals(c.owner)){tell(p,"§cТолько владелец может отменить удаление.");return;}
-org.bukkit.scheduler.BukkitTask task=pendingDeletion.remove(c.owner);
+org.bukkit.scheduler.BukkitTask task=pendingDeletion.remove(c.id);
 if(task==null){tell(p,"§7Удаление не запущено.");return;}
 task.cancel();
 tell(p,"§aУдаление отменено. Приват сохранён.");
 Inventory top=p.getOpenInventory().getTopInventory();
-if(top.getHolder() instanceof ClaimMenu menu&&menu.page.equals("main")&&c.owner.equals(menu.claimId))
+if(top.getHolder() instanceof ClaimMenu menu&&menu.page.equals("main")&&c.id.equals(menu.claimId))
 top.setItem(15,guiItem(Material.RED_DYE,"§cУдалить","§7Запустить отсчёт 10 секунд"));
 }
 
@@ -659,16 +659,16 @@ private void ensureDisplay(Claim c){
 World w=Bukkit.getWorld(c.world);if(w==null||!w.isChunkLoaded(c.x>>4,c.z>>4))return;
 if(w.getBlockAt(c.x,c.y,c.z).getType()!=Material.TARGET)return;
 Location position=new Location(w,c.x+.5,c.y+1.55,c.z+.5);
-for(Entity entity:w.getNearbyEntities(position,2,3,2))if(entity instanceof TextDisplay text&&c.owner.toString().equals(entity.getPersistentDataContainer().get(displayKey,PersistentDataType.STRING))){setDisplayText(text,c);return;}
+for(Entity entity:w.getNearbyEntities(position,2,3,2))if(entity instanceof TextDisplay text&&c.id.toString().equals(entity.getPersistentDataContainer().get(displayKey,PersistentDataType.STRING))){setDisplayText(text,c);return;}
 TextDisplay entity=w.spawn(position,TextDisplay.class,text->{
 text.setBillboard(Display.Billboard.CENTER);text.setShadowed(true);text.setSeeThrough(false);
 text.setBackgroundColor(Color.fromARGB(145,20,13,35));text.setLineWidth(180);text.setPersistent(true);
-text.getPersistentDataContainer().set(displayKey,PersistentDataType.STRING,c.owner.toString());
+text.getPersistentDataContainer().set(displayKey,PersistentDataType.STRING,c.id.toString());
 });
 setDisplayText(entity,c);
 }
 private void setDisplayText(TextDisplay display,Claim c){
-display.setText("§c§lTARGETCLAIM\n§7"+c.ownerName+" §8• §f"+c.level+"§7/4");
+display.setText("§c§lTARGETCLAIM\n§7"+c.ownerName+" §8• §f"+(c.independent?"Независимый":c.level+"/4"));
 }
 private void refreshDisplay(Claim c){ensureDisplay(c);}
 @EventHandler public void chunkLoad(ChunkLoadEvent e){
@@ -694,14 +694,14 @@ int remaining;
 ParticleBudget(int max){remaining=max;}
 }
 private boolean enoughInHand(Player p,Claim c){
-if(c.level>=4)return false;
+if(c.independent||c.level>=4)return false;
 ItemStack held=p.getInventory().getItemInMainHand();
 return held.getType()==COST[c.level]&&held.getAmount()>=AMOUNT[c.level];
 }
 private Viewer viewer(Player p){return viewers.computeIfAbsent(p.getUniqueId(),id->new Viewer());}
 private void visualTick(){
 for(Player p:Bukkit.getOnlinePlayers()){
-Viewer v=viewer(p);Claim mine=claims.get(p.getUniqueId());boolean preview=mine!=null&&enoughInHand(p,mine);
+Viewer v=viewer(p);Claim mine=selectedClaim(p);boolean preview=mine!=null&&enoughInHand(p,mine);
 if(!v.borders&&!preview)continue;
 Location pos=p.getLocation();
 ParticleBudget red=new ParticleBudget(190),cyan=new ParticleBudget(120),gold=new ParticleBudget(65);
@@ -711,7 +711,7 @@ if(!self&&!(c.teamBuild&&allies(p.getUniqueId(),c.owner)))continue;
 double dx=c.x+.5-pos.getX(),dz=c.z+.5-pos.getZ();
 if(Math.abs(dx)>SIZE[c.level]/2.+72||Math.abs(dz)>SIZE[c.level]/2.+72||Math.abs(pos.getY()-(c.y+.5))>HEIGHT[c.level]/2.+75)continue;
 if(v.borders&&red.remaining>0)drawBorder(p,c,c.level,BORDER_RED,3.0,65,red,false);
-if(self&&preview){
+if(self&&preview&&!c.independent){
 drawBorder(p,c,c.level+1,validLevel(c,c.level+1)?PREVIEW_CYAN:BLOCKED_ORANGE,4.0,75,cyan,false);
 if(c.level+1<4)drawBorder(p,c,4,MAX_GOLD,9.0,80,gold,false);
 }
@@ -767,13 +767,13 @@ private void showUpgradeDialog(Player player,Claim c){
 if(player.getUniqueId().equals(c.owner))openClaimMenu(player,c,"upgrade");
 }
 private String on(boolean value){return value?"ВКЛ":"ВЫКЛ";}
-private void showTeamDialog(Player player){openClaimMenu(player,claims.get(player.getUniqueId()),"team");}
+private void showTeamDialog(Player player){openClaimMenu(player,selectedClaim(player),"team");}
 private final class ClaimMenu implements InventoryHolder {
 final UUID claimId;
 final String page;
 final Inventory inventory;
 ClaimMenu(Claim claim,String page){
-this.claimId=claim==null?null:claim.owner;
+this.claimId=claim==null?null:claim.id;
 this.page=page;
 String title=switch(page){
 case "upgrade"->"Улучшение";case "team"->"Команда";default->"TargetClaim";
@@ -813,12 +813,12 @@ return guiItem(Material.IRON_DOOR,"§fСтроительство","§7"+(claim.t
 private void fillMainMenu(Inventory inv,Player player,Claim claim){
 boolean own=claim.owner.equals(player.getUniqueId());
 inv.setItem(4,guiItem(Material.TARGET,"§f§lПриват §7"+claim.level+"/4","§7Владелец: §f"+claim.ownerName,"§7Размер: §f"+dimension(claim.level)));
-if(own&&claim.level<4)inv.setItem(11,guiItem(Material.AMETHYST_SHARD,"§aУлучшить","§7Стоимость и предпросмотр"));
+if(own&&!claim.independent&&claim.level<4)inv.setItem(11,guiItem(Material.AMETHYST_SHARD,"§aУлучшить","§7Стоимость и предпросмотр"));
 inv.setItem(12,borderTile(player));
 if(own)inv.setItem(13,buildTile(claim));
 inv.setItem(14,guiItem(Material.NAME_TAG,"§dКоманда","§7Участники и PvP"));
 if(own){
-if(pendingDeletion.containsKey(claim.owner))inv.setItem(15,guiItem(Material.LIME_DYE,"§aОтменить удаление","§7Приват останется на месте"));
+if(pendingDeletion.containsKey(claim.id))inv.setItem(15,guiItem(Material.LIME_DYE,"§aОтменить удаление","§7Приват останется на месте"));
 else inv.setItem(15,guiItem(Material.RED_DYE,"§cУдалить","§7Запустить отсчёт 10 секунд"));
 }
 }
@@ -826,7 +826,7 @@ private void fillUpgradeMenu(Inventory inv,Player player,Claim claim){
 inv.setItem(4,guiItem(Material.TARGET,"§fПриват §7"+claim.level+"/4"));
 inv.setItem(10,guiItem(Material.PAPER,"§fТекущий размер","§7"+dimension(claim.level)));
 inv.setItem(16,guiItem(Material.GOLD_INGOT,"§6Максимум","§7"+dimension(4)));
-if(claim.level<4){
+if(!claim.independent&&claim.level<4){
 inv.setItem(12,guiItem(Material.CYAN_DYE,"§bСледующий размер","§7"+dimension(claim.level+1)));
 inv.setItem(14,guiItem(COST[claim.level],"§eЦена","§7"+AMOUNT[claim.level]+" × "+russian(COST[claim.level])));
 boolean has=enoughInHand(player,claim),free=validLevel(claim,claim.level+1);
@@ -865,7 +865,7 @@ inv.setItem(18,guiItem(Material.ARROW,"§7Назад"));
 private void changePage(Player player,Claim claim,String page){
 Bukkit.getScheduler().runTask(this,()->{
 if(!player.isOnline())return;
-if(claim!=null&&claims.get(claim.owner)!=claim){player.closeInventory();return;}
+if(claim!=null&&claims.get(claim.id)!=claim){player.closeInventory();return;}
 openClaimMenu(player,claim,page);
 });
 }
@@ -900,7 +900,7 @@ boolean isOwner=claim.owner.equals(player.getUniqueId());
 switch(menu.page){
 case "main"->{
 switch(slot){
-case 11->{if(isOwner&&claim.level<4)changePage(player,claim,"upgrade");}
+case 11->{if(isOwner&&!claim.independent&&claim.level<4)changePage(player,claim,"upgrade");}
 case 12->{
 Viewer viewer=viewer(player);viewer.borders=!viewer.borders;saveAll();
 inv.setItem(12,borderTile(player));
@@ -908,14 +908,14 @@ inv.setItem(12,borderTile(player));
 case 13->{if(isOwner){claim.teamBuild=!claim.teamBuild;saveAll();inv.setItem(13,buildTile(claim));}}
 case 14->changePage(player,claim,"team");
 case 15->{if(isOwner){
-if(pendingDeletion.containsKey(claim.owner))cancelDeletion(player,claim);
+if(pendingDeletion.containsKey(claim.id))cancelDeletion(player,claim);
 else Bukkit.getScheduler().runTask(this,()->startDeletion(player,claim));
 }}
 }
 }
 case "upgrade"->{
 if(slot==18)changePage(player,claim,"main");
-else if(slot==22&&isOwner&&claim.level<4){upgrade(player,claim);fillUpgradeMenu(inv,player,claim);}
+else if(slot==22&&isOwner&&!claim.independent&&claim.level<4){upgrade(player,claim);fillUpgradeMenu(inv,player,claim);}
 }
 default->{}
 }
