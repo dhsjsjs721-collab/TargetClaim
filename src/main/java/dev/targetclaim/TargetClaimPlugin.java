@@ -854,15 +854,20 @@ return guiItem(Material.IRON_DOOR,"§fСтроительство","§7"+(claim.t
 }
 private void fillMainMenu(Inventory inv,Player player,Claim claim){
 boolean own=claim.owner.equals(player.getUniqueId());
-inv.setItem(4,guiItem(Material.TARGET,"§f§l"+(claim.independent?"Независимый приват":"Приват "+claim.level+"/4"),"§7Владелец: §f"+claim.ownerName,"§7Размер: §f"+dimension(claim.level),claim.independent?"§cБез улучшений":"§7Улучшение через аметист, лом и яйцо"));
+inv.setItem(4,guiItem(Material.TARGET,"§f§l"+(claim.independent?"Независимый приват":"Приват "+claim.level+"/4"),
+"§7Владелец: §f"+claim.ownerName,"§7Размер: §f"+dimension(claim.level),
+"§7Мир: §f"+worldName(claim),claim.independent?"§cБез улучшений":"§7Улучшение через аметист, лом и яйцо"));
 if(own&&!claim.independent&&claim.level<4)inv.setItem(11,guiItem(Material.AMETHYST_SHARD,"§aУлучшить","§7Стоимость и предпросмотр"));
 inv.setItem(12,borderTile(player));
 if(own)inv.setItem(13,buildTile(claim));
 inv.setItem(14,guiItem(Material.NAME_TAG,"§dКоманда","§7Участники и PvP"));
 List<Claim> owned=ownedClaims(player.getUniqueId());
 if(own&&owned.size()>1){
-Claim other=owned.get(0)==claim?owned.get(1):owned.get(0);
-inv.setItem(22,guiItem(Material.COMPASS,"§bДругой приват","§7"+(other.independent?"Независимый":"Обычный")+" §8| §f"+dimension(other.level),"§7Нажми для переключения"));
+int current=owned.indexOf(claim);
+Claim next=owned.get((current+1)%owned.size());
+inv.setItem(22,guiItem(Material.COMPASS,"§bСледующий приват",
+"§7"+claimTitle(next),"§7Приват "+(current+1)+" из "+owned.size(),
+"§7Нажми для переключения"));
 }
 if(own){
 if(pendingDeletion.containsKey(claim.id))inv.setItem(15,guiItem(Material.LIME_DYE,"§aОтменить удаление","§7Приват останется на месте"));
@@ -881,7 +886,7 @@ inv.setItem(22,guiItem(!free?Material.ORANGE_DYE:has?Material.LIME_DYE:Material.
 }else{
 inv.setItem(12,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
 inv.setItem(14,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
-inv.setItem(22,guiItem(Material.NETHER_STAR,"§6Максимальный уровень"));
+inv.setItem(22,guiItem(Material.NETHER_STAR,claim.independent?"§cНельзя улучшить":"§6Максимальный уровень"));
 }
 inv.setItem(18,guiItem(Material.ARROW,"§7Назад"));
 }
@@ -955,7 +960,7 @@ inv.setItem(12,borderTile(player));
 case 13->{if(isOwner){claim.teamBuild=!claim.teamBuild;saveAll();inv.setItem(13,buildTile(claim));}}
 case 14->changePage(player,claim,"team");
 case 22->{if(isOwner){List<Claim> owned=ownedClaims(player.getUniqueId());
-if(owned.size()>1)changePage(player,owned.get(0)==claim?owned.get(1):owned.get(0),"main");}}
+if(owned.size()>1)changePage(player,owned.get((owned.indexOf(claim)+1)%owned.size()),"main");}}
 case 15->{if(isOwner){
 if(pendingDeletion.containsKey(claim.id))cancelDeletion(player,claim);
 else Bukkit.getScheduler().runTask(this,()->startDeletion(player,claim));
