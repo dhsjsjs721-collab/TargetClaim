@@ -8,9 +8,15 @@ triple-shot-spread-degrees: 10.0
 triple-shot-medium-force: 0.50
 triple-shot-full-force: 0.90
 
-# Wandering trader extension (in addition to the vanilla spawn system)
-trader-spawn-minutes: 25
-trader-max-per-world: 2
+# Wandering traders: independent wandering schedule IN ADDITION to vanilla spawns.
+# Existing server config files are compatible: the new journey keys use these
+# defaults even if the old trader-spawn-minutes: 25 entry still exists.
+trader-journey-spawn-minutes: 5
+trader-journey-max-per-world: 4
+trader-journey-village-preference: 0.75
+trader-journey-roam-enabled: true
+trader-journey-speed: 0.78
+# How long a merchant can remain alive (ticks). 48000 = 40 minutes.
 trader-despawn-ticks: 48000
 # Every trader guarantees an independent level-2 claim for exactly 20 diamonds.
 # Each trader gets 14-21 randomly selected offers at creation.
