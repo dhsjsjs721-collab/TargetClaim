@@ -49,6 +49,7 @@ private final Map<UUID,Input> inputCache=new HashMap<>();
 private final Map<UUID,Vector> mountedMomentum=new HashMap<>();
 private final Map<UUID,Long> wildFlightUntil=new HashMap<>();
 private final Map<UUID,Long> lureHysteresisUntil=new HashMap<>();
+private final Map<UUID,UUID> rememberedLure=new HashMap<>();
 private final Map<UUID,Long> settleUntil=new HashMap<>(),frogIdleUntil=new HashMap<>();
 private final Map<UUID,Location> frogIdleGoals=new HashMap<>();
 private final Map<UUID,UUID> aggro=new HashMap<>();
@@ -82,6 +83,8 @@ recipes();
 for(World w:Bukkit.getWorlds())for(Chunk ch:w.getLoadedChunks())scan(ch);
 Bukkit.getScheduler().runTaskTimer(this,this::step,5L,3L);
 Bukkit.getScheduler().runTaskTimer(this,this::mountedTick,1L,1L);
+// Wing displays follow EVERY tick; navigation is deliberately slower.
+Bukkit.getScheduler().runTaskTimer(this,this::wingsTick,1L,1L);
 Bukkit.getScheduler().runTaskTimer(this,this::bounceStep,1L,1L);
 Bukkit.getScheduler().runTaskTimer(this,this::frogWingsMotion,1L,1L);
 Bukkit.getScheduler().runTaskTimer(this,this::populateNearby,120L,160L);
@@ -92,7 +95,7 @@ for(UUID id:new ArrayList<>(displays.keySet()))pigClear(id);
 aggro.clear();aggroUntil.clear();attackCooldown.clear();hitWindow.clear();hitCount.clear();flightVectors.clear();
 roamHomes.clear();roamTargets.clear();motionSamples.clear();roamExpiry.clear();motionCheckAt.clear();motionStalls.clear();pigErrorLogAt.clear();groundTargets.clear();groundPathUntil.clear();
 dismountFall.clear();knockbackUntil.clear();mountedMomentum.clear();wildFlightUntil.clear();heldJump.clear();nextMountedJump.clear();
-lureHysteresisUntil.clear();settleUntil.clear();frogIdleGoals.clear();frogIdleUntil.clear();
+lureHysteresisUntil.clear();rememberedLure.clear();settleUntil.clear();frogIdleGoals.clear();frogIdleUntil.clear();
 for(UUID id:ground){Entity e=Bukkit.getEntity(id);if(e instanceof Pig p){p.setAI(true);p.setAware(true);}}
 for(UUID id:wings){
 Entity e=Bukkit.getEntity(id);
@@ -360,6 +363,18 @@ if(fly&&!owned(pig,player))continue;
 try{ride(pig,player,fly);}catch(RuntimeException ex){pigProblem(pig.getUniqueId(),ex,"mounted steering");}
 }
 }
+private void wingsTick(){
+for(UUID id:new ArrayList<>(wings)){
+Entity entity=Bukkit.getEntity(id);
+if(!(entity instanceof Pig pig)||!pig.isValid())continue;
+boolean seen=false;
+for(Player player:pig.getWorld().getPlayers()){
+if(player.getLocation().distanceSquared(pig.getLocation())<80*80){seen=true;break;}
+}
+if(!seen)continue;
+try{drawWings(pig);}catch(RuntimeException ex){pigProblem(id,ex,"synchronous wings");}
+}
+}
 private void step(){
 tick+=3;
 for(UUID id:new ArrayList<>(wings)){
@@ -370,7 +385,6 @@ aggro.remove(id);aggroUntil.remove(id);attackCooldown.remove(id);hitWindow.remov
 continue;
 }
 try{movePig(p,true);}catch(RuntimeException ex){pigProblem(id,ex,"navigation");}
-try{drawWings(p);}catch(RuntimeException ex){pigProblem(id,ex,"wing rendering");}
 }
 for(UUID id:new ArrayList<>(ground)){
 Entity e=Bukkit.getEntity(id);
@@ -395,6 +409,7 @@ getLogger().warning("SwampSky pig "+id+" "+operation+" failed: "+exception.getCl
 }
 private void forgetFlight(UUID id){
 flightVectors.remove(id);roamHomes.remove(id);roamTargets.remove(id);roamExpiry.remove(id);
+rememberedLure.remove(id);lureHysteresisUntil.remove(id);settleUntil.remove(id);wildFlightUntil.remove(id);
 motionSamples.remove(id);motionCheckAt.remove(id);motionStalls.remove(id);pigErrorLogAt.remove(id);
 }
 private void restWingedPig(Pig pig,boolean wild){
@@ -438,7 +453,8 @@ private Location ownerFollowPosition(Player owner){
 Vector forward=owner.getLocation().getDirection().setY(0);
 if(forward.lengthSquared()<.01)forward=new Vector(0,0,1);
 forward.normalize();
-return owner.getLocation().clone().subtract(forward.multiply(4.5));
+Vector lateral=new Vector(-forward.getZ(),0,forward.getX()).multiply(.8);
+return owner.getLocation().clone().subtract(forward.multiply(5.4)).add(lateral);
 }
 private void walkWingedToOwner(Pig pig,Player owner){
 UUID id=pig.getUniqueId();
@@ -446,10 +462,12 @@ if(!pig.hasGravity())pig.setGravity(true);
 if(!pig.isAware())pig.setAware(true);
 Location destination=ownerFollowPosition(owner);
 if(tick>=groundPathUntil.getOrDefault(id,0L)){
-groundPathUntil.put(id,tick+45);
+groundPathUntil.put(id,tick+18);
+// A stable trailing path, refreshed once a second: the pig no longer
+// cuts in front of the owner's camera or continually repaths per tick.
 if(destination.getWorld()!=null&&destination.getWorld().isChunkLoaded(destination.getBlockX()>>4,destination.getBlockZ()>>4)
-&&clearForPig(destination))pig.getPathfinder().moveTo(destination,.92);
-else pig.getPathfinder().moveTo(owner.getLocation(),.78);
+&&clearForPig(destination))pig.getPathfinder().moveTo(destination,1.17);
+else pig.getPathfinder().moveTo(owner.getLocation(),1.04);
 }
 flightVectors.remove(id);
 }
@@ -499,10 +517,28 @@ if(!food(candidate.getInventory().getItemInMainHand())&&!food(candidate.getInven
 double distance=here.distanceSquared(candidate.getLocation());
 if(distance<lureDistance){lure=candidate;lureDistance=distance;}
 }
+if(lure!=null){
+// Brief lure memory prevents abrupt turnarounds as pumpkin changes hands.
+rememberedLure.put(id,lure.getUniqueId());
+lureHysteresisUntil.put(id,tick+66);
+}else if(tick<lureHysteresisUntil.getOrDefault(id,0L)){
+Player remembered=Bukkit.getPlayer(rememberedLure.get(id));
+if(remembered!=null&&remembered.isOnline()&&!remembered.isDead()
+&&remembered.getWorld()==pig.getWorld()
+&&here.distanceSquared(remembered.getLocation())<18*18)lure=remembered;
+}else{
+rememberedLure.remove(id);lureHysteresisUntil.remove(id);
+}
 }
 // Tamed companions ignore pumpkin bait while following their owners.
 // They must neither jump into the player's camera nor chase held food in circles.
-if(own!=null){lure=null;if(spiderDistance>4*4)spider=null;}
+if(own!=null){
+lure=null;rememberedLure.remove(id);lureHysteresisUntil.remove(id);
+if(spiderDistance>4*4)spider=null;
+}else if(lure!=null&&here.distanceSquared(lure.getLocation())<=3.5*3.5){
+// Landing near a food-holder is preferable to hovering in the face.
+restWingedPig(pig,true);return;
+}
 if(own!=null&&leashHolder==null&&fear==null&&attacker==null&&spider==null){
 double sq=here.distanceSquared(own.getLocation());
 if(sq<=8.5*8.5){restWingedPig(pig,false);return;}
@@ -1231,14 +1267,22 @@ entity.setBillboard(Display.Billboard.FIXED);
 entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
 entity.setItemStack(item("pig_wing",1));
 entity.setViewRange(1.4f);
-entity.setTeleportDuration(1);
+entity.setTeleportDuration(0);
+entity.setInterpolationDuration(0);
 mark(entity,displayKey);
 });
 list.add(d.getUniqueId());
 }
 displays.put(pig.getUniqueId(),list);
 }
-Location at=pig.getLocation();
+Location at=pig.getLocation().clone();
+// Pig velocity is applied during the same server tick, after plugin tasks.
+// Predict a fraction of one tick so cosmetic wings do not trail a fast mount.
+Vector wingLead=pig.getVelocity().clone();
+if(wingLead.lengthSquared()<=1.7){
+Location predicted=at.clone().add(wingLead.clone().multiply(.65));
+if(predicted.getWorld().isChunkLoaded(predicted.getBlockX()>>4,predicted.getBlockZ()>>4))at=predicted;
+}
 double yaw=Math.toRadians(at.getYaw());
 // Local basis relative to the pig's body: sideways and back, not up by its ears.
 Vector right=new Vector(-Math.cos(yaw),0,-Math.sin(yaw));
