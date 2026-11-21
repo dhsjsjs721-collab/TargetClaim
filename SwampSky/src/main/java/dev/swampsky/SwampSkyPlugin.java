@@ -818,15 +818,15 @@ if(moving)desired.normalize();
 Location here=pig.getLocation();
 boolean water=pig.isInWater()||here.getBlock().isLiquid();
 double speed=fly?getConfig().getDouble("pig-safe-flight-ride-speed",.29):
-water?getConfig().getDouble("pig-horse-swim-speed",.26):
-getConfig().getDouble("pig-horse-ride-speed",.38);
-if(input.isSprint())speed*=fly?1.15:1.22;
+water?getConfig().getDouble("pig-horse-swim-speed-v2",.64):
+getConfig().getDouble("pig-horse-ride-speed-v2",.97);
+if(input.isSprint())speed*=fly?1.15:1.18;
 if(snow(here)&&!water)speed*=getConfig().getDouble("snow-multiplier",.55);
-speed=Math.max(.08,Math.min(fly?.42:.56,speed));
+speed=Math.max(.08,Math.min(fly?.42:1.18,speed));
 desired.multiply(speed);
 UUID mountId=pig.getUniqueId();
 Vector old=mountedMomentum.getOrDefault(mountId,pig.getVelocity().clone().setY(0)).clone().setY(0);
-double keep=moving?(fly?.73:.70):(fly?.36:.46);
+double keep=moving?(fly?.73:.73):(fly?.36:.39);
 Vector horizontal=old.multiply(keep).add(desired.multiply(1-keep));
 if(horizontal.lengthSquared()<.00015)horizontal.zero();
 mountedMomentum.put(mountId,horizontal.clone());
@@ -869,13 +869,39 @@ if(!feet.getBlock().isPassable())vertical=0;
 vertical=pressingJump?.19:.045;
 if(input.isSneak())vertical=-.08;
 }else{
-boolean ready=tick>=nextMountedJump.getOrDefault(mountId,0L);
-if(ready&&pig.isOnGround()&&(newJump||(slope&&moving))){
-vertical=newJump?.51:.36;
-nextMountedJump.put(mountId,tick+11);
+boolean jumpReady=tick>=nextMountedJump.getOrDefault(mountId,0L);
+boolean wall=false;
+boolean stepUp=false;
+if(pig.isOnGround()&&horizontal.lengthSquared()>.005){
+// Higher speed needs several short collision probes, not a single
+// one-block peek. Never force-load chunks while a mount is running.
+double length=horizontal.length();
+int samples=Math.max(1,(int)Math.ceil(length/.30));
+for(int n=1;n<=samples;n++){
+Location probe=here.clone().add(horizontal.clone().multiply((double)n/samples));
+if(!here.getWorld().isChunkLoaded(probe.getBlockX()>>4,probe.getBlockZ()>>4)){
+wall=true;break;
 }
-Location ahead=here.clone().add(horizontal);
-if(!ahead.getBlock().isPassable()&&vertical<=.05&&pig.isOnGround())horizontal.zero();
+boolean passFeet=probe.getBlock().isPassable();
+boolean passHead=probe.clone().add(0,1,0).getBlock().isPassable();
+if(!passFeet||!passHead){
+if(!passFeet&&passHead&&probe.clone().add(0,2,0).getBlock().isPassable()){
+stepUp=true;
+}else wall=true;
+break;
+}
+}
+}
+if(jumpReady&&pig.isOnGround()&&(newJump||stepUp||slope)){
+vertical=newJump?.55:.48;
+nextMountedJump.put(mountId,tick+11);
+if(stepUp)horizontal.multiply(.72);
+}
+if(wall||(stepUp&&!jumpReady&&pig.isOnGround())){
+horizontal.zero();
+mountedMomentum.put(mountId,new Vector());
+}
+// Preserve normal falling gravity and ordinary horse-like landings.
 }
 pig.setVelocity(new Vector(horizontal.getX(),vertical,horizontal.getZ()));
 if(horizontal.lengthSquared()>.002)faceVector(pig,horizontal);
