@@ -12,10 +12,9 @@ triple-shot-full-force: 0.90
 trader-spawn-minutes: 25
 trader-max-per-world: 2
 trader-despawn-ticks: 48000
-# All traders have the same complete catalog of goods, spawners, eggs and books.
-# Old trader-offers-per-trader settings are ignored; every category is available.
-
-# All other trades cost ceil(original price / 2.5) diamonds (range 2.0 to 3.0)
-trader-price-divisor: 2.5
-# Special fixed price for the one-use inventory-preserving charm
-trader-charm-price: 5
+# Every trader guarantees an independent level-2 claim for exactly 20 diamonds.
+# Each trader gets 14-21 randomly selected offers at creation.
+# Old full-catalog / global-price-divisor settings are ignored.
+# Food, crops and building items are cheap; spawners, elytras and
+# rare artifacts cost proportionally more. Most prices vary ±12%.
+# Charm and special enchant books have fixed recipes.
