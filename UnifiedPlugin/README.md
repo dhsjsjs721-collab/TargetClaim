@@ -1,4 +1,4 @@
-# MinecraftUnified 1.1.2 — One JAR for all five Paper plugins
+# MinecraftUnified 1.1.3 — One JAR for all five Paper plugins
 
 A **real single Paper plugin** (not an installer ZIP) built from the latest maintained source branches of TargetClaim, TalismanForge 2.6.0, EnchantmentForge 1.2.0, SwampSky 1.7.1 and ImageMaps 1.1.0. The compile-time generator converts the existing five JavaPlugin subclasses into hosted listener/command modules, retaining their features and original data identifiers.
 
@@ -8,7 +8,7 @@ A **real single Paper plugin** (not an installer ZIP) built from the latest main
 
 1. Stop the server, **back up the entire world and existing plugin data**.
 2. Remove the old five separate JARs from `plugins/`. Do not keep the five old plugins alongside this file: duplicate recipes and event handlers would conflict.
-3. Place only `MinecraftUnified-1.1.2.jar` in `plugins/`.
+3. Place only `MinecraftUnified-1.1.3.jar` in `plugins/`.
 4. Keep using the single `resourcepacks/TalismanForge-2.0.0-ResourcePack.zip` from the main branch, with the SHA1 shown in the main repo; it includes the SwampSky equipment, TargetClaim key and Reliquary artwork.
 5. Start the server and run `/unified`: all five modules should appear as loaded.
 
@@ -109,7 +109,7 @@ Automated CI boot checks five module startup, original obsidian trap and the new
 - The updated trader marker reconfigures old existing trader entities. Offers are picked once per entity and not rerolled on right-click. All trader spawning methods, `/u trader`, and all existing 1.0.9 gameplay modules remain.
 - **Deployment:** back up both your world and `plugins/TargetClaim/data.yml` because existing claims change their physical dimensions at all levels. Only install this one combined JAR, not TargetClaim/EnchantmentForge separate JARs. Main unified resource pack unchanged; original SHA1 remains valid. New functionality needs in-world testing, as the CI smoke test only validates server startup and command dispatch.
 
-## MinecraftUnified 1.1.2: claim counters and trader inventory
+## MinecraftUnified 1.1.3: claim counters and trader inventory
 
 New normal claim caps are tracked per dimension/world: two in the Overworld, two in the Nether, one in The End, two in other worlds. The independently purchased **20-diamond** non-upgradable level-2 claim has a separate **global quota of 3 per player, across every world combined**; it does not count against ordinary limits. All five original modules, three special shields and FunTime-style obsidian traps still live in one JAR.
 
@@ -120,3 +120,7 @@ Important: the increase from earlier 16–160-size levels can cause existing nea
 ## v1.1.2 — unloaded-world claim safety
 
 Ordinary claims have separate active quotas per world (two in normal/Nether worlds, one in End worlds). Independently purchased no-upgrade claims have a shared maximum of three across all worlds combined. A world's absence at plugin enable time no longer discards saved claims from that world: TargetClaim stores each world's UUID even while unloaded. The independent core remains a fixed-price 20-diamond trader item and the shared resource pack is unchanged.
+
+## 1.1.3 — traveling Wandering Traders
+
+EnchantmentForge 1.4.0 uses new default trader spawning every five minutes, with up to four traders per regular world, preference for players visiting villages and real walking behavior toward loaded villagers, all bounded to loaded chunks. Normal custom 14–21 item trades and the always-20-diamond independent claim are unchanged. Use `/u trader` for admin testing. No changes to resources, textures or installed file structure. Player tests should check merchants in villages versus ordinary terrain.
