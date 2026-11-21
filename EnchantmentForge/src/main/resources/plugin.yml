@@ -1,0 +1,15 @@
+name: EnchantmentForge
+version: 1.4.0
+main: dev.enchantmentforge.EnchantmentForgePlugin
+api-version: '26.3'
+author: EnchantmentForge
+description: Custom enchantments and diamond-based wandering traders
+commands:
+  enchantmentforge:
+    description: Custom enchantment books, inventory charm and traders
+    aliases: [ce, enchants]
+    usage: /ce help
+permissions:
+  enchantmentforge.admin:
+    default: op
+    description: Gives or applies custom enchantments

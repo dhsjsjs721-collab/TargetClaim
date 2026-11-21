@@ -1,0 +1,26 @@
+# Levels required in an anvil to apply the special book
+soulbound-anvil-cost: 8
+triple-shot-anvil-cost: 6
+# Horizontal spread on either side of the central arrow, degrees (0-35)
+triple-shot-spread-degrees: 10.0
+# Arrow count by draw strength (0.0 = released instantly, 1.0 = fully drawn)
+# Below medium: 1 arrow; medium to full: 2 arrows; full or higher: 3 arrows
+triple-shot-medium-force: 0.50
+triple-shot-full-force: 0.90
+
+# Wandering traders: independent wandering schedule IN ADDITION to vanilla spawns.
+# Existing server config files are compatible: the new journey keys use these
+# defaults even if the old trader-spawn-minutes: 25 entry still exists.
+trader-journey-spawn-minutes: 5
+trader-journey-max-per-world: 4
+trader-journey-village-preference: 0.75
+trader-journey-roam-enabled: true
+trader-journey-speed: 0.78
+# How long a merchant can remain alive (ticks). 48000 = 40 minutes.
+trader-despawn-ticks: 48000
+# Every trader guarantees an independent level-2 claim for exactly 20 diamonds.
+# Each trader gets 14-21 randomly selected offers at creation.
+# Old full-catalog / global-price-divisor settings are ignored.
+# Food, crops and building items are cheap; spawners, elytras and
+# rare artifacts cost proportionally more. Most prices vary ±12%.
+# Charm and special enchant books have fixed recipes.
