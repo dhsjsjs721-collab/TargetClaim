@@ -577,7 +577,7 @@ backward.normalize();
 Vector right=new Vector(-backward.getZ(),0,backward.getX());
 Location result=owner.getLocation().clone().subtract(backward.multiply(distance))
 .add(right.multiply(side)).add(0,height,0);
-result.setYaw(owner.getLocation().getYaw()+180f);
+result.setYaw(owner.getLocation().getYaw());
 result.setPitch(0f);
 return result;
 }
