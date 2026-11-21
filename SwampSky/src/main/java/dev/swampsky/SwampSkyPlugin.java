@@ -143,7 +143,12 @@ private void scan(Chunk chunk){
 for(Entity e:chunk.getEntities()){
 if(e instanceof Pig p){
 if(marked(p,flyingKey)){
-wings.add(p.getUniqueId());p.setGravity(true);p.setAI(true);p.setAware(true);p.setCollidable(true);
+wings.add(p.getUniqueId());
+boolean safelyGrounded=p.isOnGround()||!p.getLocation().clone().subtract(0,.45,0).getBlock().isPassable();
+// Older plugin versions could save a flying pig 50+ blocks above the ground.
+// Let our controlled descent catch it instead of switching on gravity
+// immediately on chunk load and killing the pig with fall damage.
+p.setGravity(safelyGrounded);p.setAI(true);p.setAware(safelyGrounded);p.setCollidable(true);
 scaleWingedPig(p);
 roamHomes.putIfAbsent(p.getUniqueId(),p.getLocation().clone());
 p.setCustomName(null);p.setCustomNameVisible(false);
