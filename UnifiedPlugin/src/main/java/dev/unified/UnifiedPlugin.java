@@ -88,7 +88,7 @@ ex.printStackTrace();
 if(combatShields!=null)try{combatShields.disable();}catch(Throwable ignored){}
 combatShields=null;
 }
-getLogger().info("MinecraftUnified 1.0.9 started modules "+enabledModules.size()+"/"+modules.size()+
+getLogger().info("MinecraftUnified 1.1.0 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
 private boolean enabled(String module){
@@ -96,7 +96,7 @@ for(ModuleBridge m:enabledModules)if(m.getName().equals(module))return true;
 return false;
 }
 private void status(CommandSender sender){
-sender.sendMessage("§aMinecraftUnified 1.0.9 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
+sender.sendMessage("§aMinecraftUnified 1.1.0 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
 sender.sendMessage(trapItems!=null?"§a✓ PvP-трапки §7активны":"§c✗ PvP-трапки §7не активны");
 sender.sendMessage(combatShields!=null?"§a✓ 3 особых щита §7активны":"§c✗ Особые щиты §7не запущены");
 for(String name:List.of("TargetClaim","TalismanForge","EnchantmentForge","SwampSky","ImageMaps")){
@@ -116,6 +116,7 @@ sender.sendMessage("§e/u map §7— окно картинки на карте")
 sender.sendMessage("§e/u trap §7— крафт и использование трапки");
 sender.sendMessage("§e/u shield §7— особые щиты и рецепты");
 sender.sendMessage("§e/u trap give <ник> [количество] §7— выдача для администратора");
+sender.sendMessage("§e/u p list §7— два привата, §e/u p 1/2 §7— переключение");
 sender.sendMessage("§e/u p §7и §e/u team §7— приват и команда");
 sender.sendMessage("§7Поддерживаются также /u ce, /u ss, /u tf с исходными аргументами.");
 }
