@@ -1,19 +1,26 @@
-# UnifiedAntiESP 3.2.0 | Paper 26.3 / Java 25
-# Built-in Paper Anti-Xray must be enabled separately. See presets/ in project source.
+# UnifiedAntiESP 3.3.0 — Paper 26.3 / Java 25
+# The 3.3 release detects 3.2 default limits in existing configs and
+# raises 56->192 entity ESP and 72->160 player ESP at runtime.
+# Set config-version: 33 to preserve explicit custom values instead.
+config-version: 33
+
 player-esp:
   enabled: true
   interval-ticks: 2
   max-pair-checks-per-pass: 120
   max-scan-microseconds: 2200
-  max-protection-range-blocks: 72
+  max-protection-range-blocks: 160
   never-hide-within-blocks: 4
   visible-grace-millis: 450
   occluded-before-hide-millis: 220
   max-hidden-staleness-millis: 900
   stationary-cache-millis: 150
 
-# Prevent underground mob/item/decorations ESP by suppressing tracking
-# and hiding occluded entities. Does not prevent all sounds/particles/pie-chart leaks.
+# Completely independent of Anti-Xray block obfuscation.
+# When strict mode is active, cave mobs >40 blocks away are suppressed
+# even if the tunnel happens to provide line of sight.
+# Normal surface mobs are excluded using skylight, but mobs under roofs may
+# also count as underground. Test survival gameplay before enabling in PvP.
 entity-esp:
   enabled: true
   hide-mobs: true
@@ -22,21 +29,26 @@ entity-esp:
   hide-vehicles: true
   hide-displays: true
   hide-experience-orbs: true
-  # Do not hide projectiles/TNT/other gameplay entities without testing.
   hide-other-entities: false
   include-nether: true
-  hide-below-y: 96
-  never-hide-within-blocks: 6
-  max-protection-range-blocks: 56
-  interval-ticks: 10
-  max-viewers-per-pass: 2
-  max-entity-checks-per-pass: 100
-  max-scan-microseconds: 1800
-  max-hidden-per-viewer: 192
+  hide-below-y: 320
+  never-hide-within-blocks: 3
+  max-protection-range-blocks: 192
+  strict-distant-underground-mobs: true
+  strict-distance-blocks: 40
+  underground-max-skylight: 3
+  interval-ticks: 5
+  max-viewers-per-pass: 3
+  max-entity-checks-per-pass: 180
+  max-scan-microseconds: 2400
+  max-hidden-per-viewer: 384
   max-cached-track-pairs: 4096
   track-decision-cache-millis: 250
   occlusion-rays: 2
 
+# It is not possible to fully hide the geometry of open caves, air,
+# water or lava with just Bukkit hideEntity or Paper built-in Anti-Xray.
+# See bundled paper-anti-xray-strong.yml and README.
 seed-protection:
   enabled: true
   hide-command-from-tab: true
