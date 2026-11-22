@@ -91,7 +91,7 @@ if(a==b || a.getWorld()!=b.getWorld()) return false;
 if(a.hasPermission("unifiedantiesp.bypass")||b.hasPermission("unifiedantiesp.bypass")) return false;
 if(a.getGameMode()==GameMode.SPECTATOR || b.getGameMode()==GameMode.SPECTATOR) return false;
 double d=a.getLocation().distanceSquared(b.getLocation());
-return d>=nearSq && d<=farSq;
+return VisibilityRangePolicy.within(d,farSq);
 }
 private void show(Player a,Player b,State state) {
 if(state.hidden) { a.showPlayer(this,b); state.hidden=false; revealed++; }
