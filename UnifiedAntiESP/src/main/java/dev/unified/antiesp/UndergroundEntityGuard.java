@@ -137,7 +137,10 @@ return target.getLocation().getBlock().getLightFromSky()<=maxSkylight;
 private boolean shouldHide(Player viewer,Entity target){
 if(!eligible(viewer,target))return false;
 double d=viewer.getEyeLocation().distanceSquared(target.getLocation());
-if(d>=strictSq && strictUnderground(target)){strictDecisions++;return true;}
+if(strictDistant && d>=strictSq && StrictDistancePolicy.hide(true,target instanceof LivingEntity,strictUnderground(target),d,strictSq)){
+strictDecisions++;
+return true;
+}
 return cachedOccluded(viewer,target);
 }
 private boolean occluded(Player viewer,Entity target){
