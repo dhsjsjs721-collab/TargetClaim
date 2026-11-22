@@ -1,15 +1,17 @@
 name: UnifiedAuth
-version: 1.0.0
+version: 1.1.0
 main: dev.unified.auth.UnifiedAuth
 api-version: '26.3'
 load: POSTWORLD
-description: Pre-world authentication with a masked PIN dialog (Paper 26.3)
+description: Pre-world PIN authentication with optional per-account remembered IP
 softdepend: [nLogin, OpeNLogin, AuthMe, AuthMeReloaded]
 commands:
   ua:
-    description: UnifiedAuth administration
-    permission: unifiedauth.admin
-    usage: /ua status
+    description: Player remembered-IP settings and UnifiedAuth status
+    permission: unifiedauth.use
+    usage: /ua remember [on|off|status] | /ua status
 permissions:
+  unifiedauth.use:
+    default: true
   unifiedauth.admin:
     default: op
