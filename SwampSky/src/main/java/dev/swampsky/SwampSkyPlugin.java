@@ -1195,7 +1195,7 @@ Location at=p.getLocation();
 boolean wall=false;
 for(int dx=-1;dx<=1&&!wall;dx++)for(int dz=-1;dz<=1;dz++){
 if(Math.abs(dx)+Math.abs(dz)!=1)continue;
-Block adjacent=at.clone().add(dx*.37,.65,dz*.37).getBlock();
+Block adjacent=at.clone().add(dx*.65,.65,dz*.65).getBlock();
 if(adjacent.getType().isSolid()&&!adjacent.isPassable()){
 wall=true;break;
 }
