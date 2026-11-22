@@ -1,18 +1,13 @@
 name: Build UnifiedAntiESP JAR
 on:
   push:
-    branches: [main, unified-antiesp-build]
-    paths:
-      - 'UnifiedAntiESP/**'
-      - '.github/workflows/build-unified-antiesp.yml'
-  pull_request:
     branches: [main]
     paths:
       - 'UnifiedAntiESP/**'
       - '.github/workflows/build-unified-antiesp.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,12 +25,40 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.2.1'
-      - name: Build UnifiedAntiESP
-        run: gradle clean build --no-daemon --stacktrace
-      - name: Upload UnifiedAntiESP JAR
-        if: success()
+      - name: Compile plugin and collect errors
+        id: build
+        shell: bash
+        run: |
+          set +e
+          gradle clean build --no-daemon --stacktrace > build.log 2>&1
+          code=$?
+          cat build.log
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Publish JAR or failure report to repository
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [ "${{ steps.build.outputs.exit_code }}" = "0" ]; then
+            cp build/libs/UnifiedAntiESP-3.1.1.jar dist/
+            echo "SUCCESS: UnifiedAntiESP-3.1.1.jar built on $(date -u +%F)" > ci-status.txt
+          else
+            echo "FAILED: Gradle exit ${{ steps.build.outputs.exit_code }}" > ci-status.txt
+            grep -E -A 5 -B 3 'error:|FAILURE:|Could not |What went wrong|Exception' build.log | head -c 24000 >> ci-status.txt || true
+          fi
+          cd ..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add UnifiedAntiESP/ci-status.txt UnifiedAntiESP/dist/
+          git diff --cached --quiet || git commit -m "Publish UnifiedAntiESP build results [skip ci]"
+          git push origin HEAD:main
+      - name: Upload JAR artifact
+        if: steps.build.outputs.exit_code == '0'
         uses: actions/upload-artifact@v4
         with:
           name: UnifiedAntiESP-JAR
           path: UnifiedAntiESP/build/libs/*.jar
           if-no-files-found: error
+      - name: Mark compilation failure
+        if: steps.build.outputs.exit_code != '0'
+        run: exit 1
