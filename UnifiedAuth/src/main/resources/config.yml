@@ -1,0 +1,17 @@
+authentication:
+  enabled: true
+  # Keypad-only (no plaintext PIN shown on screen or logged).
+  pin-length: 8
+  maximum-attempts-per-connection: 3
+  timeout-seconds: 90
+  maximum-pending-connections: 50
+  # PBKDF2-HMAC-SHA256 iterations; registration and verification happen off-thread.
+  pbkdf2-iterations: 260000
+antibot:
+  # Conservative IP connection-rate guard; shared IPs may hit this limit.
+  enabled: true
+  max-new-connections-per-ip-per-minute: 24
+  maximum-tracked-addresses: 4000
+messages:
+  title: "UnifiedAuth"
+  subtitle: "Введите PIN перед входом на сервер"

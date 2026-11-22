@@ -1,0 +1,15 @@
+name: UnifiedAuth
+version: 1.0.0
+main: dev.unified.auth.UnifiedAuth
+api-version: '26.3'
+load: POSTWORLD
+description: Pre-world authentication with a masked PIN dialog (Paper 26.3)
+softdepend: [nLogin, OpeNLogin, AuthMe, AuthMeReloaded]
+commands:
+  ua:
+    description: UnifiedAuth administration
+    permission: unifiedauth.admin
+    usage: /ua status
+permissions:
+  unifiedauth.admin:
+    default: op
