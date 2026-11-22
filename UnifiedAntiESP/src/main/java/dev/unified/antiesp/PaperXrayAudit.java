@@ -24,6 +24,7 @@ int mode=config.getInt(path+"engine-mode",1);
 int maxY=config.getInt(path+"max-block-height",64);
 boolean air=config.getStringList(path+"hidden-blocks").stream().anyMatch(x->x.equalsIgnoreCase("air"));
 boolean bypass=config.getBoolean(path+"use-permission",false);
+boolean lavaObscures=config.getBoolean(path+"lava-obscures",false);
 if(!enabled)report.add("Anti-Xray audit WARN: Paper anti-xray is disabled in world defaults.");
 else report.add("Anti-Xray audit: enabled in world defaults.");
 if(mode<2)report.add("Anti-Xray audit WARN: engine-mode="+mode+"; 2 or 3 gives stronger obfuscation.");
@@ -33,6 +34,9 @@ else report.add("Anti-Xray audit: air included; cave-finder obfuscation enabled 
 if(maxY<128)report.add("Anti-Xray audit WARN: max-block-height="+maxY+"; upper caves/ores may leak.");
 else report.add("Anti-Xray audit: max-block-height="+maxY);
 if(bypass)report.add("Anti-Xray audit: permission bypass enabled; check paper.antixray.bypass.");
+if(!lavaObscures)report.add("Anti-Xray audit: lava-obscures=false; ores touching lava can be visible, consider true after testing.");
+else report.add("Anti-Xray audit: lava-obscures=true; lava blocks themselves are NOT hidden.");
+report.add("Anti-Xray limit: exposed water/lava and full cave geometry cannot be completely concealed by built-in mode 3.");
 for(World world:Bukkit.getWorlds()){
 File override=new File(world.getWorldFolder(),"paper-world.yml");
 if(!override.isFile())continue;

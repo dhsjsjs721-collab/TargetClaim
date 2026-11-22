@@ -1,36 +1,36 @@
-# UnifiedAntiESP 3.2.0 — Player + Entity ESP + Paper cave/ore obfuscation
+# UnifiedAntiESP 3.3.0 — Longer-range entity ESP and cave-mob mode
 
-Paper 26.3 / Java 25.
+Java 25 / Paper 26.3. Standalone plugin, no NMS or client mods required.
 
-## What changed
+## Why 3.2.0 leaked underground mobs
 
-- **UndergroundEntityGuard:** Uses Paper's cancellable `PlayerTrackEntityEvent` to prevent hidden underground mob/item spawns reaching the client in the first place. Periodic bounded scans use `Player.hideEntity(plugin, entity)` to conceal already tracked entities when fully blocked by terrain.
-- Targets mobs, dropped items, experience orbs, armor stands, paintings, item frames, display entities, minecarts and boats by default. Excludes players (existing player ESP guard handles those) and destructive gameplay entities such as projectiles/TNT.
-- Up to 2 viewers, 100 entities and 1,800 microseconds per 10-tick pass by default. 250ms tracked-pair cache and up to 192 hidden entities per viewer. All Bukkit API operations are on the main server thread. Empty world/close range/line-of-sight entities remain visible.
-- Restores entities when visible, nearby, on viewer teleport/respawn, plugin reload or disable.
-- Adds read-only `/uesp audit` to flag weak built-in Anti-Xray settings. **Does not modify Paper configs automatically.**
-- Existing player ESP, seed command protection and ore shuffling retained.
+The shipped 3.2.0 defaults skipped entities beyond **56 blocks** and players beyond **72 blocks**, and excluded entities at Y>=96. A distant-entity radar at 70–125 blocks could still receive these tracked mobs. Those were actual holes in the protection.
 
-## Cave/ore concealment
+## What's fixed
 
-For caves and ores **also** merge `presets/paper-world-defaults-xray-strong.yml` into `config/paper-world-defaults.yml`. Merge only `anticheat.anti-xray`, not the entire file. It uses `engine-mode: 3`, `air` in `hidden-blocks`, and protection up to Y=192. After editing, fully restart Paper and run `/uesp audit`; check per-world `paper-world.yml` overrides.
+- Mob/item/armor stand/display/minecart ESP range extended to **192 blocks**; player ESP to **160 blocks**, only when the target is in the same world.
+- **Strict distant underground mode** enabled by default: mobs and other living entities in dark caves more than 40 blocks from a viewer are concealed even if a long open tunnel would give an unobstructed ray. Surface mobs with daylight skylight are exempt from this strict distance rule. Normal wall occlusion is still tested for other entities.
+- Cave detection uses skylight level <=3, or true in Nether. Some entities under roofs or in dark buildings will be affected; configure `entity-esp.strict-distant-underground-mobs: false` if this is not wanted. Close mobs are not hidden.
+- A low-overhead bounded tracker cache, per-tick ray budget, and capped scans preserve main-thread load. `PlayerTrackEntityEvent` suppresses initial tracking, and `Player.hideEntity` removes already tracked entities.
+- **Legacy config upgrade:** if an old generated config has no `config-version` and exactly the old default ranges (56/72, Y=96), the plugin upgrades them **in memory** on startup. Custom values stay unchanged. To opt out, add `config-version: 33` and explicitly set desired ranges. An old `entity-esp.interval-ticks` is not silently changed.
+- New Paper X-ray audit hints for `lava-obscures` and cave fluid limitations.
 
-**Technical limit:** Paper Anti-Xray with fake air significantly complicates X-Ray cave finders but does *not* completely remove all original underground cave/structure geometry or every block-entity update from the data stream. True total underground-chunk concealment needs tested **packet-level** rewriting including fake air, later block updates, light, block entities, particles and sounds. See [ChunkVeil](https://github.com/DeKaeyman/ChunkVeil) for an independently maintained ProtocolLib implementation; 26.3 compatibility must be tested. Do not run two conflicting chunk packet rewriters without testing.
+## Open caves, exposed ore, water and lava
 
-### Cave preset performance
+This JAR does not rewrite chunk packets. To hide more exposed ores, use the strong **Overworld-only** Paper profile `paper-anti-xray-strong.yml` (bundled in the JAR and in `presets/`). Merge **only the `anticheat.anti-xray` subtree** into the existing `config/paper-world-defaults.yml` after a backup. Use **engine-mode 3** with `air` among `hidden-blocks`, `lava-obscures: true`, and `max-block-height: 320`; then fully restart Paper.
 
-Fake-air cave obfuscation can lower client FPS. If it is too costly, remove `air` and/or reduce `max-block-height` (less protection). It does not cover terrain above configured max height. Vanilla world geometry a client already received cannot be retroactively erased without chunk resend.
+**Limit:** Paper Anti-Xray obfuscates some cave-finder information, but cannot guarantee hiding the true shape of open caves, visible water/lava blocks, every exposed ore vein, light updates, particles/sounds or already transmitted chunks. A no-compromise full fluid/cave obscurer requires separately designed and tested **packet-level cave obfuscation** with correct light, block entity, fluid and update-handling. Do not confuse improved ore obfuscation with proof that every cave is hidden.
 
-### Entity limits
+**Performance caution:** `air` with engine mode 3 and max height 320 can impact client FPS and chunk-packet generation. If you already had invisible or missing chunks, **do not apply this preset yet**. First test the JAR alone on a copied/staging Paper server with the current Paper world config; only test the stronger preset separately after backing up world and configs.
 
-The guard hides **visual entity tracking**, not sound packets, particles, tab-list metadata, map data, inventory and block-entity updates or all possible side-channels. It is not a general-purpose anti-cheat. Near/same-cave mobs remain visible. Some hidden entities may briefly pop in as the server budget rotates over viewers. This was compiled against Paper but requires a staging server test with X-Ray/freecam, invisibility, PvP, portals, farms and other plugins.
+## Basic checks
 
-## Commands
+1. Remove `UnifiedAntiESP-3.2.0.jar`; install **only** `UnifiedAntiESP-3.3.0.jar`, fully restart Paper. Avoid PlugMan or other hot-reloaders.
+2. Run `/uesp` to confirm EntityESP maxRange=192 and strictDistance=40. Run `/uesp audit` to inspect whether native Paper Anti-Xray is enabled.
+3. With two players and X-Ray/ESP client, verify cave mobs >40 blocks hidden, mobs in visual range shown, visible caves still load normally. Check mob farms and legitimate PvP.
+4. If your old config overrides defaults, merge settings manually or add `config-version: 33` with desired values.
+5. Validate chunk rendering with `F3+A` after each server restart, and inspect logs for player/entity visibility warnings.
 
-`/uesp` (status), `/uesp audit`, `/uesp reload`. Permission `unifiedantiesp.admin`. Existing bypass permission `unifiedantiesp.bypass` plus entity-only `unifiedantiesp.entitybypass`.
+`/uesp reload` reloads plugin config only, **not Paper world Anti-Xray**.
 
-## Installation
-
-Replace `UnifiedAntiESP-3.1.1.jar` with `UnifiedAntiESP-3.2.0.jar` (do not load both). Preserve the old `config.yml` and merge the new `entity-esp` section. The plugin creates the new defaults only when the config does not exist; it does not silently overwrite your changes. **Restart** after changing Paper Anti-Xray, do not use Bukkit `/reload`.
-
-Implementation independent of external plugin code.
+Compilation and unit tests cannot guarantee a live Minecraft client cannot infer entity or block locations by other channels. Built with independent source.

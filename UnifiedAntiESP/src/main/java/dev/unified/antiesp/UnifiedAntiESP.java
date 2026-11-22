@@ -43,7 +43,7 @@ Bukkit.getPluginManager().registerEvents(this,this);
 Bukkit.getPluginManager().registerEvents(entityGuard,this);
 for (World w : Bukkit.getWorlds()) register(w);
 configure();
-getLogger().info("Strong Paper Anti-Xray preset provided under UnifiedAntiESP/presets/. It must be enabled in Paper config and requires a restart.");
+getLogger().info("Paper Anti-Xray is separate: use config/paper-world-defaults.yml. Cave/water/lava visibility cannot be fully blocked by this entity plugin.");
 for(String line:PaperXrayAudit.inspect())getLogger().info(line);
 }
 @Override public void onDisable() {
@@ -62,7 +62,12 @@ interval=Math.max(1,Math.min(20,getConfig().getInt("player-esp.interval-ticks",2
 maxPairs=Math.max(8,Math.min(10000,getConfig().getInt("player-esp.max-pair-checks-per-pass",120)));
 maxMicros=Math.max(200,Math.min(20000,getConfig().getInt("player-esp.max-scan-microseconds",2200)));
 double near=getConfig().getDouble("player-esp.never-hide-within-blocks",4);
-double far=getConfig().getDouble("player-esp.max-protection-range-blocks",72);
+double far=getConfig().getDouble("player-esp.max-protection-range-blocks",160);
+if(!getConfig().isSet("config-version") && far==72){
+far=160;
+getLogger().info("Legacy Player ESP 72-block range upgraded in memory to 160. Set config-version: 33 to override.");
+}
+far=Math.max(32,Math.min(256,far));
 nearSq=near*near; farSq=far*far;
 grace=getConfig().getLong("player-esp.visible-grace-millis",450);
 hideDelay=getConfig().getLong("player-esp.occluded-before-hide-millis",220);

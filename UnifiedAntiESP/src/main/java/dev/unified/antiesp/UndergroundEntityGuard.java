@@ -35,7 +35,10 @@ private final JavaPlugin plugin;
 private final Map<UUID,Set<UUID>> hidden=new HashMap<>();
 private final LinkedHashMap<Pair,Decision> trackDecisions=new LinkedHashMap<>();
 private BukkitTask ticker;
-private boolean enabled,mobs,items,decorations,vehicles,displays,experience,other,includeNether;
+private boolean enabled,mobs,items,decorations,vehicles,displays,experience,other,includeNether,strictDistant;
+private int maxSkylight;
+private double strictSq;
+private long strictDecisions,oldConfigAdjustments;
 private int interval,maxViewers,maxChecks,maxMicros,maxHidden,maxCached,rayCount;
 private double minSq,maxSq;
 private int maxY;
@@ -57,15 +60,27 @@ displays=plugin.getConfig().getBoolean("entity-esp.hide-displays",true);
 experience=plugin.getConfig().getBoolean("entity-esp.hide-experience-orbs",true);
 other=plugin.getConfig().getBoolean("entity-esp.hide-other-entities",false);
 includeNether=plugin.getConfig().getBoolean("entity-esp.include-nether",true);
-maxY=plugin.getConfig().getInt("entity-esp.hide-below-y",96);
-double near=bound(plugin.getConfig().getDouble("entity-esp.never-hide-within-blocks",6),2,16);
-double far=bound(plugin.getConfig().getDouble("entity-esp.max-protection-range-blocks",56),16,96);
+maxY=plugin.getConfig().getInt("entity-esp.hide-below-y",320);
+double near=bound(plugin.getConfig().getDouble("entity-esp.never-hide-within-blocks",3),2,16);
+double far=bound(plugin.getConfig().getDouble("entity-esp.max-protection-range-blocks",192),24,256);
+// Older plugin configurations explicitly contain unsafe defaults (56/96).
+// Upgrade only those exact shipped defaults, leaving custom settings alone.
+// Operators can set config-version: 33 to retain their chosen old ranges.
+if(!plugin.getConfig().isSet("config-version")){
+if(far==56){far=192;oldConfigAdjustments++;}
+if(maxY==96){maxY=320;oldConfigAdjustments++;}
+}
+strictDistant=plugin.getConfig().getBoolean("entity-esp.strict-distant-underground-mobs",true);
+double strictDistance=bound(plugin.getConfig().getDouble("entity-esp.strict-distance-blocks",40),12,96);
+maxSkylight=bound(plugin.getConfig().getInt("entity-esp.underground-max-skylight",3),0,15);
+strictSq=strictDistance*strictDistance;
 minSq=near*near;maxSq=far*far;
-interval=bound(plugin.getConfig().getInt("entity-esp.interval-ticks",10),2,40);
-maxViewers=bound(plugin.getConfig().getInt("entity-esp.max-viewers-per-pass",2),1,16);
-maxChecks=bound(plugin.getConfig().getInt("entity-esp.max-entity-checks-per-pass",100),8,800);
-maxMicros=bound(plugin.getConfig().getInt("entity-esp.max-scan-microseconds",1800),200,20000);
-maxHidden=bound(plugin.getConfig().getInt("entity-esp.max-hidden-per-viewer",192),16,1000);
+plugin.getLogger().info("EntityESP range="+(int)far+" blocks, strict-dark-mobs="+strictDistant+", strict distance="+(int)strictDistance+" blocks, height<"+maxY+(oldConfigAdjustments>0?" (legacy ranges upgraded in memory)":""));
+interval=bound(plugin.getConfig().getInt("entity-esp.interval-ticks",5),2,40);
+maxViewers=bound(plugin.getConfig().getInt("entity-esp.max-viewers-per-pass",3),1,16);
+maxChecks=bound(plugin.getConfig().getInt("entity-esp.max-entity-checks-per-pass",180),8,800);
+maxMicros=bound(plugin.getConfig().getInt("entity-esp.max-scan-microseconds",2400),200,20000);
+maxHidden=bound(plugin.getConfig().getInt("entity-esp.max-hidden-per-viewer",384),16,1000);
 maxCached=bound(plugin.getConfig().getInt("entity-esp.max-cached-track-pairs",4096),128,50000);
 cacheMs=bound(plugin.getConfig().getLong("entity-esp.track-decision-cache-millis",250),0,2000);
 rayCount=bound(plugin.getConfig().getInt("entity-esp.occlusion-rays",2),1,3);
@@ -111,6 +126,23 @@ return dist>=minSq && dist<=maxSq;
 }
 
 /** true if all tested target points are blocked. Conservative fail-open. */
+private boolean strictUnderground(Entity target){
+// Only conceal distant cave mobs by distance alone: do not vanish visible
+// mobs standing in broad daylight on the surface. Nether has no skylight.
+if(!strictDistant || !(target instanceof LivingEntity))return false;
+if(target.getWorld().getEnvironment()==org.bukkit.World.Environment.NETHER)return true;
+if(target.getWorld().getEnvironment()!=org.bukkit.World.Environment.NORMAL)return false;
+return target.getLocation().getBlock().getLightFromSky()<=maxSkylight;
+}
+private boolean shouldHide(Player viewer,Entity target){
+if(!eligible(viewer,target))return false;
+double d=viewer.getEyeLocation().distanceSquared(target.getLocation());
+if(strictDistant && d>=strictSq && StrictDistancePolicy.hide(true,target instanceof LivingEntity,strictUnderground(target),d,strictSq)){
+strictDecisions++;
+return true;
+}
+return cachedOccluded(viewer,target);
+}
 private boolean occluded(Player viewer,Entity target){
 Location eye=viewer.getEyeLocation();
 BoundingBox box=target.getBoundingBox();
@@ -153,7 +185,7 @@ public void onTrack(PlayerTrackEntityEvent event){
 try{
 Player viewer=event.getPlayer();
 Entity target=event.getEntity();
-if(eligible(viewer,target) && cachedOccluded(viewer,target)){
+if(shouldHide(viewer,target)){
 event.setCancelled(true);
 blockedSpawns++;
 }
@@ -199,7 +231,7 @@ if(target==null || !target.isValid()){
 set.remove(id);
 continue;
 }
-if(!eligible(viewer,target) || !occluded(viewer,target)){
+if(!shouldHide(viewer,target)){
 show(viewer,id,set);
 }
 }
@@ -210,8 +242,8 @@ if(used[0]>=maxChecks || System.nanoTime()>deadline)break;
 used[0]++;
 if(set.size()>=maxHidden)break;
 UUID id=target.getUniqueId();
-if(set.contains(id) || !eligible(viewer,target))continue;
-if(cachedOccluded(viewer,target)){
+if(set.contains(id))continue;
+if(shouldHide(viewer,target)){
 viewer.hideEntity(plugin,target);
 set.add(id);
 hides++;
@@ -261,7 +293,7 @@ if(event.getTo()!=null && event.getFrom().getWorld()!=event.getTo().getWorld())r
 String stats(){
 int hiddenCount=0;
 for(Set<UUID> s:hidden.values())hiddenCount+=s.size();
-return "EntityESP="+(enabled?"ON":"OFF")+" trackBlocked="+blockedSpawns+
+return "EntityESP="+(enabled?"ON":"OFF")+" maxRange="+(int)Math.sqrt(maxSq)+" strictDistance="+(int)Math.sqrt(strictSq)+" strictDecisions="+strictDecisions+" legacyRangeFixes="+oldConfigAdjustments+" trackBlocked="+blockedSpawns+
 " hidden="+hiddenCount+" hides="+hides+" shows="+shows+" rays="+rayTests+
 " scanPasses="+scans+" trackCache="+trackDecisions.size()+
 " budgetStops="+budgetStops+" errors="+errors+" lastMicros="+lastMicros;
