@@ -1,11 +1,11 @@
 name: UnifiedAntiESP
-version: 3.3.0
+version: 3.4.0
 main: dev.unified.antiesp.UnifiedAntiESP
 api-version: '26.3'
 load: POSTWORLD
 commands:
   uesp:
-    description: ESP status, configuration audit and reload
+    description: ESP status, Paper native Anti-Xray audit, reload
     usage: /uesp [audit|reload]
     permission: unifiedantiesp.admin
 permissions:
