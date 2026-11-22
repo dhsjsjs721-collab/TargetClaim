@@ -21,8 +21,10 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.entity.Player;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,6 +35,8 @@ private static final class Session {
 final UUID uuid;
 final String name;
 final PlayerConfigurationConnection connection;
+final String clientIp;
+boolean rememberRequested;
 final CompletableFuture<Boolean> result=new CompletableFuture<>();
 final StringBuilder entry=new StringBuilder(12);
 final AtomicBoolean processing=new AtomicBoolean();
@@ -40,8 +44,8 @@ Stage stage;
 String firstPin;
 int attempts;
 long lastInput;
-Session(UUID uuid,String name,PlayerConfigurationConnection conn,Stage stage){
-this.uuid=uuid;this.name=name;this.connection=conn;this.stage=stage;
+Session(UUID uuid,String name,PlayerConfigurationConnection conn,String clientIp,Stage stage){
+this.uuid=uuid;this.name=name;this.connection=conn;this.clientIp=clientIp;this.stage=stage;
 }
 }
 private static final class Rate {
@@ -53,6 +57,10 @@ private final Map<UUID,Session> pending=new ConcurrentHashMap<>();
 private final Map<String,Rate> connections=new ConcurrentHashMap<>();
 private ThreadPoolExecutor workers;
 private AccountStore accounts;
+private RememberedIpStore rememberedIps;
+private boolean rememberEnabled;
+private int rememberDays;
+private long trustedLogins;
 private int pinLength,maxAttempts,maxPending,timeoutSeconds,ipLimit,maxTracked;
 private volatile boolean ready;
 private boolean enabled,antiBot;
@@ -95,13 +103,34 @@ Thread t=new Thread(r,"UnifiedAuth-crypto");
 t.setDaemon(true);
 return t;
 },new ThreadPoolExecutor.AbortPolicy());
+// IP-only remembered access is deliberately opt-in twice: server config
+// and a per-player authenticated choice. Never trust offline-mode usernames
+// unless an administrator explicitly confirms secure proxy forwarding.
+rememberDays=Math.max(1,Math.min(30,getConfig().getInt("remember-ip.expire-after-days",7)));
+boolean requestedRemember=getConfig().getBoolean("remember-ip.enabled",false);
+boolean authenticatedIdentity=Bukkit.getOnlineMode()
+|| getConfig().getBoolean("remember-ip.allow-verified-proxy-offline-mode",false);
+if(requestedRemember && !authenticatedIdentity){
+getLogger().warning("IP remembering disabled: offline-mode UUID/name is not authenticated. Use verified secure proxy forwarding only if properly configured.");
+}
+if(requestedRemember && authenticatedIdentity){
+try{
+rememberedIps=new RememberedIpStore(getDataFolder().toPath(),rememberDays);
+rememberEnabled=true;
+getLogger().warning("Optional IP remembering ENABLED. Shared NAT addresses are NOT proof of device identity. Players must individually opt in.");
+}catch(IOException error){
+rememberedIps=null;
+rememberEnabled=false;
+getLogger().severe("IP remembering disabled due to storage error; PIN login remains active: "+error.getMessage());
+}
+}
 ready=true;
 Bukkit.getPluginManager().registerEvents(this,this);
 cleanupTask=Bukkit.getScheduler().scheduleSyncRepeatingTask(this,()->{
 long now=System.currentTimeMillis();
 connections.entrySet().removeIf(e->now-e.getValue().opened>120000);
 },1200L,1200L);
-getLogger().info("Pre-world masked PIN auth enabled; "+accounts.count()+" stored accounts. No player world loaded before PIN verification.");
+getLogger().info("Pre-world masked PIN auth enabled; "+accounts.count()+" stored accounts. Remember IP="+rememberEnabled+". No player world loaded before PIN verification.");
 }
 @Override public void onDisable(){
 if(cleanupTask!=-1)Bukkit.getScheduler().cancelTask(cleanupTask);
@@ -147,13 +176,28 @@ if(uuid==null || username==null || !username.matches("[A-Za-z0-9_]{3,16}")){
 connection.disconnect(Component.text("Invalid player profile.",NamedTextColor.RED));
 return;
 }
+if(pending.containsKey(uuid)){
+denials++;
+connection.disconnect(Component.text("An authentication session is already active.",NamedTextColor.RED));
+return;
+}
+InetSocketAddress clientAddress=connection.getClientAddress();
+String clientIp=clientAddress==null || clientAddress.getAddress()==null?null:clientAddress.getAddress().getHostAddress();
+String name=username.toLowerCase(Locale.ROOT);
+boolean registered=accounts.exists(name);
+// Trusted IP never permits registration. The stored record is bound to the
+// exact UUID, name, canonical address and finite expiration.
+if(registered && rememberEnabled && clientIp!=null &&
+rememberedIps.isTrusted(name,uuid,clientIp,System.currentTimeMillis())){
+trustedLogins++;
+return;
+}
 if(pending.size()>=maxPending){
 denials++;
 connection.disconnect(Component.text("Authentication queue full. Try again.",NamedTextColor.RED));
 return;
 }
-String name=username.toLowerCase(Locale.ROOT);
-Session s=new Session(uuid,name,connection,accounts.exists(name)?Stage.LOGIN:Stage.REGISTER);
+Session s=new Session(uuid,name,connection,clientIp,registered?Stage.LOGIN:Stage.REGISTER);
 Session prior=pending.putIfAbsent(uuid,s);
 if(prior!=null){
 denials++;
@@ -186,11 +230,16 @@ if(s.result.isDone() || !s.connection.isConnected())return;
 String action=s.stage==Stage.LOGIN?"Enter PIN":s.stage==Stage.REGISTER?"Create PIN":"Confirm PIN";
 String masked="●".repeat(s.entry.length())+"○".repeat(pinLength-s.entry.length());
 String description=(notice==null?"":notice+"\n")+action+" ("+pinLength+" digits)\n"+masked;
-List<ActionButton> actions=new ArrayList<>(12);
+if(rememberEnabled && s.clientIp!=null){
+description+="\nRemember this IP for "+rememberDays+" days: "+(s.rememberRequested?"ON":"OFF");
+description+="\nOnly enable on a private, unshared network.";
+}
+List<ActionButton> actions=new ArrayList<>(13);
 for(int i=1;i<=9;i++)actions.add(button(Integer.toString(i),"digit"+i));
 actions.add(button("⌫","back"));
 actions.add(button("0","digit0"));
 actions.add(button("OK","submit"));
+if(rememberEnabled && s.clientIp!=null) actions.add(button("Remember IP: "+(s.rememberRequested?"ON":"OFF"),"remember"));
 Dialog dialog=Dialog.create(builder->builder.empty()
 .base(DialogBase.builder(Component.text("UnifiedAuth • Before World",NamedTextColor.AQUA))
 .canCloseWithEscape(false)
@@ -227,6 +276,8 @@ char digit=action.charAt(5);
 if(digit>='0' && digit<='9' && s.entry.length()<pinLength)s.entry.append(digit);
 } else if(action.equals("back")){
 if(!s.entry.isEmpty())s.entry.setLength(s.entry.length()-1);
+} else if(action.equals("remember")){
+if(rememberEnabled && s.clientIp!=null)s.rememberRequested=!s.rememberRequested;
 } else if(action.equals("submit")){
 if(s.entry.length()!=pinLength){message="Enter all "+pinLength+" digits."; }
 else {
@@ -261,12 +312,20 @@ if(verify){
 if(!s.processing.compareAndSet(false,true))return;
 final String pin=submitted;
 final Stage stage=submittedStage;
+final boolean trustOnSuccess=s.rememberRequested && rememberEnabled && s.clientIp!=null;
 try{
 workers.execute(()->{
 boolean ok=false;
 try {
 ok=stage==Stage.LOGIN?accounts.authenticate(s.name,pin):accounts.register(s.name,pin);
 } catch(Exception failure){getLogger().warning("Account storage or verification failed; access denied. No PIN details logged.");}
+if(ok && trustOnSuccess){
+try {
+rememberedIps.trust(s.name,s.uuid,s.clientIp,System.currentTimeMillis());
+} catch(IOException cannotSave) {
+getLogger().warning("PIN verified but optional IP remember could not be saved. Regular PIN authentication is still required next time.");
+}
+}
 boolean success=ok;
 Bukkit.getScheduler().runTask(this,()->{
 s.processing.set(false);
@@ -294,7 +353,64 @@ Session s=pending.remove(event.getPlayerUniqueId());
 if(s!=null)s.result.complete(false);
 }
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
-sender.sendMessage("UnifiedAuth: accounts="+(accounts==null?0:accounts.count())+" pending="+pending.size()+" registered="+totalRegistrations+" successfulLogins="+totalLogins+" denied="+denials+" ipRateDenied="+rateDenials);
+if(args.length>0 && args[0].equalsIgnoreCase("remember")){
+if(!(sender instanceof Player player)){
+sender.sendMessage("Only authenticated players may change their remembered IP.");
+return true;
+}
+if(!rememberEnabled || rememberedIps==null){
+player.sendMessage("Remember IP is disabled by the server administrator.");
+return true;
+}
+String name=player.getName().toLowerCase(Locale.ROOT);
+UUID uuid=player.getUniqueId();
+if(!accounts.exists(name)){
+player.sendMessage("Account is not registered.");
+return true;
+}
+InetSocketAddress address=player.getConnection().getClientAddress();
+String ip=address==null || address.getAddress()==null?null:address.getAddress().getHostAddress();
+if(ip==null){
+player.sendMessage("Cannot determine your client IP; PIN login remains required.");
+return true;
+}
+String action=args.length>1?args[1].toLowerCase(Locale.ROOT):"status";
+switch(action){
+case "status" -> {
+long expiry=rememberedIps.trustedUntil(name,uuid,ip,System.currentTimeMillis());
+player.sendMessage(expiry==0?"This network is not trusted; PIN will be required.":"Remembered network active for "+Math.max(0,(expiry-System.currentTimeMillis()+86399999)/86400000)+" more day(s).");
+}
+case "on" -> {
+try{
+workers.execute(()->{
+try{
+rememberedIps.trust(name,uuid,ip,System.currentTimeMillis());
+Bukkit.getScheduler().runTask(this,()->player.sendMessage("Current IP remembered for "+rememberDays+" days. Use /ua remember off to revoke."));
+}catch(IOException cannotSave){
+Bukkit.getScheduler().runTask(this,()->player.sendMessage("Could not save IP trust. PIN will still be required."));
+}
+});
+}catch(RejectedExecutionException busy){
+player.sendMessage("Authentication service is busy. Try later.");
+}
+}
+case "off", "forget" -> {
+try{
+rememberedIps.forget(name,uuid);
+player.sendMessage("Remembered IP revoked. PIN will be required next time.");
+}catch(IOException failure){
+player.sendMessage("Could not revoke IP trust on disk; ask an administrator to disable remember-ip.enabled immediately.");
+}
+}
+default -> player.sendMessage("Usage: /ua remember [on|off|status]");
+}
+return true;
+}
+if(!sender.hasPermission("unifiedauth.admin")){
+sender.sendMessage("Usage: /ua remember [on|off|status]");
+return true;
+}
+sender.sendMessage("UnifiedAuth 1.1: accounts="+(accounts==null?0:accounts.count())+" pending="+pending.size()+" registered="+totalRegistrations+" PIN logins="+totalLogins+" trusted-IP logins="+trustedLogins+" remember enabled="+rememberEnabled+" denied="+denials+" ipRateDenied="+rateDenials);
 return true;
 }
 }
