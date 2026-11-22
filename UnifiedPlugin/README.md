@@ -167,3 +167,7 @@ Upgrade by stopping the server, backing up worlds and data, removing `MinecraftU
 - **Other modules retained:** existing five original components, End and Defiance swords/shields behind the player's back, 3D spectral/Turtle/Wither/Crusher models (same updated main resourcepack SHA1 `742640f383fdbaab59680bbcf9143e3b403f4738`), obsidian PvP trap, all claims and merchant rules, Deepslate recipe, talismans and frogs.
 
 Upgrade: back up worlds and plugin data, stop the server, remove the old JAR, install only `MinecraftUnified-1.1.6.jar`, and restart. If updating directly from 1.1.4 or older, also install the latest 3D unified resourcepack and change its server SHA-1. **GitHub Actions validates build and boot but cannot certify actual riding, flight physics, anticheat behavior or visuals in a live client.**
+
+## SwampSky equipment and pig-wing fix (2026-11-22)
+
+The unified build fetches `feature/swampsky-creatures` during CI, incorporating the revised pig wing attachment, diamond-equivalent frog boots/leggings armor with reduced durability, boots fall-damage immunity, wall sliding with leggings and full knockback resistance. Existing SwampSky equipment is migrated by its periodic equipment repair routine. Test in-game visuals and movement on Purpur 26.3 after installing the rebuilt unified JAR.
