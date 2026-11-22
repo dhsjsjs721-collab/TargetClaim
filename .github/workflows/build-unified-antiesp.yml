@@ -1,7 +1,12 @@
 name: Build UnifiedAntiESP JAR
 on:
   push:
-    branches: [unified-antiesp-build]
+    branches: [main, unified-antiesp-build]
+    paths:
+      - 'UnifiedAntiESP/**'
+      - '.github/workflows/build-unified-antiesp.yml'
+  pull_request:
+    branches: [main]
     paths:
       - 'UnifiedAntiESP/**'
       - '.github/workflows/build-unified-antiesp.yml'
