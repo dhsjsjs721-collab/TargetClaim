@@ -1,0 +1,21 @@
+# Conservative defaults: tune based on measured MSPT, not guesses.
+adaptive:
+  enabled: true
+  sample-period-ticks: 200
+  mspt-overload-threshold: 46.0
+  mspt-recovery-threshold: 37.0
+  tps-overload-threshold: 19.2
+  tps-recovery-threshold: 19.8
+  consecutive-overload-samples: 3
+  consecutive-recovery-samples: 6
+  adjustment-cooldown-seconds: 45
+  min-view-distance: 5
+  min-simulation-distance: 4
+  # 0 means the original distance on plugin startup is the maximum.
+  max-view-distance: 0
+  max-simulation-distance: 0
+  require-players-in-world: true
+  # World names here are monitored but never modified.
+  excluded-worlds: []
+diagnostics:
+  announce-distance-changes-in-console: true
