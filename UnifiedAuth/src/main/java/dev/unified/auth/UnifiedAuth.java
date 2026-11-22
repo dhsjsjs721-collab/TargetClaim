@@ -54,6 +54,7 @@ private final Map<String,Rate> connections=new ConcurrentHashMap<>();
 private ThreadPoolExecutor workers;
 private AccountStore accounts;
 private int pinLength,maxAttempts,maxPending,timeoutSeconds,ipLimit,maxTracked;
+private volatile boolean ready;
 private boolean enabled,antiBot;
 private long totalLogins,totalRegistrations,denials,rateDenials;
 private int cleanupTask=-1;
@@ -85,7 +86,8 @@ try {
 accounts=new AccountStore(getDataFolder().toPath().resolve("accounts.properties"),iterations);
 }catch(IOException ex){
 getLogger().severe("Cannot safely load account database. Access denied: "+ex.getMessage());
-Bukkit.getPluginManager().disablePlugin(this);
+getLogger().severe("UnifiedAuth will reject all connections until the account database is fixed.");
+Bukkit.getPluginManager().registerEvents(this,this);
 return;
 }
 workers=new ThreadPoolExecutor(1,2,30,TimeUnit.SECONDS,new ArrayBlockingQueue<>(64),r->{
@@ -93,6 +95,7 @@ Thread t=new Thread(r,"UnifiedAuth-crypto");
 t.setDaemon(true);
 return t;
 },new ThreadPoolExecutor.AbortPolicy());
+ready=true;
 Bukkit.getPluginManager().registerEvents(this,this);
 cleanupTask=Bukkit.getScheduler().scheduleSyncRepeatingTask(this,()->{
 long now=System.currentTimeMillis();
@@ -109,10 +112,16 @@ connections.clear();
 }
 @EventHandler(priority=EventPriority.LOWEST)
 public void prelogin(AsyncPlayerPreLoginEvent event){
+if(!ready){event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,Component.text("Authentication service unavailable.",NamedTextColor.RED));return;}
 if(!antiBot)return;
 InetAddress addr=event.getAddress();
 if(addr==null)return;
 String ip=addr.getHostAddress();
+if(connections.size()>=maxTracked && !connections.containsKey(ip)){
+rateDenials++;
+event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,Component.text("Authentication protection temporarily at capacity.",NamedTextColor.RED));
+return;
+}
 long now=System.currentTimeMillis();
 Rate rate=connections.compute(ip,(key,old)->{
 if(old==null)return new Rate(now);
@@ -131,6 +140,7 @@ if(connections.size()>maxTracked)connections.entrySet().removeIf(e->now-e.getVal
 @EventHandler
 public void configure(AsyncPlayerConnectionConfigureEvent event) {
 PlayerConfigurationConnection connection=event.getConnection();
+if(!ready){connection.disconnect(Component.text("Authentication service unavailable.",NamedTextColor.RED));return;}
 UUID uuid=connection.getProfile().getId();
 String username=connection.getProfile().getName();
 if(uuid==null || username==null || !username.matches("[A-Za-z0-9_]{3,16}")){
@@ -189,6 +199,9 @@ Dialog dialog=Dialog.create(builder->builder.empty()
 .type(DialogType.multiAction(actions)));
 s.connection.getAudience().showDialog(dialog);
 }
+private void scheduleRender(Session s,String message){
+Bukkit.getScheduler().runTask(this,()->{if(pending.get(s.uuid)==s && !s.result.isDone())render(s,message);});
+}
 @EventHandler
 public void click(PlayerCustomClickEvent event){
 Key key=event.getIdentifier();
@@ -198,7 +211,7 @@ if(!(event.getCommonConnection() instanceof PlayerConfigurationConnection c))ret
 UUID uuid=c.getProfile().getId();
 if(uuid==null)return;
 Session s=pending.get(uuid);
-if(s==null || s.connection!=c || s.result.isDone())return;
+if(s==null || s.result.isDone())return;
 if(s.processing.get())return;
 String action=id.substring("unifiedauth:".length());
 String message=null;
@@ -273,7 +286,7 @@ render(s,"Incorrect PIN or account already exists. Attempts left: "+(maxAttempts
 s.processing.set(false);
 s.result.complete(false);
 }
-}else render(s,message);
+}else scheduleRender(s,message);
 }
 @EventHandler
 public void close(PlayerConnectionCloseEvent event){
