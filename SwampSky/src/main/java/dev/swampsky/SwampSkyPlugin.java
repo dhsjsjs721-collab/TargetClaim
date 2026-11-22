@@ -89,6 +89,7 @@ Bukkit.getScheduler().runTaskTimer(this,this::mountedTick,1L,1L);
 // Wing displays follow EVERY tick; navigation is deliberately slower.
 Bukkit.getScheduler().runTaskTimer(this,this::wingsTick,1L,1L);
 Bukkit.getScheduler().runTaskTimer(this,this::bounceStep,1L,1L);
+Bukkit.getScheduler().runTaskTimer(this,this::frogWallSlide,1L,1L);
 Bukkit.getScheduler().runTaskTimer(this,this::frogWingsMotion,1L,1L);
 Bukkit.getScheduler().runTaskTimer(this,this::populateNearby,120L,160L);
 Bukkit.getScheduler().runTaskTimer(this,this::upgradeOnlineEquipment,40L,100L);
@@ -1020,8 +1021,8 @@ m.getPersistentDataContainer().set(itemKey,PersistentDataType.STRING,kind);
 m.setItemModel(new NamespacedKey("swampsky",kind.equals("pig_wing")?"pig_wing":"frog_"+kind));
 m.setLore(switch(kind){
 case "hide"->List.of("§7Добыча с гигантской жабы");
-case "boots"->List.of("§aПрыгучесть I","§7Один отскок при приземлении","§7Shift — без отскока");
-case "leggings"->List.of("§aСкорость I","§7Слизистый след");
+case "boots"->List.of("§aПрыгучесть I","§7Полная защита от урона при падении","§7Один отскок, Shift — без отскока","§7Защита как у алмазных ботинок","§7Прочность: 250");
+case "leggings"->List.of("§aСкорость I","§7Медленное скольжение по стенам","§7Полная устойчивость к отбрасыванию","§7Защита как у алмазных поножей","§7Прочность: 350");
 case "wings"->List.of("§aЗащита: как железный нагрудник","§7Прочность: 4096","§7Дождь: подъём, вода: ускорение","§7Обычный полёт медленнее элитр","§8Не чинится, фейерверки бесполезны");
 default->List.of();
 });
@@ -1035,7 +1036,7 @@ m.setEquippable(equip);
 }
 }
 it.setItemMeta(m);
-if(kind.equals("wings"))fixEquipment(it,kind);
+if(kind.equals("boots")||kind.equals("leggings")||kind.equals("wings"))fixEquipment(it,kind);
 return it;
 }
 private boolean is(ItemStack it,String id){
@@ -1105,6 +1106,52 @@ equip.setModel(model);
 meta.setEquippable(equip);
 changed=true;
 }
+if(kind.equals("boots")||kind.equals("leggings")){
+// Diamond-equivalent armor and toughness, with lower durability.
+// Namespaced keyed modifiers make migration idempotent for old equipment.
+boolean legs=kind.equals("leggings");
+EquipmentSlotGroup group=legs?EquipmentSlotGroup.LEGS:EquipmentSlotGroup.FEET;
+double armor=legs?6.0:3.0;
+int maxDamage=legs?350:250;
+String prefix="frog_"+kind+"_";
+NamespacedKey armorKey=new NamespacedKey(this,prefix+"armor");
+NamespacedKey toughnessKey=new NamespacedKey(this,prefix+"toughness");
+NamespacedKey knockbackKey=new NamespacedKey(this,prefix+"knockback");
+var currentArmor=meta.getAttributeModifiers(Attribute.ARMOR);
+boolean hasArmor=false;
+if(currentArmor!=null)for(AttributeModifier modifier:currentArmor){
+if(armorKey.equals(modifier.getKey()))hasArmor=true;
+}
+if(!hasArmor){
+meta.addAttributeModifier(Attribute.ARMOR,new AttributeModifier(armorKey,armor,AttributeModifier.Operation.ADD_NUMBER,group));
+changed=true;
+}
+var currentToughness=meta.getAttributeModifiers(Attribute.ARMOR_TOUGHNESS);
+boolean hasToughness=false;
+if(currentToughness!=null)for(AttributeModifier modifier:currentToughness){
+if(toughnessKey.equals(modifier.getKey()))hasToughness=true;
+}
+if(!hasToughness){
+meta.addAttributeModifier(Attribute.ARMOR_TOUGHNESS,new AttributeModifier(toughnessKey,2.0,AttributeModifier.Operation.ADD_NUMBER,group));
+changed=true;
+}
+if(legs){
+var currentKnockback=meta.getAttributeModifiers(Attribute.KNOCKBACK_RESISTANCE);
+boolean hasKnockback=false;
+if(currentKnockback!=null)for(AttributeModifier modifier:currentKnockback){
+if(knockbackKey.equals(modifier.getKey()))hasKnockback=true;
+}
+if(!hasKnockback){
+meta.addAttributeModifier(Attribute.KNOCKBACK_RESISTANCE,new AttributeModifier(knockbackKey,1.0,AttributeModifier.Operation.ADD_NUMBER,EquipmentSlotGroup.LEGS));
+changed=true;
+}
+}
+if(meta instanceof org.bukkit.inventory.meta.Damageable damageable
+&&(!damageable.hasMaxDamage()||damageable.getMaxDamage()!=maxDamage)){
+damageable.setMaxDamage(maxDamage);
+changed=true;
+}
+}
 if(kind.equals("wings")){
 // Iron chestplate: 6 armor points. Applies only in the CHEST slot.
 NamespacedKey modifierKey=new NamespacedKey(this,"frog_wings_armor");
@@ -1136,6 +1183,28 @@ return changed;
 }
 @EventHandler public void joined(PlayerJoinEvent event){
 Bukkit.getScheduler().runTaskLater(this,()->{if(event.getPlayer().isOnline())upgradeOnlineEquipment();},20L);
+}
+// Leggings slide against solid vertical surfaces without granting flight.
+private void frogWallSlide(){
+for(Player p:Bukkit.getOnlinePlayers()){
+if(p.isDead()||p.isOnGround()||p.isInsideVehicle()||p.isFlying()||p.isGliding()||p.isSwimming()
+||!is(p.getInventory().getLeggings(),"leggings"))continue;
+Vector velocity=p.getVelocity();
+if(velocity.getY()>=-.12)continue;
+Location at=p.getLocation();
+boolean wall=false;
+for(int dx=-1;dx<=1&&!wall;dx++)for(int dz=-1;dz<=1;dz++){
+if(Math.abs(dx)+Math.abs(dz)!=1)continue;
+Block adjacent=at.clone().add(dx*.37,.65,dz*.37).getBlock();
+if(adjacent.getType().isSolid()&&!adjacent.isPassable()){
+wall=true;break;
+}
+}
+if(wall){
+p.setVelocity(new Vector(velocity.getX(),-.12,velocity.getZ()));
+p.setFallDistance(0);
+}
+}
 }
 private void bounceStep(){
 for(Player p:Bukkit.getOnlinePlayers()){
@@ -1371,25 +1440,25 @@ double yaw=Math.toRadians(at.getYaw());
 Vector right=new Vector(-Math.cos(yaw),0,-Math.sin(yaw));
 Vector back=new Vector(Math.sin(yaw),0,-Math.cos(yaw));
 double size=.70;
-double flap=Math.sin(tick*.065)*.085;
+double flap=Math.sin(tick*.065)*.045;
 for(int j=0;j<2;j++){
 Entity e=Bukkit.getEntity(list.get(j));
 if(!(e instanceof ItemDisplay d))continue;
 float side=j==0?-1f:1f;
 // Wings sit at the back of the rib cage, not beside the pig's head.
-Location loc=at.clone().add(right.clone().multiply(side*.37*size));
-loc.add(back.clone().multiply(.34*size));
-loc.add(0,.61*size+flap*size,0);
+Location loc=at.clone().add(right.clone().multiply(side*.52*size));
+loc.add(back.clone().multiply(.16*size));
+loc.add(0,.76*size+flap*size,0);
 // Rotate the wing planes toward the rear so they resemble folded flight
 // feathers from the front rather than flat wings sprouting near the ears.
-loc.setYaw(at.getYaw()+side*76f);
-loc.setPitch(-10f);
+loc.setYaw(at.getYaw()+side*18f);
+loc.setPitch(-18f);
 d.teleport(loc);
-Quaternionf pose=new Quaternionf().rotationXYZ(.07f,side*.12f,(float)(flap*side));
+Quaternionf pose=new Quaternionf().rotationXYZ(.12f,(float)(side*.20f),(float)(side*(.22+flap)));
 d.setTransformation(new Transformation(
 new Vector3f(0f,0f,0f),
 pose,
-new Vector3f(side*.27f,.245f,.27f),
+new Vector3f(side*.34f,.31f,.28f),
 new Quaternionf()
 ));
 }
