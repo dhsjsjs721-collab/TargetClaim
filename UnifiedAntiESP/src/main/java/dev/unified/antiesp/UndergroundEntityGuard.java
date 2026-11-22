@@ -129,7 +129,7 @@ if(!target.getPassengers().isEmpty())return false;
 Location from=viewer.getEyeLocation();
 Location to=target.getLocation();
 double dist=from.distanceSquared(to);
-return dist>=minSq && dist<=maxSq;
+return VisibilityRangePolicy.within(dist,maxSq);
 }
 
 /** true if all tested target points are blocked. Conservative fail-open. */
