@@ -1,14 +1,17 @@
-# MERGE ONLY this 'anticheat.anti-xray' subtree into config/paper-world-defaults.yml
-# Do not replace your entire Paper configuration with this fragment!
-# This is a stronger, more FPS-intensive cave-finder and ore obfuscation preset.
-# The list deliberately excludes tile entities from hidden-blocks.
-# Restart the server. Any per-world paper-world.yml can override these values.
+# Strong Paper 26.3 Anti-Xray: cave-finder and ore protection.
+# Do not replace the whole paper-world-defaults.yml.
+# ONLY merge anticheat.anti-xray into config/paper-world-defaults.yml.
+# WARNING: 'air' is CPU/bandwidth/client-FPS intensive and is not an
+# absolute cave/water/lava occluder. Backup config; restart; stage test.
 anticheat:
   anti-xray:
     enabled: true
     engine-mode: 3
     hidden-blocks:
       - air
+      - ancient_debris
+      - nether_gold_ore
+      - nether_quartz_ore
       - coal_ore
       - deepslate_coal_ore
       - copper_ore
@@ -31,19 +34,9 @@ anticheat:
       - stone
       - deepslate
       - tuff
-      - andesite
-      - granite
-      - diorite
-      - dirt
-      - gravel
-      - coal_ore
-      - deepslate_coal_ore
-      - copper_ore
-      - deepslate_copper_ore
-      - oak_planks
-      - chest
-      - spawner
-    lava-obscures: false
-    max-block-height: 192
+      - netherrack
+      - end_stone
+    lava-obscures: true
+    max-block-height: 320
     update-radius: 2
     use-permission: false
