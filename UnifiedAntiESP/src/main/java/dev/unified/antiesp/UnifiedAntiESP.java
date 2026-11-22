@@ -24,6 +24,7 @@ Location from, to;
 }
 private final Map<Pair, State> states = new HashMap<>();
 private final OreShufflePopulator populator = new OreShufflePopulator(this);
+private final UndergroundEntityGuard entityGuard = new UndergroundEntityGuard(this);
 private BukkitTask task;
 private long passes, checks, rays, budgetStops, revealed, lastMicros;
 private int pairCursor;
@@ -39,12 +40,15 @@ getConfig().set("ore-shuffle.secret", Long.toUnsignedString(new SecureRandom().n
 saveConfig();
 }
 Bukkit.getPluginManager().registerEvents(this,this);
+Bukkit.getPluginManager().registerEvents(entityGuard,this);
 for (World w : Bukkit.getWorlds()) register(w);
 configure();
-getLogger().info("Enable native Paper Anti-Xray separately in paper-world-defaults.yml.");
+getLogger().info("Strong Paper Anti-Xray preset provided under UnifiedAntiESP/presets/. It must be enabled in Paper config and requires a restart.");
+for(String line:PaperXrayAudit.inspect())getLogger().info(line);
 }
 @Override public void onDisable() {
 if(task!=null) task.cancel();
+entityGuard.stop();
 for(World w:Bukkit.getWorlds()) w.getPopulators().remove(populator);
 clearAll();
 }
@@ -66,6 +70,7 @@ stale=getConfig().getLong("player-esp.max-hidden-staleness-millis",900);
 cache=getConfig().getLong("player-esp.stationary-cache-millis",150);
 for(World w:Bukkit.getWorlds()) register(w);
 if(active) task=Bukkit.getScheduler().runTaskTimer(this,this::scan,2L,interval);
+entityGuard.configure();
 }
 private void register(World world) {
 boolean enabled=getConfig().getBoolean("ore-shuffle.enabled",true);
@@ -187,8 +192,9 @@ e.getCommands().removeIf(s->s.equalsIgnoreCase("seed")||s.toLowerCase(Locale.ROO
 }
 }
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args) {
-if(args.length>0 && args[0].equalsIgnoreCase("reload")) {configure();sender.sendMessage("UnifiedAntiESP reloaded");return true;}
-sender.sendMessage("UnifiedAntiESP: "+(active?"ON":"OFF")+" passes="+passes+" checks="+checks+" rays="+rays+" cachedPairs="+states.size()+" budgetStops="+budgetStops+" staleReveals="+revealed+" lastScanMicros="+lastMicros+" oreChunks="+populator.chunks()+" oreMoves="+populator.moved());
+if(args.length>0 && args[0].equalsIgnoreCase("reload")) {configure();sender.sendMessage("UnifiedAntiESP reloaded; restart required for Paper Anti-Xray settings.");return true;}
+if(args.length>0 && args[0].equalsIgnoreCase("audit")){for(String line:PaperXrayAudit.inspect())sender.sendMessage(line);return true;}
+sender.sendMessage("UnifiedAntiESP: "+(active?"ON":"OFF")+" passes="+passes+" checks="+checks+" rays="+rays+" cachedPairs="+states.size()+" budgetStops="+budgetStops+" staleReveals="+revealed+" lastScanMicros="+lastMicros+" oreChunks="+populator.chunks()+" oreMoves="+populator.moved()+" | "+entityGuard.stats());
 return true;
 }
 long oreSalt(){try{return Long.parseUnsignedLong(getConfig().getString("ore-shuffle.secret","1"),16);}catch(Exception e){return 1L;}}

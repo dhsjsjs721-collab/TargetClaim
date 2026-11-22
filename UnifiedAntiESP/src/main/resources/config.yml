@@ -1,3 +1,5 @@
+# UnifiedAntiESP 3.2.0 | Paper 26.3 / Java 25
+# Built-in Paper Anti-Xray must be enabled separately. See presets/ in project source.
 player-esp:
   enabled: true
   interval-ticks: 2
@@ -9,6 +11,32 @@ player-esp:
   occluded-before-hide-millis: 220
   max-hidden-staleness-millis: 900
   stationary-cache-millis: 150
+
+# Prevent underground mob/item/decorations ESP by suppressing tracking
+# and hiding occluded entities. Does not prevent all sounds/particles/pie-chart leaks.
+entity-esp:
+  enabled: true
+  hide-mobs: true
+  hide-dropped-items: true
+  hide-decorations: true
+  hide-vehicles: true
+  hide-displays: true
+  hide-experience-orbs: true
+  # Do not hide projectiles/TNT/other gameplay entities without testing.
+  hide-other-entities: false
+  include-nether: true
+  hide-below-y: 96
+  never-hide-within-blocks: 6
+  max-protection-range-blocks: 56
+  interval-ticks: 10
+  max-viewers-per-pass: 2
+  max-entity-checks-per-pass: 100
+  max-scan-microseconds: 1800
+  max-hidden-per-viewer: 192
+  max-cached-track-pairs: 4096
+  track-decision-cache-millis: 250
+  occlusion-rays: 2
+
 seed-protection:
   enabled: true
   hide-command-from-tab: true
