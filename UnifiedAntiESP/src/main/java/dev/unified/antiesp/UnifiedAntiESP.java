@@ -1,6 +1,7 @@
 package dev.unified.antiesp;
 
 import java.security.SecureRandom;
+import io.papermc.paper.event.player.PlayerTrackEntityEvent;
 import java.util.*;
 import org.bukkit.*;
 import org.bukkit.command.*;
@@ -61,11 +62,11 @@ antiSeed=getConfig().getBoolean("seed-protection.enabled",true);
 interval=Math.max(1,Math.min(20,getConfig().getInt("player-esp.interval-ticks",2)));
 maxPairs=Math.max(8,Math.min(10000,getConfig().getInt("player-esp.max-pair-checks-per-pass",120)));
 maxMicros=Math.max(200,Math.min(20000,getConfig().getInt("player-esp.max-scan-microseconds",2200)));
-double near=getConfig().getDouble("player-esp.never-hide-within-blocks",4);
-double far=getConfig().getDouble("player-esp.max-protection-range-blocks",160);
-if(!getConfig().isSet("config-version") && far==72){
-far=160;
-getLogger().info("Legacy Player ESP 72-block range upgraded in memory to 160. Set config-version: 33 to override.");
+double near=0.0; // Enforce occlusion even for entities a block behind a wall
+double far=getConfig().getDouble("player-esp.max-protection-range-blocks",224);
+if(!getConfig().isSet("config-version") && (far==72 || far==160)){
+far=224;
+getLogger().info("Legacy Player ESP range upgraded in memory to 224 blocks. Set config-version: 34 to override.");
 }
 far=Math.max(32,Math.min(256,far));
 nearSq=near*near; farSq=far*far;
@@ -90,7 +91,7 @@ if(a==b || a.getWorld()!=b.getWorld()) return false;
 if(a.hasPermission("unifiedantiesp.bypass")||b.hasPermission("unifiedantiesp.bypass")) return false;
 if(a.getGameMode()==GameMode.SPECTATOR || b.getGameMode()==GameMode.SPECTATOR) return false;
 double d=a.getLocation().distanceSquared(b.getLocation());
-return d>=nearSq && d<=farSq;
+return VisibilityRangePolicy.within(d,farSq);
 }
 private void show(Player a,Player b,State state) {
 if(state.hidden) { a.showPlayer(this,b); state.hidden=false; revealed++; }
@@ -121,6 +122,20 @@ if(a.getWorld().rayTraceBlocks(eye,delta,length,FluidCollisionMode.NEVER,true)==
 }
 }
 return false;
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
+public void trackPlayer(PlayerTrackEntityEvent event){
+// Cancel a hidden player *before* their spawn packet can reach an ESP client.
+// Paper retries tracking when the player remains in range; the normal scan
+// handles movement between wall-visible and wall-hidden states.
+if(!active || !(event.getEntity() instanceof Player target))return;
+Player viewer=event.getPlayer();
+if(!allowed(viewer,target))return;
+try{
+if(!trace(viewer,target))event.setCancelled(true);
+}catch(RuntimeException ignored){
+// On server error, fail open rather than prevent legitimate player joins.
+}
 }
 private void check(Player a,Player b,State s,long now) {
 checks++;
@@ -164,7 +179,7 @@ Player a=players.get(i),b=players.get(j);
 Pair pair=new Pair(a.getUniqueId(),b.getUniqueId());
 State s=states.get(pair);
 if(s!=null && s.hidden)continue;
-if(s==null) {if(!allowed(a,b))continue;s=new State();s.visible=now;states.put(pair,s);}
+if(s==null) {if(!allowed(a,b))continue;s=new State();s.visible=0;states.put(pair,s);}
 check(a,b,s,now);used++;
 }
 if(visited<total)budgetStops++;

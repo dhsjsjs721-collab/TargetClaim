@@ -1,26 +1,18 @@
-# UnifiedAntiESP 3.3.0 — Paper 26.3 / Java 25
-# The 3.3 release detects 3.2 default limits in existing configs and
-# raises 56->192 entity ESP and 72->160 player ESP at runtime.
-# Set config-version: 33 to preserve explicit custom values instead.
-config-version: 33
-
+# UnifiedAntiESP 3.4.0, Paper 26.3 / Java 25.
+# The plugin does not automatically edit Paper's own world anti-xray settings.
+config-version: 34
 player-esp:
   enabled: true
   interval-ticks: 2
   max-pair-checks-per-pass: 120
   max-scan-microseconds: 2200
-  max-protection-range-blocks: 160
-  never-hide-within-blocks: 4
-  visible-grace-millis: 450
-  occluded-before-hide-millis: 220
-  max-hidden-staleness-millis: 900
-  stationary-cache-millis: 150
+  max-protection-range-blocks: 224
+  never-hide-within-blocks: 0
+  visible-grace-millis: 120
+  occluded-before-hide-millis: 80
+  max-hidden-staleness-millis: 2000
+  stationary-cache-millis: 100
 
-# Completely independent of Anti-Xray block obfuscation.
-# When strict mode is active, cave mobs >40 blocks away are suppressed
-# even if the tunnel happens to provide line of sight.
-# Normal surface mobs are excluded using skylight, but mobs under roofs may
-# also count as underground. Test survival gameplay before enabling in PvP.
 entity-esp:
   enabled: true
   hide-mobs: true
@@ -31,9 +23,9 @@ entity-esp:
   hide-experience-orbs: true
   hide-other-entities: false
   include-nether: true
-  hide-below-y: 320
-  never-hide-within-blocks: 3
-  max-protection-range-blocks: 192
+  hide-below-y: 10000
+  never-hide-within-blocks: 0
+  max-protection-range-blocks: 224
   strict-distant-underground-mobs: true
   strict-distance-blocks: 40
   underground-max-skylight: 3
@@ -42,13 +34,11 @@ entity-esp:
   max-entity-checks-per-pass: 180
   max-scan-microseconds: 2400
   max-hidden-per-viewer: 384
+  max-tracked-entities-per-viewer: 2048
   max-cached-track-pairs: 4096
-  track-decision-cache-millis: 250
+  track-decision-cache-millis: 125
   occlusion-rays: 2
 
-# It is not possible to fully hide the geometry of open caves, air,
-# water or lava with just Bukkit hideEntity or Paper built-in Anti-Xray.
-# See bundled paper-anti-xray-strong.yml and README.
 seed-protection:
   enabled: true
   hide-command-from-tab: true

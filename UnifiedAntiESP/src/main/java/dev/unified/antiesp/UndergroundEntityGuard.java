@@ -34,12 +34,16 @@ boolean hidden;
 private final JavaPlugin plugin;
 private final Map<UUID,Set<UUID>> hidden=new HashMap<>();
 private final LinkedHashMap<Pair,Decision> trackDecisions=new LinkedHashMap<>();
+// Exact candidates supplied by the Paper entity tracker; avoids repeatedly
+// scanning 192-block boxes for all entities in all loaded chunks.
+private final Map<UUID,LinkedHashSet<UUID>> trackedCandidates=new HashMap<>();
+private final Map<UUID,Integer> cursors=new HashMap<>();
 private BukkitTask ticker;
 private boolean enabled,mobs,items,decorations,vehicles,displays,experience,other,includeNether,strictDistant;
 private int maxSkylight;
 private double strictSq;
 private long strictDecisions,oldConfigAdjustments;
-private int interval,maxViewers,maxChecks,maxMicros,maxHidden,maxCached,rayCount;
+private int interval,maxViewers,maxChecks,maxMicros,maxHidden,maxCached,maxCandidates,rayCount;
 private double minSq,maxSq;
 private int maxY;
 private long cacheMs,scans,rayTests,blockedSpawns,hides,shows,budgetStops,lastMicros,errors;
@@ -51,6 +55,8 @@ void configure(){
 if(ticker!=null){ticker.cancel();ticker=null;}
 restoreAll();
 trackDecisions.clear();
+trackedCandidates.clear();
+cursors.clear();
 enabled=plugin.getConfig().getBoolean("entity-esp.enabled",true);
 mobs=plugin.getConfig().getBoolean("entity-esp.hide-mobs",true);
 items=plugin.getConfig().getBoolean("entity-esp.hide-dropped-items",true);
@@ -60,15 +66,15 @@ displays=plugin.getConfig().getBoolean("entity-esp.hide-displays",true);
 experience=plugin.getConfig().getBoolean("entity-esp.hide-experience-orbs",true);
 other=plugin.getConfig().getBoolean("entity-esp.hide-other-entities",false);
 includeNether=plugin.getConfig().getBoolean("entity-esp.include-nether",true);
-maxY=plugin.getConfig().getInt("entity-esp.hide-below-y",320);
-double near=bound(plugin.getConfig().getDouble("entity-esp.never-hide-within-blocks",3),2,16);
-double far=bound(plugin.getConfig().getDouble("entity-esp.max-protection-range-blocks",192),24,256);
+maxY=plugin.getConfig().getInt("entity-esp.hide-below-y",10000);
+double near=0.0; // even a 1-block-thick wall at close range conceals its entity
+double far=bound(plugin.getConfig().getDouble("entity-esp.max-protection-range-blocks",224),24,256);
 // Older plugin configurations explicitly contain unsafe defaults (56/96).
 // Upgrade only those exact shipped defaults, leaving custom settings alone.
 // Operators can set config-version: 33 to retain their chosen old ranges.
 if(!plugin.getConfig().isSet("config-version")){
-if(far==56){far=192;oldConfigAdjustments++;}
-if(maxY==96){maxY=320;oldConfigAdjustments++;}
+if(far==56 || far==192){far=224;oldConfigAdjustments++;}
+if(maxY==96 || maxY==320){maxY=10000;oldConfigAdjustments++;}
 }
 strictDistant=plugin.getConfig().getBoolean("entity-esp.strict-distant-underground-mobs",true);
 double strictDistance=bound(plugin.getConfig().getDouble("entity-esp.strict-distance-blocks",40),12,96);
@@ -82,7 +88,8 @@ maxChecks=bound(plugin.getConfig().getInt("entity-esp.max-entity-checks-per-pass
 maxMicros=bound(plugin.getConfig().getInt("entity-esp.max-scan-microseconds",2400),200,20000);
 maxHidden=bound(plugin.getConfig().getInt("entity-esp.max-hidden-per-viewer",384),16,1000);
 maxCached=bound(plugin.getConfig().getInt("entity-esp.max-cached-track-pairs",4096),128,50000);
-cacheMs=bound(plugin.getConfig().getLong("entity-esp.track-decision-cache-millis",250),0,2000);
+maxCandidates=bound(plugin.getConfig().getInt("entity-esp.max-tracked-entities-per-viewer",2048),64,8192);
+cacheMs=bound(plugin.getConfig().getLong("entity-esp.track-decision-cache-millis",125),0,2000);
 rayCount=bound(plugin.getConfig().getInt("entity-esp.occlusion-rays",2),1,3);
 viewerCursor=0;
 if(enabled)ticker=Bukkit.getScheduler().runTaskTimer(plugin,this::scan,5L,interval);
@@ -122,7 +129,7 @@ if(!target.getPassengers().isEmpty())return false;
 Location from=viewer.getEyeLocation();
 Location to=target.getLocation();
 double dist=from.distanceSquared(to);
-return dist>=minSq && dist<=maxSq;
+return VisibilityRangePolicy.within(dist,maxSq);
 }
 
 /** true if all tested target points are blocked. Conservative fail-open. */
@@ -185,6 +192,11 @@ public void onTrack(PlayerTrackEntityEvent event){
 try{
 Player viewer=event.getPlayer();
 Entity target=event.getEntity();
+if(!eligible(viewer,target))return;
+// Keep a bounded watch-list of entities Paper actually considered tracking.
+// This avoids a costly getNearbyEntities(224,224,224) around every player.
+LinkedHashSet<UUID> observed=trackedCandidates.computeIfAbsent(viewer.getUniqueId(),id->new LinkedHashSet<>());
+if(observed.size()<maxCandidates)observed.add(target.getUniqueId());
 if(shouldHide(viewer,target)){
 event.setCancelled(true);
 blockedSpawns++;
@@ -222,34 +234,59 @@ hidden.clear();
 }
 
 private void scanViewer(Player viewer,long deadline,int[] used){
-Set<UUID> set=hidden.computeIfAbsent(viewer.getUniqueId(),ignored->new HashSet<>());
+UUID viewerId=viewer.getUniqueId();
+Set<UUID> set=hidden.computeIfAbsent(viewerId,ignored->new HashSet<>());
+LinkedHashSet<UUID> candidates=trackedCandidates.get(viewerId);
+
+// Always review already hidden entities first so they reappear when visible.
+// A cheap lookup runs only for the bounded set we previously hid.
 for(UUID id:new ArrayList<>(set)){
 if(used[0]>=maxChecks || System.nanoTime()>deadline)return;
 used[0]++;
 Entity target=Bukkit.getEntity(id);
 if(target==null || !target.isValid()){
 set.remove(id);
+if(candidates!=null)candidates.remove(id);
 continue;
 }
-if(!shouldHide(viewer,target)){
-show(viewer,id,set);
-}
+if(!shouldHide(viewer,target))show(viewer,id,set);
 }
 if(used[0]>=maxChecks || System.nanoTime()>deadline)return;
-double r=Math.sqrt(maxSq);
-for(Entity target:viewer.getNearbyEntities(r,r,r)){
-if(used[0]>=maxChecks || System.nanoTime()>deadline)break;
+
+if(candidates==null || candidates.isEmpty()){
+if(set.isEmpty())hidden.remove(viewerId);
+return;
+}
+ArrayList<UUID> ids=new ArrayList<>(candidates);
+int size=ids.size();
+int idx=Math.floorMod(cursors.getOrDefault(viewerId,0),size);
+int visited=0;
+while(visited<size && used[0]<maxChecks && System.nanoTime()<=deadline){
+UUID id=ids.get(idx);
+idx=(idx+1)%size;
+visited++;
 used[0]++;
-if(set.size()>=maxHidden)break;
-UUID id=target.getUniqueId();
+Entity target=Bukkit.getEntity(id);
+if(target==null || !target.isValid() || target.getWorld()!=viewer.getWorld()){
+candidates.remove(id);
+set.remove(id);
+continue;
+}
+if(target.getLocation().distanceSquared(viewer.getLocation())>maxSq*1.5){
+candidates.remove(id);
+if(set.contains(id))show(viewer,id,set);
+continue;
+}
 if(set.contains(id))continue;
-if(shouldHide(viewer,target)){
+if(shouldHide(viewer,target) && set.size()<maxHidden){
 viewer.hideEntity(plugin,target);
 set.add(id);
 hides++;
 }
 }
-if(set.isEmpty())hidden.remove(viewer.getUniqueId());
+cursors.put(viewerId,idx);
+if(set.isEmpty())hidden.remove(viewerId);
+if(candidates.isEmpty())trackedCandidates.remove(viewerId);
 }
 
 private void scan(){
@@ -259,7 +296,7 @@ try{
 scans++;
 ArrayList<Player> players=new ArrayList<>(Bukkit.getOnlinePlayers());
 if(players.isEmpty()){
-hidden.clear();trackDecisions.clear();viewerCursor=0;return;
+hidden.clear();trackDecisions.clear();trackedCandidates.clear();cursors.clear();viewerCursor=0;return;
 }
 int[] used={0};
 for(int j=0;j<Math.min(maxViewers,players.size());j++){
@@ -271,6 +308,8 @@ if(scans%60==0){
 long now=System.currentTimeMillis();
 trackDecisions.entrySet().removeIf(e->now-e.getValue().checked>3000);
 hidden.keySet().removeIf(id->Bukkit.getPlayer(id)==null);
+trackedCandidates.keySet().removeIf(id->Bukkit.getPlayer(id)==null);
+cursors.keySet().removeIf(id->Bukkit.getPlayer(id)==null);
 }
 }catch(RuntimeException ex){
 errors++;
@@ -282,20 +321,26 @@ lastMicros=(System.nanoTime()-start)/1000L;
 
 @EventHandler public void onQuit(PlayerQuitEvent event){
 restoreViewer(event.getPlayer());
+trackedCandidates.remove(event.getPlayer().getUniqueId());
+cursors.remove(event.getPlayer().getUniqueId());
 trackDecisions.keySet().removeIf(p->p.viewer().equals(event.getPlayer().getUniqueId())||p.target().equals(event.getPlayer().getUniqueId()));
 }
-@EventHandler public void onWorldChange(PlayerChangedWorldEvent event){restoreViewer(event.getPlayer());}
+@EventHandler public void onWorldChange(PlayerChangedWorldEvent event){restoreViewer(event.getPlayer());trackedCandidates.remove(event.getPlayer().getUniqueId());cursors.remove(event.getPlayer().getUniqueId());}
 @EventHandler public void onTeleport(PlayerTeleportEvent event){
-if(event.getTo()!=null && event.getFrom().getWorld()!=event.getTo().getWorld())restoreViewer(event.getPlayer());
+if(event.getTo()!=null && event.getFrom().getWorld()!=event.getTo().getWorld()){
+restoreViewer(event.getPlayer());
+trackedCandidates.remove(event.getPlayer().getUniqueId());
+cursors.remove(event.getPlayer().getUniqueId());
 }
-@EventHandler public void onRespawn(PlayerRespawnEvent event){restoreViewer(event.getPlayer());}
+}
+@EventHandler public void onRespawn(PlayerRespawnEvent event){restoreViewer(event.getPlayer());trackedCandidates.remove(event.getPlayer().getUniqueId());cursors.remove(event.getPlayer().getUniqueId());}
 
 String stats(){
 int hiddenCount=0;
 for(Set<UUID> s:hidden.values())hiddenCount+=s.size();
 return "EntityESP="+(enabled?"ON":"OFF")+" maxRange="+(int)Math.sqrt(maxSq)+" strictDistance="+(int)Math.sqrt(strictSq)+" strictDecisions="+strictDecisions+" legacyRangeFixes="+oldConfigAdjustments+" trackBlocked="+blockedSpawns+
 " hidden="+hiddenCount+" hides="+hides+" shows="+shows+" rays="+rayTests+
-" scanPasses="+scans+" trackCache="+trackDecisions.size()+
+" scanPasses="+scans+" trackCache="+trackDecisions.size()+" watchers="+trackedCandidates.size()+
 " budgetStops="+budgetStops+" errors="+errors+" lastMicros="+lastMicros;
 }
 }
