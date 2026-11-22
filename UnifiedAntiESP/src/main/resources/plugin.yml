@@ -1,15 +1,19 @@
 name: UnifiedAntiESP
-version: 3.1.1
+version: 3.2.0
 main: dev.unified.antiesp.UnifiedAntiESP
 api-version: '26.3'
 load: POSTWORLD
 commands:
   uesp:
+    description: ESP status and Paper Anti-Xray audit
+    usage: /uesp [audit|reload]
     permission: unifiedantiesp.admin
 permissions:
   unifiedantiesp.admin:
     default: op
   unifiedantiesp.bypass:
+    default: false
+  unifiedantiesp.entitybypass:
     default: false
   unifiedantiesp.seed:
     default: op
