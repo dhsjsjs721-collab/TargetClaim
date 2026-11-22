@@ -1,0 +1,15 @@
+name: UnifiedAntiESP
+version: 3.1.1
+main: dev.unified.antiesp.UnifiedAntiESP
+api-version: '26.3'
+load: POSTWORLD
+commands:
+  uesp:
+    permission: unifiedantiesp.admin
+permissions:
+  unifiedantiesp.admin:
+    default: op
+  unifiedantiesp.bypass:
+    default: false
+  unifiedantiesp.seed:
+    default: op
