@@ -240,10 +240,11 @@ actions.add(button("⌫","back"));
 actions.add(button("0","digit0"));
 actions.add(button("OK","submit"));
 if(rememberEnabled && s.clientIp!=null) actions.add(button("Remember IP: "+(s.rememberRequested?"ON":"OFF"),"remember"));
+final String dialogDescription=description;
 Dialog dialog=Dialog.create(builder->builder.empty()
 .base(DialogBase.builder(Component.text("UnifiedAuth • Before World",NamedTextColor.AQUA))
 .canCloseWithEscape(false)
-.body(List.of(DialogBody.plainMessage(Component.text(description,NamedTextColor.WHITE))))
+.body(List.of(DialogBody.plainMessage(Component.text(dialogDescription,NamedTextColor.WHITE))))
 .build())
 .type(DialogType.multiAction(actions).build()));
 s.connection.getAudience().showDialog(dialog);
