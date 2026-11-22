@@ -196,7 +196,7 @@ Dialog dialog=Dialog.create(builder->builder.empty()
 .canCloseWithEscape(false)
 .body(List.of(DialogBody.plainMessage(Component.text(description,NamedTextColor.WHITE))))
 .build())
-.type(DialogType.multiAction(actions)));
+.type(DialogType.multiAction(actions).build()));
 s.connection.getAudience().showDialog(dialog);
 }
 private void scheduleRender(Session s,String message){
