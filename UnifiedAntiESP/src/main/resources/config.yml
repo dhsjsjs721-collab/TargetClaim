@@ -1,0 +1,21 @@
+player-esp:
+  enabled: true
+  interval-ticks: 2
+  max-pair-checks-per-pass: 120
+  max-scan-microseconds: 2200
+  max-protection-range-blocks: 72
+  never-hide-within-blocks: 4
+  visible-grace-millis: 450
+  occluded-before-hide-millis: 220
+  max-hidden-staleness-millis: 900
+  stationary-cache-millis: 150
+seed-protection:
+  enabled: true
+  hide-command-from-tab: true
+ore-shuffle:
+  enabled: true
+  include-nether: true
+  secret: ''
+  max-offset-blocks: 2
+  max-moves-per-chunk: 24
+  max-block-reads-per-chunk: 18000
