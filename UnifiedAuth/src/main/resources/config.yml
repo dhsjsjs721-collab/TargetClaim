@@ -1,28 +1,26 @@
 authentication:
   enabled: true
-  # Keypad-only: PIN digits are not sent in chat or commands.
-  pin-length: 8
+  # New accounts use EXACTLY 4 digits in the PIN dialog.
+  pin-length: 4
+  # Older UnifiedAuth 1.0/1.1 accounts used 8-digit PINs by default;
+  # old PIN is required once to upgrade the account to PIN + password.
+  legacy-pin-length: 8
+  minimum-password-length: 10
   maximum-attempts-per-connection: 3
-  timeout-seconds: 90
+  timeout-seconds: 120
   maximum-pending-connections: 50
   pbkdf2-iterations: 260000
 antibot:
   enabled: true
   max-new-connections-per-ip-per-minute: 24
   maximum-tracked-addresses: 4000
-
-# Disabled by default. This is a convenience feature, NOT strong second-factor
-# authentication: all devices behind one public NAT may appear to have one IP.
-# Each player must ALSO explicitly choose ON after entering their PIN.
+# OPTIONAL, disabled by default. Player must separately opt in.
+# Each trusted entry is linked to UUID + account name + IP + expiration.
+# Vanilla Minecraft has no real CPU/motherboard HWID in its network packets.
 remember-ip:
   enabled: false
   expire-after-days: 7
-  # Enabling on offline-mode servers allows username impersonation to
-  # turn a shared IP into an account takeover. Only set true behind a
-  # correctly configured secure Velocity/Bungee proxy with backend firewall,
-  # forwarding-secret validation and authenticated player UUIDs.
   allow-verified-proxy-offline-mode: false
-
 messages:
   title: "UnifiedAuth"
-  subtitle: "Введите PIN перед входом на сервер"
+  subtitle: "Сначала PIN (4 цифры), затем пароль"
