@@ -1,17 +1,28 @@
 authentication:
   enabled: true
-  # Keypad-only (no plaintext PIN shown on screen or logged).
+  # Keypad-only: PIN digits are not sent in chat or commands.
   pin-length: 8
   maximum-attempts-per-connection: 3
   timeout-seconds: 90
   maximum-pending-connections: 50
-  # PBKDF2-HMAC-SHA256 iterations; registration and verification happen off-thread.
   pbkdf2-iterations: 260000
 antibot:
-  # Conservative IP connection-rate guard; shared IPs may hit this limit.
   enabled: true
   max-new-connections-per-ip-per-minute: 24
   maximum-tracked-addresses: 4000
+
+# Disabled by default. This is a convenience feature, NOT strong second-factor
+# authentication: all devices behind one public NAT may appear to have one IP.
+# Each player must ALSO explicitly choose ON after entering their PIN.
+remember-ip:
+  enabled: false
+  expire-after-days: 7
+  # Enabling on offline-mode servers allows username impersonation to
+  # turn a shared IP into an account takeover. Only set true behind a
+  # correctly configured secure Velocity/Bungee proxy with backend firewall,
+  # forwarding-secret validation and authenticated player UUIDs.
+  allow-verified-proxy-offline-mode: false
+
 messages:
   title: "UnifiedAuth"
   subtitle: "Введите PIN перед входом на сервер"
