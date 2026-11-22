@@ -1,13 +1,13 @@
 name: UnifiedOptimizer
-version: 1.0.0
+version: 1.1.0
 main: dev.unified.optimizer.UnifiedOptimizer
 api-version: '26.3'
 load: POSTWORLD
-description: Low-overhead adaptive view and simulation distance for Paper 26.3
+description: Bounded, adaptive MSPT controller with safe world distance restoration
 commands:
   uopt:
-    description: Monitor MSPT and control adaptive distances
-    usage: /uopt [status|reload|pause|resume|reset]
+    description: View low-overhead performance metrics and adaptive distances
+    usage: /uopt [status|profile|reload|pause|resume|reset]
     permission: unifiedoptimizer.admin
 permissions:
   unifiedoptimizer.admin:
