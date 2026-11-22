@@ -1,0 +1,49 @@
+# MERGE ONLY this 'anticheat.anti-xray' subtree into config/paper-world-defaults.yml
+# Do not replace your entire Paper configuration with this fragment!
+# This is a stronger, more FPS-intensive cave-finder and ore obfuscation preset.
+# The list deliberately excludes tile entities from hidden-blocks.
+# Restart the server. Any per-world paper-world.yml can override these values.
+anticheat:
+  anti-xray:
+    enabled: true
+    engine-mode: 3
+    hidden-blocks:
+      - air
+      - coal_ore
+      - deepslate_coal_ore
+      - copper_ore
+      - deepslate_copper_ore
+      - raw_copper_block
+      - iron_ore
+      - deepslate_iron_ore
+      - raw_iron_block
+      - gold_ore
+      - deepslate_gold_ore
+      - diamond_ore
+      - deepslate_diamond_ore
+      - emerald_ore
+      - deepslate_emerald_ore
+      - lapis_ore
+      - deepslate_lapis_ore
+      - redstone_ore
+      - deepslate_redstone_ore
+    replacement-blocks:
+      - stone
+      - deepslate
+      - tuff
+      - andesite
+      - granite
+      - diorite
+      - dirt
+      - gravel
+      - coal_ore
+      - deepslate_coal_ore
+      - copper_ore
+      - deepslate_copper_ore
+      - oak_planks
+      - chest
+      - spawner
+    lava-obscures: false
+    max-block-height: 192
+    update-radius: 2
+    use-permission: false
