@@ -1,31 +1,36 @@
-# UnifiedAuth 1.1.0 — Pre-world PIN + Optional Remember IP
+# UnifiedAuth 1.2.0 — 4-digit PIN, then password (before world load)
 
-Independent Paper 26.3/Java 25 plugin. Requires no external login plugins. Unlike a normal in-world /login command, blocks configuration phase until the player verifies their PIN.
+Paper 26.3 / Java 25. No external auth dependency.
 
-## New in 1.1
+## Login UI
 
-- **Remember IP is OFF by default.** Admin sets `remember-ip.enabled: true` in `plugins/UnifiedAuth/config.yml`, then restarts the server.
-- **Players must separately opt in after entering a correct PIN**: toggle **Remember IP: ON** in the keypad dialog, or use `/ua remember on` after entering the world.
-- Subsequent joins from the **same IP and the same verified account UUID/name** within seven days skip the keypad dialog. New IPs, expired or revoked records require PIN again.
-- `/ua remember status` shows whether the current network is trusted; `/ua remember off` revokes the account's trust.
-- Only one IP per account is trusted at a time. No plaintext IP is saved: HMAC-SHA256 keyed fingerprints are stored in `trusted-ips.properties`, and the secret key in `remember-key.bin`. Back up both files securely.
-- Disable by setting `remember-ip.enabled: false` and restarting. Old records are ignored when disabled. Deleting `trusted-ips.properties` while stopped clears all trust.
-- `/ua status` remains admin-only; `/ua remember` is available to authenticated players.
+1. The native Minecraft dialog appears **during the configuration phase**, before loading the main world.
+2. Step 1: enter a **4-digit PIN** using clickable number buttons (masked dots).
+3. Step 2: enter the **password into one text input field** and press Continue.
+4. On success the configuration-phase connection is released and the world loads.
 
-## Security notice
+**IMPORTANT**: Vanilla Minecraft's built-in dialog text input is NOT a password field and DOES NOT mask characters. The typed password is visible on the user's screen. It is not printed into chat/logs by this plugin. If you require visually hidden password entry you must use a different client UI or a special client mod; Vanilla cannot provide a true masked native password dialog.
 
-IP addresses are **not device identifiers**. People behind a shared NAT, campus Wi-Fi, internet café or same household may share one public address. In offline-mode, anyone may be able to connect using another person's name; **therefore IP remembering is blocked unless online-mode is true or the administrator explicitly confirms secure authenticated proxy forwarding** using `allow-verified-proxy-offline-mode: true`. Verify firewall rules, authenticated proxy forwarding, trusted player UUIDs and any IP-forwarding configuration before enabling it. Do not enable on an unprotected offline-mode backend. A private-IP configuration can lead to unauthorized access.
+New registration requires creating and confirming PIN and password; passwords must be 10-64 characters. Both are stored independently as PBKDF2-HMAC-SHA256 hashes with per-secret random salt. Verification/registration run on bounded background worker threads.
 
-This mode is an optional convenience shortcut, not a replacement for PIN hashing, firewalls or a stronger authentication method. Use it only if the shared-IP risk is acceptable. First registration **always** requires PIN confirmation.
+## Existing account upgrade
 
-## Existing security
+**Do not delete or overwrite** `plugins/UnifiedAuth/accounts.properties`! Existing 1.0/1.1 8-digit PIN accounts are protected by legacy verification. After successfully typing the old 8-digit PIN once, the user is asked to create new 4-digit PIN and password. New data is stored separately in `credentials-v2.properties`; legacy account records remain as backups. Set `authentication.legacy-pin-length` if you customized the old PIN length.
 
-- Salted PBKDF2-HMAC-SHA256 PIN storage; bounded off-thread hashing.
-- 3 attempts per connection, 90-second login timeout, bounded pending queue and IP rate limiter.
-- Does not modify the world and does not show or log PINs.
+**Old 1.1 remembered IP records are NOT trusted** after this upgrade: they would bypass the new password. Each user must finish the upgraded authentication and explicitly enable trust again.
+
+## Opt-in IP trust
+
+Admin must first add `remember-ip.enabled: true` and fully restart Paper. Each user may then tick `Remember this IP: ON` while authenticating or run `/ua remember on` after successful login. `/ua remember off` revokes trust; expiration defaults to seven days.
+
+Trust uses a canonical client IP + account name + authenticated UUID and expires automatically. **IP is not hardware ID, nor a unique device token.** IPs behind shared NAT may be identical. Vanilla Minecraft does not send CPU/motherboard ID. HWID collection would require a separate **opt-in client mod**, and identifying a machine by hardware is not inherently reliable. This plugin does not collect client hardware or fingerprint by resource packs.
+
+Trusted IP fingerprints are HMAC-hashed with an on-server secret, stored in `v2-trust/trusted-ips.properties` and `v2-trust/remember-key.bin` (both need secure backups). Existing 1.1 trust files are deliberately ignored. Offline-mode auto-login is disabled unless the administrator explicitly enables a secure authenticated proxy setup and restricts all direct backend access.
 
 ## Installation
 
-Replace the old `UnifiedAuth-1.0.0.jar` with `UnifiedAuth-1.1.0.jar`, preserve `accounts.properties`, and restart. Existing `config.yml` is **not automatically rewritten by saveDefaultConfig**; merge the `remember-ip` section from the new default or recreate the config after backing it up.
+Stop server, back up `plugins/UnifiedAuth` directory, remove 1.1 JAR, add 1.2 JAR, preserve all existing account files. Merge new config keys into existing `config.yml` (saveDefaultConfig does not overwrite existing config). Fully restart, never PlugMan. Test migration and registration on staging server first.
 
-**Important:** Binary compilation and JUnit tests are not end-to-end proof of functioning Paper configuration-phase dialogs or proxy forwarding. Test on a staging Paper 26.3 server with a second account, wrong IP, new IP, expired IP, IP revocation and an authenticated proxy before production.
+## Limits
+
+A Java plugin cannot safely gather or prove actual hardware ID from an unmodified Minecraft client. A 4-digit PIN alone can be brute-forced from a stolen database; long password and limited attempts are necessary. Also, network packets, connections behind shared proxies, and failure behaviors must be tested on the intended server. GitHub builds + unit tests do not replace real multiplayer login tests.

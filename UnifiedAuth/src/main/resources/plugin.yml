@@ -1,13 +1,13 @@
 name: UnifiedAuth
-version: 1.1.0
+version: 1.2.0
 main: dev.unified.auth.UnifiedAuth
 api-version: '26.3'
 load: POSTWORLD
-description: Pre-world PIN authentication with optional per-account remembered IP
+description: Early 4-digit PIN plus password authentication and optional IP trust
 softdepend: [nLogin, OpeNLogin, AuthMe, AuthMeReloaded]
 commands:
   ua:
-    description: Player remembered-IP settings and UnifiedAuth status
+    description: Authentication information and per-player remembered IP
     permission: unifiedauth.use
     usage: /ua remember [on|off|status] | /ua status
 permissions:
