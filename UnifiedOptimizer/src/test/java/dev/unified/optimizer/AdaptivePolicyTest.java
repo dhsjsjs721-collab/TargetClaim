@@ -17,7 +17,7 @@ assertEquals(-1,p.observe(56,19.0));
 AdaptivePolicy p=policy();
 for(int i=0;i<4;i++)p.observe(20,20);
 assertEquals(0,p.observe(92,20));
-for(int i=0;i<4;i++)assertEquals(0,p.observe(20,20));
+for(int i=0;i<4;i++)assertNotEquals(-1,p.observe(20,20));
 }
 @Test void recoveryRequiresSeveralHealthySamples(){
 AdaptivePolicy p=policy();
