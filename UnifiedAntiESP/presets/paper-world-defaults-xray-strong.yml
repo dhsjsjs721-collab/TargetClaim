@@ -1,4 +1,4 @@
-# Strong Paper 26.3 Anti-Xray: cave-finder and ore protection.
+# Strong Paper 26.3 Anti-Xray in the Overworld: cave-finder and ore protection.
 # Do not replace the whole paper-world-defaults.yml.
 # ONLY merge anticheat.anti-xray into config/paper-world-defaults.yml.
 # WARNING: 'air' is CPU/bandwidth/client-FPS intensive and is not an
@@ -9,9 +9,6 @@ anticheat:
     engine-mode: 3
     hidden-blocks:
       - air
-      - ancient_debris
-      - nether_gold_ore
-      - nether_quartz_ore
       - coal_ore
       - deepslate_coal_ore
       - copper_ore
@@ -34,8 +31,6 @@ anticheat:
       - stone
       - deepslate
       - tuff
-      - netherrack
-      - end_stone
     lava-obscures: true
     max-block-height: 320
     update-radius: 2
