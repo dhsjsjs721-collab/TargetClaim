@@ -386,7 +386,7 @@ try{
 Bukkit.getScheduler().runTask(this,()->{
 s.working.set(false);
 if(sessions.get(s.uuid)!=s || s.result.isDone())return;
-if(!passed){failure(s,"Incorrect credentials or storage unavailable.");return;}
+if(!passed){if(submitted==Stage.CONFIRM_PASSWORD){s.firstPassword=null;s.stage=Stage.CREATE_PASSWORD;}failure(s,"Incorrect credentials or storage unavailable.");return;}
 switch(submitted){
 case LOGIN_PIN -> {
 s.stage=Stage.LOGIN_PASSWORD;
