@@ -89,7 +89,7 @@ private byte[] fingerprint(String name,UUID uuid,String ip) {
 try{
 Mac mac=Mac.getInstance("HmacSHA256");
 mac.init(new SecretKeySpec(key,"HmacSHA256"));
-String value=identity(name,uuid)+"\u0000"+ip;
+String value=identity(name,uuid)+"|"+ip;
 return mac.doFinal(value.getBytes(StandardCharsets.UTF_8));
 }catch(Exception impossible){throw new IllegalStateException("HmacSHA256 not available",impossible);}
 }
