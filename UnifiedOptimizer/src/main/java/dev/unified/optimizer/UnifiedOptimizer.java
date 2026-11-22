@@ -1,6 +1,12 @@
 package dev.unified.optimizer;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.command.Command;
@@ -15,240 +21,248 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class UnifiedOptimizer extends JavaPlugin implements Listener {
 private static final class WorldState {
 final UUID id;
-final int originalView;
-final int originalSimulation;
-int appliedView;
-int appliedSimulation;
-long lastAdjustment;
-boolean conflict;
+final int baselineView;
+final int baselineSimulation;
+int lastWrittenView;
+int lastWrittenSimulation;
+long lastChangeNanos;
+boolean conflictingController;
 WorldState(World world) {
-id = world.getUID();
-originalView = world.getViewDistance();
-originalSimulation = world.getSimulationDistance();
-appliedView = originalView;
-appliedSimulation = originalSimulation;
+id=world.getUID();
+baselineView=world.getViewDistance();
+baselineSimulation=world.getSimulationDistance();
+lastWrittenView=baselineView;
+lastWrittenSimulation=baselineSimulation;
 }
 }
+private final Map<UUID,WorldState> worlds=new LinkedHashMap<>();
+private AdaptivePolicy policy;
+private int task=-1,roundRobin;
+private boolean enabled,paused,requirePlayers,restoreWhenEmpty,logChanges,changeView,changeSimulation;
+private int periodTicks,minimumView,minimumSimulation,maximumView,maximumSimulation;
+private int maxChangesPerSample;
+private long cooldownNanos;
+private Set<String> excluded=Set.of();
+private long samples,viewReductions,viewIncreases,simulationReductions,simulationIncreases;
+private long idleRestores,controllerConflicts,exceptions,workSamples;
+private long lastSampleMicros;
 
-private final Map<UUID, WorldState> worlds = new LinkedHashMap<>();
-private final double[] recentMspt = new double[12];
-private int recentCount, recentIndex;
-private double smoothedMspt = Double.NaN;
-private double lastMspt = Double.NaN;
-private double lastTps = Double.NaN;
-private int badSamples, goodSamples;
-private long checks, decreases, increases;
-private int task = -1;
-private boolean paused, active, requirePlayers, announce;
-private int sampleTicks, minView, minSimulation, maxView, maxSimulation;
-private int requiredBad, requiredGood;
-private long cooldownMs;
-private double overloadMspt, recoveryMspt, overloadTps, recoveryTps;
-private Set<String> excluded = Set.of();
-
-@Override public void onEnable() {
+@Override public void onEnable(){
 saveDefaultConfig();
-Bukkit.getPluginManager().registerEvents(this, this);
+Bukkit.getPluginManager().registerEvents(this,this);
 configure();
-getLogger().info("No entities, items, chunks or redstone mechanisms are deleted by this optimizer.");
+getLogger().info("Passive adaptive controller: no entity removal, forced chunk loads, world scans or System.gc().");
 }
-
-@Override public void onDisable() {
-if(task != -1) Bukkit.getScheduler().cancelTask(task);
-restoreAll();
+@Override public void onDisable(){
+if(task!=-1){Bukkit.getScheduler().cancelTask(task);task=-1;}
+restoreAll(false);
 worlds.clear();
 }
-
-private void configure() {
-if(task != -1) {
-Bukkit.getScheduler().cancelTask(task);
-task = -1;
+private static int clamp(int val,int low,int high){return Math.max(low,Math.min(high,val));}
+private static double clamp(double val,double low,double high) {
+return Double.isFinite(val)?Math.max(low,Math.min(high,val)):low;
 }
-restoreAll();
+private void configure(){
+if(task!=-1){Bukkit.getScheduler().cancelTask(task);task=-1;}
+restoreAll(false);
 worlds.clear();
 reloadConfig();
-FileConfiguration c = getConfig();
-active = c.getBoolean("adaptive.enabled", true);
-requirePlayers = c.getBoolean("adaptive.require-players-in-world", true);
-announce = c.getBoolean("diagnostics.announce-distance-changes-in-console", true);
-sampleTicks = limit(c.getInt("adaptive.sample-period-ticks", 200), 100, 1200);
-minView = limit(c.getInt("adaptive.min-view-distance", 5), 2, 32);
-minSimulation = limit(c.getInt("adaptive.min-simulation-distance", 4), 2, 32);
-maxView = Math.max(0, c.getInt("adaptive.max-view-distance", 0));
-maxSimulation = Math.max(0, c.getInt("adaptive.max-simulation-distance", 0));
-requiredBad = limit(c.getInt("adaptive.consecutive-overload-samples", 3), 1, 30);
-requiredGood = limit(c.getInt("adaptive.consecutive-recovery-samples", 6), 1, 60);
-cooldownMs = limit(c.getInt("adaptive.adjustment-cooldown-seconds", 45), 10, 600) * 1000L;
-overloadMspt = limitDouble(c.getDouble("adaptive.mspt-overload-threshold", 46), 10, 100);
-recoveryMspt = limitDouble(c.getDouble("adaptive.mspt-recovery-threshold", 37), 5, overloadMspt - 1);
-overloadTps = limitDouble(c.getDouble("adaptive.tps-overload-threshold", 19.2), 1, 20);
-recoveryTps = limitDouble(c.getDouble("adaptive.tps-recovery-threshold", 19.8), overloadTps, 20);
-Set<String> blocked = new HashSet<>();
-for(String name : c.getStringList("adaptive.excluded-worlds")) blocked.add(name.toLowerCase(Locale.ROOT));
-excluded = blocked;
-badSamples = 0;
-goodSamples = 0;
-smoothedMspt = Double.NaN;
-lastMspt = Double.NaN;
-lastTps = Double.NaN;
-recentCount = 0;
-recentIndex = 0;
-paused = false;
-for(World world : Bukkit.getWorlds()) register(world);
-task = Bukkit.getScheduler().scheduleSyncRepeatingTask(this, this::sample, sampleTicks, sampleTicks);
+FileConfiguration c=getConfig();
+enabled=c.getBoolean("adaptive.enabled",true);
+requirePlayers=c.getBoolean("adaptive.require-players-in-world",true);
+restoreWhenEmpty=c.getBoolean("adaptive.restore-when-world-empty",true);
+logChanges=c.getBoolean("diagnostics.announce-distance-changes-in-console",true);
+changeView=c.getBoolean("adaptive.adjust-view-distance",true);
+changeSimulation=c.getBoolean("adaptive.adjust-simulation-distance",true);
+periodTicks=clamp(c.getInt("adaptive.sample-period-ticks",200),100,1200);
+minimumView=clamp(c.getInt("adaptive.min-view-distance",5),2,32);
+minimumSimulation=clamp(c.getInt("adaptive.min-simulation-distance",4),2,32);
+maximumView=clamp(c.getInt("adaptive.max-view-distance",0),0,32);
+maximumSimulation=clamp(c.getInt("adaptive.max-simulation-distance",0),0,32);
+maxChangesPerSample=clamp(c.getInt("adaptive.max-world-adjustments-per-sample",1),1,4);
+int cooldownSeconds=clamp(c.getInt("adaptive.adjustment-cooldown-seconds",45),10,600);
+cooldownNanos=cooldownSeconds*1_000_000_000L;
+double badMspt=clamp(c.getDouble("adaptive.mspt-overload-threshold",46),12,95);
+double goodMspt=clamp(c.getDouble("adaptive.mspt-recovery-threshold",37),5,badMspt-1);
+double badTps=clamp(c.getDouble("adaptive.tps-overload-threshold",19.2),1,19.9);
+double goodTps=clamp(c.getDouble("adaptive.tps-recovery-threshold",19.8),badTps,20);
+int badSamples=clamp(c.getInt("adaptive.consecutive-overload-samples",3),1,30);
+int goodSamples=clamp(c.getInt("adaptive.consecutive-recovery-samples",6),1,60);
+double alpha=clamp(c.getDouble("adaptive.mspt-smoothing-alpha",0.35),0.1,0.75);
+policy=new AdaptivePolicy(badMspt,goodMspt,badTps,goodTps,badSamples,goodSamples,alpha);
+Set<String> names=new HashSet<>();
+for(String s:c.getStringList("adaptive.excluded-worlds"))names.add(s.toLowerCase(Locale.ROOT));
+excluded=Set.copyOf(names);
+paused=false;
+roundRobin=0;
+lastSampleMicros=0;
+for(World world:Bukkit.getWorlds())worlds.put(world.getUID(),new WorldState(world));
+task=Bukkit.getScheduler().scheduleSyncRepeatingTask(this,this::sample,periodTicks,periodTicks);
 }
-
-private static int limit(int value, int min, int max) {
-return Math.max(min, Math.min(max, value));
+@EventHandler public void onWorldLoad(WorldLoadEvent event){
+World world=event.getWorld();
+worlds.putIfAbsent(world.getUID(),new WorldState(world));
 }
-
-private static double limitDouble(double value, double min, double max) {
-if(!Double.isFinite(value)) return min;
-return Math.max(min, Math.min(max, value));
+@EventHandler(ignoreCancelled=true) public void onWorldUnload(WorldUnloadEvent event){
+WorldState state=worlds.remove(event.getWorld().getUID());
+if(state!=null)restore(event.getWorld(),state,false);
 }
-
-private void register(World world) {
-worlds.putIfAbsent(world.getUID(), new WorldState(world));
+private boolean externalChange(World world,WorldState state){
+if(state.conflictingController)return true;
+if(world.getViewDistance()!=state.lastWrittenView || world.getSimulationDistance()!=state.lastWrittenSimulation){
+state.conflictingController=true;
+controllerConflicts++;
+getLogger().warning("Another plugin changed distances in '"+world.getName()+"'. Controller disabled for this world until /uopt reload.");
+return true;
 }
-
-@EventHandler public void worldLoad(WorldLoadEvent event) {
-register(event.getWorld());
+return false;
 }
-
-@EventHandler(ignoreCancelled = true) public void worldUnload(WorldUnloadEvent event) {
-WorldState state = worlds.remove(event.getWorld().getUID());
-if(state != null) restore(event.getWorld(), state);
+private boolean restore(World world,WorldState state,boolean idle){
+boolean changed=false;
+try{
+int actualView=world.getViewDistance(),actualSimulation=world.getSimulationDistance();
+if(actualView!=state.lastWrittenView || actualSimulation!=state.lastWrittenSimulation){
+if(!state.conflictingController)externalChange(world,state);
 }
-
-private void restoreAll() {
-for(WorldState state : worlds.values()) {
-World world = Bukkit.getWorld(state.id);
-if(world != null) restore(world, state);
+// Restore only settings still equal to our own last write; never
+// overwrite a third-party controller's newer values.
+if(actualView==state.lastWrittenView && actualView!=state.baselineView){
+world.setViewDistance(state.baselineView);
+state.lastWrittenView=world.getViewDistance();
+changed=true;
 }
+if(actualSimulation==state.lastWrittenSimulation && actualSimulation!=state.baselineSimulation){
+world.setSimulationDistance(state.baselineSimulation);
+state.lastWrittenSimulation=world.getSimulationDistance();
+changed=true;
 }
-
-private void restore(World world, WorldState state) {
-try {
-if(world.getViewDistance() == state.appliedView && state.appliedView != state.originalView)
-world.setViewDistance(state.originalView);
-if(world.getSimulationDistance() == state.appliedSimulation && state.appliedSimulation != state.originalSimulation)
-world.setSimulationDistance(state.originalSimulation);
-state.appliedView = world.getViewDistance();
-state.appliedSimulation = world.getSimulationDistance();
-} catch(RuntimeException ex) {
-getLogger().warning("Could not restore distances in " + world.getName() + ": " + ex.getMessage());
+if(changed && idle)idleRestores++;
+}catch(RuntimeException e){
+exceptions++;
+getLogger().warning("Cannot restore '"+world.getName()+"' distances: "+e.getMessage());
 }
+return changed;
 }
-
-private void sample() {
-try {
-checks++;
-lastMspt = Bukkit.getAverageTickTime();
-double[] tpsReadings = Bukkit.getTPS();
-lastTps = tpsReadings.length > 0 ? tpsReadings[0] : 20.0;
-if(!Double.isFinite(lastMspt) || lastMspt < 0 || !Double.isFinite(lastTps)) return;
-recentMspt[recentIndex] = lastMspt;
-recentIndex = (recentIndex + 1) % recentMspt.length;
-if(recentCount < recentMspt.length) recentCount++;
-smoothedMspt = Double.isNaN(smoothedMspt) ? lastMspt : 0.25 * lastMspt + 0.75 * smoothedMspt;
-
-if(!active || paused) return;
-boolean overloaded = smoothedMspt >= overloadMspt || lastTps < overloadTps;
-boolean recovered = smoothedMspt <= recoveryMspt && lastTps >= recoveryTps;
-if(overloaded) {
-badSamples++;
-goodSamples = 0;
-} else if(recovered) {
-goodSamples++;
-badSamples = 0;
-} else {
-badSamples = 0;
-goodSamples = 0;
-}
-int direction = badSamples >= requiredBad ? -1 : (goodSamples >= requiredGood ? 1 : 0);
-if(direction == 0) return;
-long now = System.currentTimeMillis();
-for(WorldState state : worlds.values()) {
-World world = Bukkit.getWorld(state.id);
-if(world == null || excluded.contains(world.getName().toLowerCase(Locale.ROOT))) continue;
-if(requirePlayers && world.getPlayerCount() == 0) continue;
-if(state.conflict || now - state.lastAdjustment < cooldownMs) continue;
-if(world.getViewDistance() != state.appliedView || world.getSimulationDistance() != state.appliedSimulation) {
-state.conflict = true;
-getLogger().warning("External view/simulation-distance change in " + world.getName() + "; handing control to other plugin (reload /uopt to rebind).");
-continue;
-}
-adjust(world, state, direction, now);
-}
-} catch(Exception e) {
-getLogger().warning("Optimizer sample failed safely: " + e.getMessage());
+private void restoreAll(boolean idle){
+for(WorldState state:worlds.values()){
+World world=Bukkit.getWorld(state.id);
+if(world!=null)restore(world,state,idle);
 }
 }
-
-private void adjust(World world, WorldState state, int direction, long now) {
-int currentView = state.appliedView, currentSimulation = state.appliedSimulation;
-int capView = maxView == 0 ? state.originalView : Math.min(state.originalView, maxView);
-int capSim = maxSimulation == 0 ? state.originalSimulation : Math.min(state.originalSimulation, maxSimulation);
-int lowerView = Math.min(Math.min(state.originalView, capView), minView);
-int lowerSim = Math.min(Math.min(state.originalSimulation, capSim), minSimulation);
-int targetView = direction < 0 ? Math.max(lowerView, currentView - 1) : Math.min(capView, currentView + 1);
-int targetSim = direction < 0 ? Math.max(lowerSim, currentSimulation - 1) : Math.min(capSim, currentSimulation + 1);
-targetSim = Math.min(targetSim, targetView);
-if(targetView == currentView && targetSim == currentSimulation) return;
-
-try {
-if(targetView != currentView) {
-world.setViewDistance(targetView);
-state.appliedView = world.getViewDistance();
+private static int next(int current,int floor,int ceiling,int direction){
+if(direction<0)return Math.max(floor,current-1);
+if(current<ceiling)return current+1;
+return current;
 }
-if(targetSim != currentSimulation) {
-world.setSimulationDistance(targetSim);
-state.appliedSimulation = world.getSimulationDistance();
+private boolean adjust(World world,WorldState state,int direction,long nowNanos){
+if(externalChange(world,state))return false;
+int capView=maximumView==0?state.baselineView:Math.min(state.baselineView,maximumView);
+int capSim=maximumSimulation==0?state.baselineSimulation:Math.min(state.baselineSimulation,maximumSimulation);
+int floorView=Math.min(minimumView,capView);
+int floorSim=Math.min(minimumSimulation,capSim);
+int view=state.lastWrittenView,simulation=state.lastWrittenSimulation;
+int newView=changeView?next(view,floorView,capView,direction):view;
+int newSim=changeSimulation?next(simulation,floorSim,capSim,direction):simulation;
+if(newView==view && newSim==simulation)return false;
+try{
+if(newView!=view){
+world.setViewDistance(newView);
+state.lastWrittenView=world.getViewDistance();
+if(direction<0)viewReductions++;else viewIncreases++;
 }
-state.lastAdjustment = now;
-if(direction < 0) decreases++;
-else increases++;
-if(announce)
-getLogger().info("World " + world.getName() + " view " + currentView + "->" + state.appliedView + " sim " + currentSimulation + "->" + state.appliedSimulation + " (MSPT " + format(smoothedMspt) + ", TPS " + format(lastTps) + ")");
-} catch(RuntimeException ex) {
-state.conflict = true;
-getLogger().warning("Distance adjustment rejected in " + world.getName() + "; no further changes: " + ex.getMessage());
+if(newSim!=simulation){
+world.setSimulationDistance(newSim);
+state.lastWrittenSimulation=world.getSimulationDistance();
+if(direction<0)simulationReductions++;else simulationIncreases++;
+}
+state.lastChangeNanos=nowNanos;
+if(logChanges){
+getLogger().info("World '"+world.getName()+"': view "+view+" -> "+state.lastWrittenView+", simulation "+simulation+" -> "+state.lastWrittenSimulation+"; MSPT="+format(policy.ema())+" TPS="+format(policy.lastTps()));
+}
+return true;
+}catch(RuntimeException e){
+exceptions++;
+state.conflictingController=true;
+getLogger().warning("Distance adjustment failed in '"+world.getName()+"'; safety stop: "+e.getMessage());
+return false;
 }
 }
-
-private static String format(double d) {
-return Double.isFinite(d) ? String.format(Locale.ROOT, "%.2f", d) : "n/a";
+private void sample(){
+long start=System.nanoTime();
+try{
+samples++;
+double mspt=Bukkit.getAverageTickTime();
+double[] tps=Bukkit.getTPS();
+int direction=policy.observe(mspt,tps.length==0?20:tps[0]);
+// Small, bounded world inventory and O(1) counters only. No chunk/entity enumeration.
+for(WorldState state:worlds.values()){
+World world=Bukkit.getWorld(state.id);
+if(world==null || excluded.contains(world.getName().toLowerCase(Locale.ROOT)))continue;
+if(!state.conflictingController)externalChange(world,state);
+if(restoreWhenEmpty && world.getPlayerCount()==0 &&
+(state.lastWrittenView!=state.baselineView || state.lastWrittenSimulation!=state.baselineSimulation)){
+restore(world,state,true);
 }
-
-@Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-String sub = args.length == 0 ? "status" : args[0].toLowerCase(Locale.ROOT);
-switch(sub) {
+}
+if(!enabled || paused || direction==0 || worlds.isEmpty())return;
+ArrayList<WorldState> snapshot=new ArrayList<>(worlds.values());
+int size=snapshot.size(),changed=0;
+long now=System.nanoTime();
+int startIndex=roundRobin%size;
+for(int attempt=0;attempt<size && changed<maxChangesPerSample;attempt++){
+WorldState state=snapshot.get((startIndex+attempt)%size);
+World world=Bukkit.getWorld(state.id);
+if(world==null || state.conflictingController)continue;
+if(excluded.contains(world.getName().toLowerCase(Locale.ROOT)))continue;
+if(requirePlayers && world.getPlayerCount()==0)continue;
+if(state.lastChangeNanos!=0 && now-state.lastChangeNanos<cooldownNanos)continue;
+if(adjust(world,state,direction,now))changed++;
+}
+roundRobin=(startIndex+Math.max(1,changed))%size;
+if(changed>0)workSamples++;
+}catch(Exception e){
+exceptions++;
+getLogger().warning("Sampler skipped invalid cycle: "+e.getMessage());
+}finally{
+lastSampleMicros=(System.nanoTime()-start)/1000;
+}
+}
+private static String format(double val){
+return Double.isFinite(val)?String.format(Locale.ROOT,"%.2f",val):"n/a";
+}
+@Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
+String sub=args.length==0?"status":args[0].toLowerCase(Locale.ROOT);
+switch(sub){
 case "reload" -> {
 configure();
-sender.sendMessage("UnifiedOptimizer configuration reloaded; original world distances captured again.");
+sender.sendMessage("UnifiedOptimizer 1.1 settings reloaded; world baselines captured.");
 }
 case "pause", "reset" -> {
-paused = true;
-restoreAll();
-sender.sendMessage("UnifiedOptimizer paused. Original world distances restored when still owned by this plugin.");
+paused=true;
+restoreAll(false);
+policy.resetStreaks();
+sender.sendMessage("UnifiedOptimizer paused and owned world settings restored.");
 }
 case "resume" -> {
-paused = false;
-badSamples = 0;
-goodSamples = 0;
+paused=false;
+policy.resetStreaks();
 sender.sendMessage("UnifiedOptimizer resumed.");
 }
+case "profile" -> {
+sender.sendMessage("UnifiedOptimizer 1.1 profile: MSPT="+format(policy.lastMspt())+" EMA="+format(policy.ema())+" windowAvg="+format(policy.average())+" peak="+format(policy.maximum())+" TPS="+format(policy.lastTps()));
+sender.sendMessage("Window="+policy.samples()+"/12 overload streak="+policy.badStreak()+" recovery streak="+policy.goodStreak()+" lastSampleMicros="+lastSampleMicros+" exceptions="+exceptions);
+sender.sendMessage("Changes per sample <= "+maxChangesPerSample+" cooldown="+(cooldownNanos/1_000_000_000L)+"s, interval="+periodTicks+" ticks");
+}
 case "status" -> {
-sender.sendMessage("UnifiedOptimizer 1.0.0 enabled=" + active + " paused=" + paused + " samples=" + checks + " MSPT=" + format(lastMspt) + " smoothed=" + format(smoothedMspt) + " TPS=" + format(lastTps));
-sender.sendMessage("Changes: reduced=" + decreases + " restoredStep=" + increases + " cacheEntries=" + worlds.size() + " historySamples=" + recentCount);
-for(WorldState state : worlds.values()) {
-World world = Bukkit.getWorld(state.id);
-if(world != null) {
-sender.sendMessage(world.getName() + ": view " + world.getViewDistance() + "/" + state.originalView + ", simulation " + world.getSimulationDistance() + "/" + state.originalSimulation + ", players=" + world.getPlayerCount() + ", chunks=" + world.getChunkCount() + ", entities=" + world.getEntityCount() + (state.conflict ? " [EXTERNAL CONTROL]" : ""));
+sender.sendMessage("UnifiedOptimizer 1.1 enabled="+enabled+" paused="+paused+" samples="+samples+" adjustments="+workSamples+" MSPT="+format(policy.ema())+" TPS="+format(policy.lastTps()));
+sender.sendMessage("View reduced/recovered="+viewReductions+"/"+viewIncreases+" sim reduced/recovered="+simulationReductions+"/"+simulationIncreases+" idleRestores="+idleRestores+" controllerConflicts="+controllerConflicts);
+for(WorldState state:worlds.values()){
+World world=Bukkit.getWorld(state.id);
+if(world==null)continue;
+sender.sendMessage(world.getName()+": view="+world.getViewDistance()+"/"+state.baselineView+" sim="+world.getSimulationDistance()+"/"+state.baselineSimulation+" players="+world.getPlayerCount()+" chunks="+world.getChunkCount()+" entities="+world.getEntityCount()+(state.conflictingController?" [EXTERNAL CONTROL]":""));
 }
 }
-}
-default -> sender.sendMessage("Usage: /uopt [status|reload|pause|resume|reset]");
+default -> sender.sendMessage("Usage: /uopt [status|profile|reload|pause|resume|reset]");
 }
 return true;
 }
