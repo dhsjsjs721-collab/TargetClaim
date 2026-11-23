@@ -103,6 +103,8 @@ void stop(){
 if(ticker!=null){ticker.cancel();ticker=null;}
 restoreAll();
 trackDecisions.clear();
+trackedCandidates.clear();
+cursors.clear();
 }
 
 private boolean selected(Entity target){
@@ -286,7 +288,7 @@ hides++;
 }
 cursors.put(viewerId,idx);
 if(set.isEmpty())hidden.remove(viewerId);
-if(candidates.isEmpty())trackedCandidates.remove(viewerId);
+if(candidates.isEmpty()){trackedCandidates.remove(viewerId);cursors.remove(viewerId);}
 }
 
 private void scan(){
