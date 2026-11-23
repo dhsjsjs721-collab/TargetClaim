@@ -1,0 +1,26 @@
+name: UnifiedCore
+version: 1.0.0
+main: dev.unified.core.UnifiedCore
+api-version: '26.3'
+load: POSTWORLD
+description: Minimal QoL spawn and admin diagnostics without modifying chunks
+commands:
+  ucore:
+    description: Minimal admin status and plugin/world diagnostics
+    permission: unifiedcore.admin
+  ucspawn:
+    description: Teleport to configured spawn
+    permission: unifiedcore.spawn
+  ucsetspawn:
+    description: Save player position as spawn
+    permission: unifiedcore.admin
+  ucping:
+    description: Display ping
+    permission: unifiedcore.ping
+permissions:
+  unifiedcore.admin:
+    default: op
+  unifiedcore.spawn:
+    default: true
+  unifiedcore.ping:
+    default: true
