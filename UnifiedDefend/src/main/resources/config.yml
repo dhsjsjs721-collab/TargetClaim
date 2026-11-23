@@ -1,0 +1,35 @@
+# UnifiedDefend 1.0.0, Paper 26.3 / Java 25
+structures:
+  fortress: true
+  bastion: true
+  stronghold: true
+  end_city: true
+  ancient_city: true
+  trial_chambers: true
+
+temporary-blocks:
+  # Player-placed ordinary blocks disappear after 10 minutes.
+  minutes: 10
+
+structure-restoration:
+  enabled: true
+  # Event-driven: only blocks broken after installing the plugin can regrow.
+  minutes: 35
+  # Ore/gold/diamond/iron/emerald/quartz/amethyst/copper NEVER regrows as treasure.
+  # In Trial Chambers mined copper pieces come back as DEEPSLATE.
+
+chest-restock:
+  enabled: true
+  # Only generated chest/barrel loot; no new loot while player items remain inside.
+  # Restock is performed lazily at next interaction with an empty chest.
+  minutes: 35
+
+protection:
+  protect-generated-chests: true
+
+performance:
+  # No full-world or chunk scan. Detect structures from already loaded chunks only.
+  structure-chunk-cache: 2048
+  # At most 32 block changes per second (and never forces chunk loads).
+  max-expired-changes-per-cycle: 32
+  max-records-per-type: 5000

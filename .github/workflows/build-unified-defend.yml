@@ -1,0 +1,66 @@
+name: Build UnifiedDefend JAR
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'UnifiedDefend/**'
+      - '.github/workflows/build-unified-defend.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: UnifiedDefend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Gradle 9.2.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+      - name: Compile and run tests
+        id: compile
+        shell: bash
+        run: |
+          set +e
+          gradle clean build --no-daemon --stacktrace > build.log 2>&1
+          code=$?
+          cat build.log
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Publish build or diagnostics
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [ "${{ steps.compile.outputs.exit_code }}" = "0" ]; then
+            cp build/libs/UnifiedDefend-1.0.0.jar dist/
+            echo "SUCCESS UnifiedDefend-1.0.0.jar" > ci-status.txt
+          else
+            echo "FAILED Gradle exit ${{ steps.compile.outputs.exit_code }}" > ci-status.txt
+            grep -E -A 6 -B 3 'error:|FAILURE:|Could not |What went wrong|Exception' build.log | head -c 24000 >> ci-status.txt || true
+          fi
+          cd ..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add UnifiedDefend/ci-status.txt UnifiedDefend/dist/
+          git diff --cached --quiet || git commit -m "Publish UnifiedDefend CI result [skip ci]"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
+      - name: Upload JAR
+        if: steps.compile.outputs.exit_code == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: UnifiedDefend-JAR
+          path: UnifiedDefend/build/libs/*.jar
+          if-no-files-found: error
+      - name: Reject compile failure
+        if: steps.compile.outputs.exit_code != '0'
+        run: exit 1
