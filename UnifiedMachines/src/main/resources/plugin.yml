@@ -1,0 +1,16 @@
+name: UnifiedMachines
+version: 1.0.0
+main: dev.unified.machines.UnifiedMachines
+api-version: '26.3'
+load: POSTWORLD
+description: One-slot farm damager and bounded online-only chunk loader with rare recipes
+commands:
+  umachines:
+    description: Machine statistics and admin item give
+    usage: /umachines [give <player> <damager|loader>]
+    permission: unifiedmachines.use
+permissions:
+  unifiedmachines.use:
+    default: true
+  unifiedmachines.admin:
+    default: op
