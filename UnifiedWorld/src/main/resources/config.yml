@@ -1,0 +1,4 @@
+pregen:
+  # 32 chunks radius can be up to 4225 chunk requests. Explicit admin opt-in only.
+  # The pre-generator sends at most one asynchronous request at a time.
+  max-radius-chunks: 32
