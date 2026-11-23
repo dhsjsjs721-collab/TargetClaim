@@ -1,299 +1,42 @@
 FAILED Gradle exit 1
-> Task :assemble
+> Task :test FAILED
 
-> Task :compileTestJava FAILED
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:3: error: package org.bukkit does not exist
-import org.bukkit.Material;
-                 ^
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:9: error: cannot find symbol
-for(Material m:new Material[]{Material.DIAMOND_ORE,Material.DEEPSLATE_DIAMOND_ORE,
-                   ^
-  symbol:   class Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:9: error: cannot find symbol
-for(Material m:new Material[]{Material.DIAMOND_ORE,Material.DEEPSLATE_DIAMOND_ORE,
-                              ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:9: error: cannot find symbol
-for(Material m:new Material[]{Material.DIAMOND_ORE,Material.DEEPSLATE_DIAMOND_ORE,
-                                                   ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:10: error: cannot find symbol
-Material.GOLD_BLOCK,Material.IRON_BLOCK,Material.EMERALD_ORE,Material.ANCIENT_DEBRIS,
-^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:10: error: cannot find symbol
-Material.GOLD_BLOCK,Material.IRON_BLOCK,Material.EMERALD_ORE,Material.ANCIENT_DEBRIS,
-                    ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:10: error: cannot find symbol
-Material.GOLD_BLOCK,Material.IRON_BLOCK,Material.EMERALD_ORE,Material.ANCIENT_DEBRIS,
-                                        ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:10: error: cannot find symbol
-Material.GOLD_BLOCK,Material.IRON_BLOCK,Material.EMERALD_ORE,Material.ANCIENT_DEBRIS,
-                                                             ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:11: error: cannot find symbol
-Material.REDSTONE_ORE,Material.NETHER_QUARTZ_ORE}){
-^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:11: error: cannot find symbol
-Material.REDSTONE_ORE,Material.NETHER_QUARTZ_ORE}){
-                      ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:9: error: cannot find symbol
-for(Material m:new Material[]{Material.DIAMOND_ORE,Material.DEEPSLATE_DIAMOND_ORE,
-    ^
-  symbol:   class Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:12: error: cannot access Listener
-assertNull(RecoveryPolicy.repairedAs(StructureIndex.Kind.STRONGHOLD,m));
-                                                   ^
-  class file for org.bukkit.event.Listener not found
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:16: error: cannot find symbol
-assertEquals(Material.DEEPSLATE,RecoveryPolicy.repairedAs(StructureIndex.Kind.TRIAL_CHAMBERS,Material.COPPER_BLOCK));
-             ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:16: error: cannot find symbol
-assertEquals(Material.DEEPSLATE,RecoveryPolicy.repairedAs(StructureIndex.Kind.TRIAL_CHAMBERS,Material.COPPER_BLOCK));
-                                                                                             ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:17: error: cannot find symbol
-assertEquals(Material.DEEPSLATE,RecoveryPolicy.repairedAs(StructureIndex.Kind.TRIAL_CHAMBERS,Material.OXIDIZED_COPPER));
-             ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:17: error: cannot find symbol
-assertEquals(Material.DEEPSLATE,RecoveryPolicy.repairedAs(StructureIndex.Kind.TRIAL_CHAMBERS,Material.OXIDIZED_COPPER));
-                                                                                             ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:20: error: cannot find symbol
-assertNull(RecoveryPolicy.repairedAs(StructureIndex.Kind.END_CITY,Material.COPPER_BLOCK));
-                                                                  ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-                   ^
-  symbol:   class Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-                              ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-                                             ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-                                                           ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-                                                                            ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-                                                                                                   ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-    ^
-  symbol:   class Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:28: error: cannot find symbol
-assertEquals(Material.DEEPSLATE_BRICKS,RecoveryPolicy.repairedAs(StructureIndex.Kind.ANCIENT_CITY,Material.DEEPSLATE_BRICKS));
-             ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:28: error: cannot find symbol
-assertEquals(Material.DEEPSLATE_BRICKS,RecoveryPolicy.repairedAs(StructureIndex.Kind.ANCIENT_CITY,Material.DEEPSLATE_BRICKS));
-                                                                                                  ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:29: error: cannot find symbol
-assertEquals(Material.NETHER_BRICKS,RecoveryPolicy.repairedAs(StructureIndex.Kind.FORTRESS,Material.NETHER_BRICKS));
-             ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:29: error: cannot find symbol
-assertEquals(Material.NETHER_BRICKS,RecoveryPolicy.repairedAs(StructureIndex.Kind.FORTRESS,Material.NETHER_BRICKS));
-                                                                                           ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-28 errors
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1795426200280.json
+RecoveryPolicyTest > valuableBlocksNeverRegrow() FAILED
+    java.lang.ExceptionInInitializerError at RecoveryPolicyTest.java:12
+        Caused by: java.lang.IllegalStateException at RecoveryPolicyTest.java:12
+
+RecoveryPolicyTest > copperOutsideChambersNeverRegrows() FAILED
+    java.lang.NoClassDefFoundError at RecoveryPolicyTest.java:20
+        Caused by: java.lang.ExceptionInInitializerError at RecoveryPolicyTest.java:12
+
+RecoveryPolicyTest > waterLavaAndSpawnersAreNeverAltered() FAILED
+    java.lang.NoClassDefFoundError at RecoveryPolicyTest.java:24
+        Caused by: java.lang.ExceptionInInitializerError at RecoveryPolicyTest.java:12
+
+RecoveryPolicyTest > copperInChamberBecomesDeepslate() FAILED
+    java.lang.NoClassDefFoundError at RecoveryPolicyTest.java:16
+        Caused by: java.lang.ExceptionInInitializerError at RecoveryPolicyTest.java:12
+
+RecoveryPolicyTest > plainDecorationCanRegrow() FAILED
+    java.lang.NoClassDefFoundError at RecoveryPolicyTest.java:28
+        Caused by: java.lang.ExceptionInInitializerError at RecoveryPolicyTest.java:12
+
+5 tests completed, 5 failed
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1795426261149.json
 
 [Incubating] Problems report is available at: file:///home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/build/reports/problems/problems-report.html
 
 FAILURE: Build failed with an exception.
 
 * What went wrong:
-Execution failed for task ':compileTestJava'.
-> Compilation failed; see the compiler output below.
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:12: error: cannot access Listener
-  assertNull(RecoveryPolicy.repairedAs(StructureIndex.Kind.STRONGHOLD,m));
-                                                     ^
-    class file for org.bukkit.event.Listener not found
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:9: error: cannot find symbol
-  for(Material m:new Material[]{Material.DIAMOND_ORE,Material.DEEPSLATE_DIAMOND_ORE,
-                     ^
-    symbol:   class Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:9: error: cannot find symbol
-  for(Material m:new Material[]{Material.DIAMOND_ORE,Material.DEEPSLATE_DIAMOND_ORE,
-                                ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:9: error: cannot find symbol
-  for(Material m:new Material[]{Material.DIAMOND_ORE,Material.DEEPSLATE_DIAMOND_ORE,
-                                                     ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:10: error: cannot find symbol
-  Material.GOLD_BLOCK,Material.IRON_BLOCK,Material.EMERALD_ORE,Material.ANCIENT_DEBRIS,
-  ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:10: error: cannot find symbol
-  Material.GOLD_BLOCK,Material.IRON_BLOCK,Material.EMERALD_ORE,Material.ANCIENT_DEBRIS,
-                      ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:10: error: cannot find symbol
-  Material.GOLD_BLOCK,Material.IRON_BLOCK,Material.EMERALD_ORE,Material.ANCIENT_DEBRIS,
-                                          ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:10: error: cannot find symbol
-  Material.GOLD_BLOCK,Material.IRON_BLOCK,Material.EMERALD_ORE,Material.ANCIENT_DEBRIS,
-                                                               ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:11: error: cannot find symbol
-  Material.REDSTONE_ORE,Material.NETHER_QUARTZ_ORE}){
-  ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:11: error: cannot find symbol
-  Material.REDSTONE_ORE,Material.NETHER_QUARTZ_ORE}){
-                        ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:9: error: cannot find symbol
-  for(Material m:new Material[]{Material.DIAMOND_ORE,Material.DEEPSLATE_DIAMOND_ORE,
-      ^
-    symbol:   class Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:16: error: cannot find symbol
-  assertEquals(Material.DEEPSLATE,RecoveryPolicy.repairedAs(StructureIndex.Kind.TRIAL_CHAMBERS,Material.COPPER_BLOCK));
-               ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:16: error: cannot find symbol
-  assertEquals(Material.DEEPSLATE,RecoveryPolicy.repairedAs(StructureIndex.Kind.TRIAL_CHAMBERS,Material.COPPER_BLOCK));
-                                                                                               ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:17: error: cannot find symbol
-  assertEquals(Material.DEEPSLATE,RecoveryPolicy.repairedAs(StructureIndex.Kind.TRIAL_CHAMBERS,Material.OXIDIZED_COPPER));
-               ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:17: error: cannot find symbol
-  assertEquals(Material.DEEPSLATE,RecoveryPolicy.repairedAs(StructureIndex.Kind.TRIAL_CHAMBERS,Material.OXIDIZED_COPPER));
-                                                                                               ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:20: error: cannot find symbol
-  assertNull(RecoveryPolicy.repairedAs(StructureIndex.Kind.END_CITY,Material.COPPER_BLOCK));
-                                                                    ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-  for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-                     ^
-    symbol:   class Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-  for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-                                ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-  for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-                                               ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-  for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-                                                             ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-  for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-                                                                              ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-  for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-                                                                                                     ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:23: error: cannot find symbol
-  for(Material m:new Material[]{Material.WATER,Material.LAVA,Material.SPAWNER,Material.TRIAL_SPAWNER,Material.CHEST}){
-      ^
-    symbol:   class Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:28: error: cannot find symbol
-  assertEquals(Material.DEEPSLATE_BRICKS,RecoveryPolicy.repairedAs(StructureIndex.Kind.ANCIENT_CITY,Material.DEEPSLATE_BRICKS));
-               ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:28: error: cannot find symbol
-  assertEquals(Material.DEEPSLATE_BRICKS,RecoveryPolicy.repairedAs(StructureIndex.Kind.ANCIENT_CITY,Material.DEEPSLATE_BRICKS));
-                                                                                                    ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:29: error: cannot find symbol
-  assertEquals(Material.NETHER_BRICKS,RecoveryPolicy.repairedAs(StructureIndex.Kind.FORTRESS,Material.NETHER_BRICKS));
-               ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:29: error: cannot find symbol
-  assertEquals(Material.NETHER_BRICKS,RecoveryPolicy.repairedAs(StructureIndex.Kind.FORTRESS,Material.NETHER_BRICKS));
-                                                                                             ^
-    symbol:   variable Material
-    location: class RecoveryPolicyTest
-  /home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:3: error: package org.bukkit does not exist
-  import org.bukkit.Material;
-                   ^
-  28 errors
+Execution failed for task ':test'.
+> There were failing tests. See the report at: file:///home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/build/reports/tests/test/index.html
 
 * Try:
-> Check your code and dependencies to fix the compilation error(s)
 > Run with --scan to generate a Build Scan (powered by Develocity).
 
 * Exception is:
-org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':compileTestJava'.
+org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':test'.
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:135)
 	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:288)
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:133)
@@ -314,20 +57,10 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':compile
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
-Caused by: org.gradle.api.internal.tasks.compile.CompilationFailedException: Compilation failed; see the compiler output below.
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:12: error: cannot access Listener
-assertNull(RecoveryPolicy.repairedAs(StructureIndex.Kind.STRONGHOLD,m));
-                                                   ^
-  class file for org.bukkit.event.Listener not found
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:9: error: cannot find symbol
-for(Material m:new Material[]{Material.DIAMOND_ORE,Material.DEEPSLATE_DIAMOND_ORE,
-                   ^
-  symbol:   class Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:9: error: cannot find symbol
-for(Material m:new Material[]{Material.DIAMOND_ORE,Material.DEEPSLATE_DIAMOND_ORE,
-                              ^
-  symbol:   variable Material
-  location: class RecoveryPolicyTest
-/home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/src/test/java/dev/unified/defend/RecoveryPolicyTest.java:9: error: cannot find symbol
-for(Material m:new Material[]{Materia
+Caused by: org.gradle.api.internal.exceptions.MarkedVerificationException: There were failing tests. See the report at: file:///home/runner/work/TargetClaim/TargetClaim/UnifiedDefend/build/reports/tests/test/index.html
+	at org.gradle.api.tasks.testing.AbstractTestTask.handleTestFailures(AbstractTestTask.java:703)
+	at org.gradle.api.tasks.testing.AbstractTestTask.handleCollectedResults(AbstractTestTask.java:535)
+	at org.gradle.api.tasks.testing.AbstractTestTask.executeTests(AbstractTestTask.java:527)
+	at org.gradle.api.tasks.testing.Test.executeTests(Test.java:714)
+	at org.gradle.internal.reflect.JavaMethod.invoke(JavaMethod.java:125)
+	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.doExecute(StandardTaskAction.java:58)
