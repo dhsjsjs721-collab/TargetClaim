@@ -1,9 +1,7 @@
+# UnifiedAuth 1.3 — Paper 26.3 / Java 25
 authentication:
   enabled: true
-  # New accounts use EXACTLY 4 digits in the PIN dialog.
   pin-length: 4
-  # Older UnifiedAuth 1.0/1.1 accounts used 8-digit PINs by default;
-  # old PIN is required once to upgrade the account to PIN + password.
   legacy-pin-length: 8
   minimum-password-length: 10
   maximum-attempts-per-connection: 3
@@ -14,13 +12,15 @@ antibot:
   enabled: true
   max-new-connections-per-ip-per-minute: 24
   maximum-tracked-addresses: 4000
-# OPTIONAL, disabled by default. Player must separately opt in.
-# Each trusted entry is linked to UUID + account name + IP + expiration.
-# Vanilla Minecraft has no real CPU/motherboard HWID in its network packets.
+
+# OFF by default: user needs to opt in via checkbox on successful
+# PIN + password login or /ua remember on after password authentication.
+# Trust never bypasses the PIN, only the password.
+# Shared/public IPs are not a device ID! Real HWID is unavailable.
 remember-ip:
   enabled: false
   expire-after-days: 7
   allow-verified-proxy-offline-mode: false
 messages:
   title: "UnifiedAuth"
-  subtitle: "Сначала PIN (4 цифры), затем пароль"
+  subtitle: "PIN и пароль в одном окне"
