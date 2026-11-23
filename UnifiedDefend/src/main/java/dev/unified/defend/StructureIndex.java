@@ -34,7 +34,11 @@ default -> null;
 }
 }
 private record Region(BoundingBox box,Kind kind){}
-private final LinkedHashMap<String,List<Region>> cache=new LinkedHashMap<>(256,0.75f,true);
+private record Cached(List<Region> regions,long checkedAt){}
+private final LinkedHashMap<String,Cached> cache=new LinkedHashMap<>(256,0.75f,true);
+private long lookupErrors;
+private long lastErrorLog;
+
 private final Set<Kind> allowed;
 private final int maxEntries;
 StructureIndex(Set<Kind> allowed,int maxEntries){
@@ -45,21 +49,30 @@ private static String chunkId(Chunk c){return c.getWorld().getUID()+":"+c.getX()
 Kind at(Block block){
 Chunk chunk=block.getChunk();
 String key=chunkId(chunk);
-List<Region> regions=cache.get(key);
-if(regions==null){
-regions=new ArrayList<>();
+long now=System.currentTimeMillis();
+Cached cached=cache.get(key);
+if(cached==null || cached.regions.isEmpty() && now-cached.checkedAt>10000){
+List<Region> regions=new ArrayList<>();
 try{
 for(GeneratedStructure structure:chunk.getStructures()){
 String id=structure.getStructure().getKey().getKey();
 Kind kind=Kind.of(id);
 if(kind!=null && allowed.contains(kind))regions.add(new Region(structure.getBoundingBox(),kind));
 }
-}catch(RuntimeException ignored){
-// Fail-open if a server cannot inspect a custom structure.
+}catch(RuntimeException error){
+// Retry false negatives after ten seconds instead of caching them forever.
+lookupErrors++;
+if(now-lastErrorLog>60000){
+lastErrorLog=now;
+org.bukkit.Bukkit.getLogger().warning("[UnifiedDefend] Failed inspecting structure metadata for "+key+
+" ("+error.getClass().getSimpleName()+"). Retry in 10 seconds.");
+}
 }
 if(cache.size()>=maxEntries){Iterator<String> it=cache.keySet().iterator();if(it.hasNext()){it.next();it.remove();}}
-cache.put(key,regions);
+cached=new Cached(regions,now);
+cache.put(key,cached);
 }
+List<Region> regions=cached.regions;
 double x=block.getX()+0.5,y=block.getY()+0.5,z=block.getZ()+0.5;
 for(Region region:regions)if(region.box.contains(x,y,z))return region.kind;
 return null;
@@ -67,4 +80,5 @@ return null;
 @EventHandler public void unload(ChunkUnloadEvent e){cache.remove(chunkId(e.getChunk()));}
 void clear(){cache.clear();}
 int size(){return cache.size();}
+long lookupErrors(){return lookupErrors;}
 }
