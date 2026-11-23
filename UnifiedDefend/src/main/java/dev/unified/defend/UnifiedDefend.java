@@ -45,12 +45,15 @@ ChestTimer(long due,String table){this.due=due;this.table=table;}
 private StructureIndex index;
 private final Map<String,Change> placed=new HashMap<>();
 private final Map<String,Change> repairs=new HashMap<>();
-private final Map<String,ChestTimer> chests=new HashMap<>();
+private final Map<String,ChestTimer> chests=new LinkedHashMap<>();
+private Iterator<Map.Entry<String,ChestTimer>> chestCursor;
+private final Map<UUID,org.bukkit.entity.TextDisplay> floatingTimers=new HashMap<>();
 private final PriorityQueue<Change> deadlines=new PriorityQueue<>(java.util.Comparator.comparingLong(c->c.due));
 private final Random lootRandom=new Random();
 private final Set<StructureIndex.Kind> types=EnumSet.allOf(StructureIndex.Kind.class);
 private long placedMs,repairMs,lootMs;
-private int maxRecords,changesPerPass,task=-1,overlayTask=-1,persistTask=-1;
+private int maxRecords,changesPerPass,chestChecksPerPass,task=-1,overlayTask=-1,persistTask=-1;
+private boolean showFloatingTimers,protectNetherBlazeSpawners;
 private boolean restoreTerrain,refillLoot,protectChests;
 private boolean dirty;
 private long placements,expired,rebuilt,refilled,protectedBreaks,skipped,errors;
@@ -62,6 +65,9 @@ repairMs=clamp(getConfig().getLong("structure-restoration.minutes",35),5,1440)*6
 lootMs=clamp(getConfig().getLong("chest-restock.minutes",35),5,1440)*60000L;
 maxRecords=(int)clamp(getConfig().getLong("performance.max-records-per-type",5000),100,50000);
 changesPerPass=(int)clamp(getConfig().getLong("performance.max-expired-changes-per-cycle",32),1,256);
+chestChecksPerPass=(int)clamp(getConfig().getLong("performance.max-chest-refill-checks-per-second",64),4,512);
+showFloatingTimers=getConfig().getBoolean("timers.floating-text-on-look",true);
+protectNetherBlazeSpawners=getConfig().getBoolean("protection.protect-nether-blaze-spawners",true);
 restoreTerrain=getConfig().getBoolean("structure-restoration.enabled",true);
 refillLoot=getConfig().getBoolean("chest-restock.enabled",true);
 protectChests=getConfig().getBoolean("protection.protect-generated-chests",true);
@@ -72,7 +78,7 @@ index=new StructureIndex(types,(int)clamp(getConfig().getLong("performance.struc
 try{loadState();}catch(IOException ex){getLogger().severe("Could not read recovery state, plugin disabled to avoid overwriting previous data: "+ex.getMessage());Bukkit.getPluginManager().disablePlugin(this);return;}
 Bukkit.getPluginManager().registerEvents(this,this);
 Bukkit.getPluginManager().registerEvents(index,this);
-task=Bukkit.getScheduler().scheduleSyncRepeatingTask(this,this::processExpired,20L,20L);
+task=Bukkit.getScheduler().scheduleSyncRepeatingTask(this,()->{processExpired();processChestRefills();},20L,20L);
 overlayTask=Bukkit.getScheduler().scheduleSyncRepeatingTask(this,this::tickOverlay,20L,20L);
 persistTask=Bukkit.getScheduler().scheduleSyncRepeatingTask(this,()->{if(dirty)saveSafe();},6000L,6000L);
 getLogger().info("Defend enabled: "+types+" | blocks 10min | terrain 35min | chests 35min; no chunk force-load.");
@@ -82,6 +88,10 @@ if(task!=-1)Bukkit.getScheduler().cancelTask(task);
 if(overlayTask!=-1)Bukkit.getScheduler().cancelTask(overlayTask);
 if(persistTask!=-1)Bukkit.getScheduler().cancelTask(persistTask);
 if(dirty)saveSafe();
+for(org.bukkit.entity.TextDisplay display:floatingTimers.values()){
+if(display.isValid())display.remove();
+}
+floatingTimers.clear();
 if(index!=null)index.clear();
 }
 private static long clamp(long val,long low,long high){return Math.max(low,Math.min(high,val));}
@@ -98,13 +108,32 @@ deadlines.offer(c);
 dirty=true;
 }
 private static boolean isAir(Block b){return b.getType().isAir();}
-private boolean bypass(Player p){return p.hasPermission("unifieddefend.bypass");}
+private boolean bypass(Player p){
+// OP and wildcard permissions never bypass dungeon protection by default.
+// A bypass is possible ONLY by explicitly opting in via server config.
+return getConfig().getBoolean("protection.allow-bypass-permission",false)
+&& p.hasPermission("unifieddefend.bypass");
+}
+private boolean netherBlazeSpawner(Block b){
+if(!protectNetherBlazeSpawners || b.getWorld().getEnvironment()!=World.Environment.NETHER
+|| b.getType()!=Material.SPAWNER)return false;
+BlockState state=b.getState();
+return state instanceof CreatureSpawner spawner && spawner.getSpawnedType()==org.bukkit.entity.EntityType.BLAZE;
+}
 
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void breakBlock(BlockBreakEvent e){
 Block b=e.getBlock();
 StructureIndex.Kind kind=index.at(b);
-if(kind==null||bypass(e.getPlayer()))return;
+if(bypass(e.getPlayer()))return;
+// Reliable fallback: all natural/placed blaze spawners in the Nether are protected.
+// Even if chunk structure metadata cannot find the fortress, mining is blocked.
+if(netherBlazeSpawner(b)){
+e.setCancelled(true);
+protectedBreaks++;
+return;
+}
+if(kind==null)return;
 if(RecoveryPolicy.protectedDungeonBlock(b.getType()) &&
 (protectChests || b.getType()==Material.SPAWNER || b.getType()==Material.TRIAL_SPAWNER || b.getType()==Material.VAULT)){
 e.setCancelled(true);
@@ -172,6 +201,7 @@ String fallback="minecraft:"+kind.fallbackLoot;
 String table=originalTable!=null?originalTable:fallback;
 ChestTimer fresh=new ChestTimer(System.currentTimeMillis()+lootMs,table);
 chests.put(id,fresh);
+chestCursor=null;
 dirty=true;
 return fresh;
 }
@@ -180,8 +210,8 @@ if(System.currentTimeMillis()<timer.due)return;
 BlockState state=b.getState();
 if(!(state instanceof Chest || state instanceof Barrel))return;
 if(state instanceof Lootable lootable && lootable.getLootTable()!=null){
-// Original vanilla chest has never been opened; start timer upon first
-// interaction instead of allowing an immediate second roll.
+// Vanilla first opening must generate its original loot before any refresh.
+// First interaction begins a fresh 35-minute restock timer.
 timer.due=System.currentTimeMillis()+lootMs;
 dirty=true;
 return;
@@ -229,6 +259,37 @@ String orig=repair==b.getType()?b.getBlockData().getAsString():Bukkit.createBloc
 queue(repairs,new Change(id(b),b.getWorld().getUID(),b.getX(),b.getY(),b.getZ(),Material.AIR,orig,System.currentTimeMillis()+repairMs));
 }
 }
+private void processChestRefills(){
+// Bounded round-robin scan of registered chest locations. No chunk loads,
+// no world scans, and no attempt to replace player-stored items.
+if(!refillLoot || chests.isEmpty())return;
+if(chestCursor==null)chestCursor=chests.entrySet().iterator();
+int checked=0;
+while(checked++<chestChecksPerPass){
+if(!chestCursor.hasNext()){
+chestCursor=null;
+break;
+}
+Map.Entry<String,ChestTimer> entry=chestCursor.next();
+ChestTimer timer=entry.getValue();
+if(timer.due>System.currentTimeMillis())continue;
+String[] p=entry.getKey().split(":",4);
+if(p.length!=4)continue;
+try{
+UUID worldId=UUID.fromString(p[0]);
+World world=Bukkit.getWorld(worldId);
+if(world==null)continue;
+int x=Integer.parseInt(p[1]),y=Integer.parseInt(p[2]),z=Integer.parseInt(p[3]);
+if(!world.isChunkLoaded(x>>4,z>>4))continue;
+Block block=world.getBlockAt(x,y,z);
+if(!(block.getState() instanceof Chest || block.getState() instanceof Barrel))continue;
+// Do not refill previously untouched vanilla treasure: let vanilla do its first roll.
+BlockState state=block.getState();
+if(state instanceof Lootable lootable && lootable.getLootTable()!=null)continue;
+tryRefill(block,timer);
+}catch(RuntimeException invalid){errors++;}
+}
+}
 private void processExpired(){
 long now=System.currentTimeMillis();
 int inspected=0;
@@ -265,35 +326,110 @@ dirty=true;
 }
 }
 private void tickOverlay(){
+Set<UUID> active=new HashSet<>();
 for(Player p:Bukkit.getOnlinePlayers()){
-Block target=p.getTargetBlockExact(6,FluidCollisionMode.NEVER);
-if(target==null)continue;
-String id=id(target);
-Change temp=placed.get(id);
+Block target=p.getTargetBlockExact(7,FluidCollisionMode.NEVER);
+if(target==null){hideFloating(p.getUniqueId());continue;}
+String key=id(target);
+String text=null;
+NamedTextColor color=NamedTextColor.GOLD;
+Change temp=placed.get(key);
 if(temp!=null){
-p.sendActionBar(Component.text("Блок исчезнет: "+duration(temp.due),NamedTextColor.YELLOW));continue;
-}
-Change repair=repairs.get(id);
+text="Исчезнет через "+duration(temp.due);
+color=NamedTextColor.YELLOW;
+}else {
+Change repair=repairs.get(key);
 if(repair!=null){
-p.sendActionBar(Component.text("Восстановление: "+duration(repair.due),NamedTextColor.AQUA));continue;
-}
-ChestTimer chest=chests.get(id);
-if(target.getState() instanceof Chest || target.getState() instanceof Barrel){
+text="Восстановление: "+duration(repair.due);
+color=NamedTextColor.AQUA;
+}else {
+ChestTimer chest=chests.get(key);
+BlockState state=target.getState();
+if(state instanceof Chest || state instanceof Barrel){
 if(chest==null){
 StructureIndex.Kind kind=index.at(target);
 if(kind!=null)chest=discoverChest(target,kind);
 }
-if(chest!=null)p.sendActionBar(Component.text("Сундук: "+duration(chest.due)+" (пополнение, когда пуст)",NamedTextColor.GOLD));
+if(chest!=null){
+text=chest.due<=System.currentTimeMillis()?"Сундук: готов к пополнению (если пуст)":
+"Сундук: "+duration(chest.due);
+color=NamedTextColor.GOLD;
+}
+}else if(netherBlazeSpawner(target) || index.at(target)!=null && RecoveryPolicy.protectedDungeonBlock(target.getType())){
+text="Защищённый блок данжа";
+color=NamedTextColor.GREEN;
 }
 }
+}
+if(text==null){hideFloating(p.getUniqueId());continue;}
+active.add(p.getUniqueId());
+p.sendActionBar(Component.text(text,color));
+if(showFloatingTimers)showFloating(p,target,text,color);
+}
+for(UUID id:new ArrayList<>(floatingTimers.keySet())){
+if(!active.contains(id))hideFloating(id);
+}
+}
+private void showFloating(Player viewer,Block block,String message,NamedTextColor color){
+org.bukkit.entity.TextDisplay display=floatingTimers.get(viewer.getUniqueId());
+Location at=block.getLocation().add(0.5,1.26,0.5);
+if(display!=null && !display.isValid()){
+floatingTimers.remove(viewer.getUniqueId());display=null;
+}
+if(display!=null && display.getWorld()!=block.getWorld()){
+display.remove();floatingTimers.remove(viewer.getUniqueId());display=null;
+}
+if(display==null){
+display=block.getWorld().spawn(at,org.bukkit.entity.TextDisplay.class,d->{
+d.setVisibleByDefault(false);
+d.setPersistent(false);
+d.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
+d.setSeeThrough(true);
+d.setShadowed(true);
+d.setViewRange(0.16f);
+});
+floatingTimers.put(viewer.getUniqueId(),display);
+viewer.showEntity(this,display);
+}else if(display.getLocation().distanceSquared(at)>0.01){
+display.teleport(at);
+}
+display.text(Component.text(message,color));
+}
+private void hideFloating(UUID playerId){
+org.bukkit.entity.TextDisplay old=floatingTimers.remove(playerId);
+if(old!=null && old.isValid())old.remove();
+}
+@org.bukkit.event.EventHandler
+public void quit(org.bukkit.event.player.PlayerQuitEvent event){
+hideFloating(event.getPlayer().getUniqueId());
 }
 private static String duration(long when){
 long seconds=Math.max(0,(when-System.currentTimeMillis()+999)/1000);
 return (seconds/60)+":"+String.format(Locale.ROOT,"%02d",seconds%60);
 }
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
-if(args.length>0 && args[0].equalsIgnoreCase("save")){saveSafe();sender.sendMessage("UnifiedDefend state saved.");return true;}
-sender.sendMessage("UnifiedDefend 1.0: chunksCached="+(index==null?0:index.size())+" temporary="+placed.size()+" repairs="+repairs.size()+" chests="+chests.size());
+if(args.length>0 && args[0].equalsIgnoreCase("save")){
+if(!sender.hasPermission("unifieddefend.admin"))return true;
+saveSafe();sender.sendMessage("UnifiedDefend state saved.");return true;
+}
+if(args.length>0 && args[0].equalsIgnoreCase("inspect")){
+if(!sender.hasPermission("unifieddefend.admin"))return true;
+if(!(sender instanceof Player player)){sender.sendMessage("Inspect requires a player looking at a block.");return true;}
+Block target=player.getTargetBlockExact(7,FluidCollisionMode.NEVER);
+if(target==null){sender.sendMessage("Посмотри на блок с расстояния до 7 блоков.");return true;}
+StructureIndex.Kind kind=index.at(target);
+sender.sendMessage("Defend 1.1 inspect: "+target.getType()+" at "+target.getX()+","+target.getY()+","+target.getZ()+
+" / "+target.getWorld().getName());
+sender.sendMessage("Generated structure: "+(kind==null?"NOT FOUND (not protected as structure)":kind.name())+
+" | Nether blaze spawner fallback="+netherBlazeSpawner(target)+" | admin bypass active="+bypass(player));
+String key=id(target);
+ChestTimer timer=chests.get(key);
+Change temporary=placed.get(key);
+sender.sendMessage("Known chest="+(timer!=null)+" timer="+(timer==null?"none":duration(timer.due))+
+" | temporary block="+(temporary!=null)+" | registered chests="+chests.size());
+return true;
+}
+sender.sendMessage("UnifiedDefend 1.1: chunksCached="+(index==null?0:index.size())+" temporary="+placed.size()+" repairs="+repairs.size()+" chests="+chests.size());
 sender.sendMessage("Placed="+placements+" expired="+expired+" restored="+rebuilt+" lootRestocks="+refilled+" protectedBlocks="+protectedBreaks+" skipped="+skipped+" errors="+errors);
 return true;
 }
