@@ -2,28 +2,33 @@ package dev.unified.defend;
 
 import org.bukkit.Material;
 
+/** Pure policy is testable outside a running Minecraft server. */
 final class RecoveryPolicy {
 private RecoveryPolicy(){}
 static boolean protectedDungeonBlock(Material material){
-return material==Material.SPAWNER || material==Material.TRIAL_SPAWNER
-|| material==Material.VAULT || material==Material.CHEST
-|| material==Material.TRAPPED_CHEST || material==Material.BARREL;
+return protectedName(material.name());
+}
+private static boolean protectedName(String name){
+return name.equals("SPAWNER")||name.equals("TRIAL_SPAWNER")
+||name.equals("VAULT")||name.equals("CHEST")
+||name.equals("TRAPPED_CHEST")||name.equals("BARREL");
 }
 static boolean dangerousPlacement(Material material){
 String n=material.name();
-return protectedDungeonBlock(material)
+return protectedName(n)
 || n.contains("SHULKER_BOX") || n.endsWith("_BED")
-|| material==Material.HOPPER || material==Material.DISPENSER
-|| material==Material.DROPPER || material==Material.FURNACE
-|| material==Material.BLAST_FURNACE || material==Material.SMOKER
-|| material==Material.BREWING_STAND || material==Material.CRAFTER;
+|| n.equals("HOPPER") || n.equals("DISPENSER")
+|| n.equals("DROPPER") || n.equals("FURNACE")
+|| n.equals("BLAST_FURNACE") || n.equals("SMOKER")
+|| n.equals("BREWING_STAND") || n.equals("CRAFTER");
 }
 static boolean fluid(Material material){
-return material==Material.WATER || material==Material.LAVA
-|| material==Material.BUBBLE_COLUMN;
+return fluidName(material.name());
 }
-static boolean valuable(Material m){
-String n=m.name();
+private static boolean fluidName(String n){
+return n.equals("WATER")||n.equals("LAVA")||n.equals("BUBBLE_COLUMN");
+}
+private static boolean valuableName(String n){
 return n.contains("COPPER") || n.contains("GOLD") || n.contains("DIAMOND")
 || n.contains("EMERALD") || n.contains("NETHERITE")
 || n.contains("IRON") || n.contains("REDSTONE")
@@ -32,12 +37,17 @@ return n.contains("COPPER") || n.contains("GOLD") || n.contains("DIAMOND")
 || n.startsWith("RAW_") || n.contains("ORE")
 || n.equals("GILDED_BLACKSTONE");
 }
-/** Null means never regenerate. Copper in trial chambers becomes deepslate. */
-static Material repairedAs(StructureIndex.Kind kind,Material original){
-if(kind==null || original.isAir() || fluid(original) || protectedDungeonBlock(original))return null;
-if(kind==StructureIndex.Kind.TRIAL_CHAMBERS && original.name().contains("COPPER"))
-return Material.DEEPSLATE;
-if(valuable(original))return null;
+/** Null means never regenerate. Trial Chambers copper becomes deepslate. */
+static String repairName(boolean inTrialChamber,String original){
+if(original==null || original.equals("AIR") || original.endsWith("_AIR")
+|| fluidName(original) || protectedName(original))return null;
+if(inTrialChamber && original.contains("COPPER"))return "DEEPSLATE";
+if(valuableName(original))return null;
 return original;
+}
+static Material repairedAs(StructureIndex.Kind kind,Material original){
+if(kind==null)return null;
+String target=repairName(kind==StructureIndex.Kind.TRIAL_CHAMBERS,original.name());
+return target==null?null:Material.matchMaterial(target);
 }
 }
