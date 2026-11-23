@@ -46,7 +46,7 @@ private StructureIndex index;
 private final Map<String,Change> placed=new HashMap<>();
 private final Map<String,Change> repairs=new HashMap<>();
 private final Map<String,ChestTimer> chests=new HashMap<>();
-private final PriorityQueue<Change> deadlines=new PriorityQueue<>(Comparator.comparingLong(c->c.due));
+private final PriorityQueue<Change> deadlines=new PriorityQueue<>(java.util.Comparator.comparingLong(c->c.due));
 private final Random lootRandom=new Random();
 private final Set<StructureIndex.Kind> types=EnumSet.allOf(StructureIndex.Kind.class);
 private long placedMs,repairMs,lootMs;
