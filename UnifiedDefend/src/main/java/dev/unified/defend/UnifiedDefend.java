@@ -179,7 +179,13 @@ private void tryRefill(Block b,ChestTimer timer){
 if(System.currentTimeMillis()<timer.due)return;
 BlockState state=b.getState();
 if(!(state instanceof Chest || state instanceof Barrel))return;
-if(state instanceof Lootable lootable && lootable.getLootTable()!=null)return; // let vanilla generate first
+if(state instanceof Lootable lootable && lootable.getLootTable()!=null){
+// Original vanilla chest has never been opened; start timer upon first
+// interaction instead of allowing an immediate second roll.
+timer.due=System.currentTimeMillis()+lootMs;
+dirty=true;
+return;
+}
 Inventory inv=state instanceof Chest chest?chest.getBlockInventory():((Barrel)state).getInventory();
 if(!empty(inv))return; // never remove players' deposited items
 NamespacedKey key=NamespacedKey.fromString(timer.table);
@@ -251,7 +257,7 @@ BlockData original=Bukkit.createBlockData(c.original);
 if(RecoveryPolicy.fluid(b.getType())){
 group.remove(c.id);dirty=true;skipped++;continue;
 }
-b.setBlockData(original,false);
+b.setBlockData(original,group==placed);
 if(group==placed)expired++;else rebuilt++;
 }catch(Exception ex){errors++;getLogger().warning("Skipping damaged restore record for "+c.id);}
 group.remove(c.id);
@@ -272,8 +278,13 @@ if(repair!=null){
 p.sendActionBar(Component.text("Восстановление: "+duration(repair.due),NamedTextColor.AQUA));continue;
 }
 ChestTimer chest=chests.get(id);
-if(chest!=null && (target.getState() instanceof Chest || target.getState() instanceof Barrel))
-p.sendActionBar(Component.text("Сундук: "+duration(chest.due)+" (пополнение, когда пуст)",NamedTextColor.GOLD));
+if(target.getState() instanceof Chest || target.getState() instanceof Barrel){
+if(chest==null){
+StructureIndex.Kind kind=index.at(target);
+if(kind!=null)chest=discoverChest(target,kind);
+}
+if(chest!=null)p.sendActionBar(Component.text("Сундук: "+duration(chest.due)+" (пополнение, когда пуст)",NamedTextColor.GOLD));
+}
 }
 }
 private static String duration(long when){
