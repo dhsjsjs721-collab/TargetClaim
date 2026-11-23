@@ -1,28 +1,23 @@
-# UnifiedAntiESP 3.4.0 - wall occlusion hardening
+# UnifiedAntiESP 3.5 — safe chunk generation defaults
 
-Paper 26.3 / Java 25. Standalone plugin.
+Paper 26.3 / Java 25.
 
-## Changes
+**Safety change:** ore-shuffle worldgen mutation is now OFF by default and forcibly disabled when chunk-safety.disable-ore-worldgen is true. This safety key defaults to true even if the existing 3.4 config enables ore-shuffle. The plugin no longer modifies new chunk ore blocks unless the administrator deliberately opts out of the safety guard and enables ore-shuffle.
 
-- No near-distance exception: player and mob occlusion is checked even one block behind a wall.
-- PlayerTrackEntityEvent cancels an occluded player or entity before its spawn packet is sent. Already tracked entities are hidden per viewer using Paper's hideEntity API.
-- No repeated 224-block entity cube scans. The plugin keeps bounded candidate watch-lists from Paper tracker events, up to 2048 candidates per player, then revisits a limited number on each scan.
-- Default range 224 blocks for entity and player ESP, plus strict underground mob mode at >=40 blocks. Legacy 3.2/3.3 default ranges are upgraded in memory when config-version is absent.
-- Scan budgets are configurable; no automated block/chunk/entity removal, chunk loads or redstone changes.
+Other protections remain: pre-track entity and player hiding, ray-trace occlusion behind nearby walls, 224-block maximum configured protection, dark underground mob strict mode, seed command restriction, and read-only native Paper Anti-Xray audit.
 
-## Config and performance
+**Performance change:** on block break/place, piston move or explosion, the visibility cache is invalidated by incrementing a counter (O(1)) rather than clearing every player-pair cache entry (O(number of players squared)).
 
-Use /uesp to see rays, hidden entity counts, scan time, and budget stops. Use /uesp audit for the read-only Paper native Anti-Xray audit. Configure entity-esp.* and player-esp.* in plugins/UnifiedAntiESP/config.yml. If using an existing config file, merge the new section; the default file is not overwritten on upgrade.
+### Still not provided
 
-The strict-distant-underground-mobs setting hides dark cave mobs beyond 40 blocks even with an unobstructed line of sight, which can impact normal play. Disable if you need far cave mob visibility.
+The plugin does **not** modify the full chunk packets or replace water/lava/cave shape; thus X-Ray can still see an open underground cavern that leads outside, water, lava, and some exposed ores. Native Paper Anti-Xray with engine-mode 3 and fake air obscures some ore and cave information but is not a complete cave-fluid hide mechanism, and can reduce FPS. Do not blindly apply an aggressive profile to a live server with known chunk-visibility glitches.
 
-Paper's separate Anti-Xray config still controls ore and cave *blocks*. This JAR does not rewrite chunk packets, cannot fully hide water/lava or open cave geometry and cannot eliminate every side channel (sound, particles, light updates, client-cached terrain). There is no guarantee of absolutely zero ESP information leakage, especially with a bounded main-thread CPU budget.
+No changes are made to existing world region files. Turning off ore-shuffle does not reverse ore changes previously made during chunk generation.
 
-## Install and test
+### Installation and testing
 
-1. Back up world files and plugin config. Replace the older UnifiedAntiESP JAR and fully restart Paper, not PlugMan or /reload.
-2. Do not enable the optional strong Paper Anti-Xray preset until after checking whether previously invisible chunks are now rendered correctly.
-3. Test with a live client: mobs behind walls at 1, 5, 30, 70, 125 blocks, as well as mobs in direct sight, player PvP, walls breaking, Nether and mob farms.
-4. Inspect /uesp on the test server and monitor MSPT using spark. Plugin compilation and unit tests do not establish runtime performance or correctness in these scenarios.
+Back up server world and plugins/UnifiedAntiESP/config.yml. Replace 3.4 jar with 3.5, ensure chunk-safety.disable-ore-worldgen: true, fully restart Paper (no /reload). Run /uesp and /uesp audit; confirm chunk mutations=OFF. Test chunk visibility on an ordinary unmodified vanilla client, then compare with X-Ray/ESP only if necessary. Do not assume ESP is completely removed: equipment metadata and other side channels still require independent testing.
 
-Independent implementation. Existing seed protections and ore shuffling are preserved.
+### Limits
+
+Actual runtime behavior must be verified on the intended server. O(1) invalidation lowers overhead but per-viewer visibility checks still cost CPU when many players and tracked entities are present.
