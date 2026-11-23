@@ -1,6 +1,5 @@
-# UnifiedAntiESP 3.4.0, Paper 26.3 / Java 25.
-# The plugin does not automatically edit Paper's own world anti-xray settings.
-config-version: 34
+# UnifiedAntiESP 3.5 — no automatic world/chunk modification
+config-version: 35
 player-esp:
   enabled: true
   interval-ticks: 2
@@ -43,9 +42,14 @@ seed-protection:
   enabled: true
   hide-command-from-tab: true
 ore-shuffle:
-  enabled: true
+  enabled: false
   include-nether: true
   secret: ''
   max-offset-blocks: 2
   max-moves-per-chunk: 24
   max-block-reads-per-chunk: 18000
+
+chunk-safety:
+  # Also overrides old 3.4 config with ore-shuffle.enabled: true
+  # until an admin explicitly turns this safety switch off.
+  disable-ore-worldgen: true
