@@ -297,7 +297,7 @@ if(!(event.getCommonConnection() instanceof PlayerConfigurationConnection connec
 UUID uuid=connection.getProfile().getId();
 if(uuid==null)return;
 Session s=sessions.get(uuid);
-if(s==null||s.connection!=connection||s.result.isDone()||s.working.get())return;
+if(s==null||s.result.isDone()||s.working.get())return;
 String action=event.getIdentifier().asString().substring("unifiedauth:".length());
 synchronized(s){
 long now=System.currentTimeMillis();
