@@ -352,8 +352,8 @@ renderLater(s,"Введите пароль от 10 до 64 символов.");r
 }
 final String checkPin=pin,checkPassword=password;
 s.remember=remember && !s.trusted;
-runCrypto(s,Stage.LOGIN_PIN,()->accounts.verifyPin(s.name,checkPin) &&
-(s.trusted || accounts.verifyPassword(s.name,checkPassword)),false);
+runCrypto(s,Stage.LOGIN_PIN,()->LoginDecision.grant(accounts.verifyPin(s.name,checkPin),
+s.trusted || accounts.verifyPassword(s.name,checkPassword),s.trusted),false);
 }
 }
 }
