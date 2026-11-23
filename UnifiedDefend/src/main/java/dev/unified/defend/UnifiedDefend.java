@@ -246,6 +246,11 @@ Iterator<Block> iterator=blocks.iterator();
 while(iterator.hasNext()){
 Block b=iterator.next();
 StructureIndex.Kind kind=index.at(b);
+if(netherBlazeSpawner(b)){
+iterator.remove();
+protectedBreaks++;
+continue;
+}
 if(kind==null)continue;
 if(RecoveryPolicy.protectedDungeonBlock(b.getType())){
 iterator.remove();
