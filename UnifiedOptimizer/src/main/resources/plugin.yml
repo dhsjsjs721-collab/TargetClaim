@@ -1,5 +1,5 @@
 name: UnifiedOptimizer
-version: 1.1.0
+version: 1.2.0
 main: dev.unified.optimizer.UnifiedOptimizer
 api-version: '26.3'
 load: POSTWORLD
