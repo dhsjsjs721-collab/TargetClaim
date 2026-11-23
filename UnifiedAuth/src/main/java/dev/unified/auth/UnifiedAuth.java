@@ -237,9 +237,6 @@ private ActionButton button(String caption,String id){
 return ActionButton.create(Component.text(caption),Component.text("UnifiedAuth"),80,
 DialogAction.customClick(Key.key("unifiedauth:"+id),null));
 }
-private boolean passwordStep(Stage stage){
-return stage==Stage.LOGIN_PASSWORD || stage==Stage.CREATE_PASSWORD || stage==Stage.CONFIRM_PASSWORD;
-}
 private void render(Session s,String notice){
 if(s.result.isDone() || !s.connection.isConnected())return;
 String label=switch(s.stage){
@@ -416,7 +413,6 @@ s.failures++;
 recordFailure(s.name,s.ip);
 s.digits.setLength(0);
 if(s.failures>=maxAttempts){s.result.complete(false);return;}
-if(s.stage==Stage.LOGIN_PASSWORD)s.stage=Stage.LOGIN_PIN;
 renderLater(s,message+" "+(maxAttempts-s.failures)+" attempts left.");
 }
 private String lockKey(String name,String ip){return name+"|"+(ip==null?"unknown":ip);}
