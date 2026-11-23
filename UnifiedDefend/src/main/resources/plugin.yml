@@ -1,0 +1,16 @@
+name: UnifiedDefend
+version: 1.0.0
+main: dev.unified.defend.UnifiedDefend
+api-version: '26.3'
+load: POSTWORLD
+description: Low-overhead structure defense, temporary blocks, timers, and safe restocks
+commands:
+  udefend:
+    description: See dungeon defense state and save timers
+    permission: unifieddefend.admin
+    usage: /udefend [status|save]
+permissions:
+  unifieddefend.admin:
+    default: op
+  unifieddefend.bypass:
+    default: op
