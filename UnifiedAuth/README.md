@@ -1,10 +1,10 @@
-# UnifiedAuth 1.3 — single-screen PIN/password with optional trusted IP
+# UnifiedAuth 1.4 — one-time PIN/password registration without confirmation loop
 
 Paper 26.3 / Java 25.
 
 ## How login works
 
-**First registration:** create a 4-digit PIN and a 10–64 character password in two adjacent vanilla text inputs, then confirm both inputs in a second form.
+**First registration:** enter a 4-digit PIN and a 10–64 character password once in two text inputs. Clicking Continue atomically saves both salted hashes, rechecks both and releases the player into the world. There is NO repeat/confirmation page. If disk write fails, login is denied and a diagnostic is logged, instead of showing endless registration.
 
 **Subsequent login from an untrusted IP:** the same two input fields, PIN and password, in one form; the player remains in Paper's configuration phase and cannot enter the world until both hashes verify.
 
