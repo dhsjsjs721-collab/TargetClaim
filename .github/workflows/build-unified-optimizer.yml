@@ -40,8 +40,8 @@ jobs:
         run: |
           mkdir -p dist
           if [ "${{ steps.build.outputs.exit_code }}" = "0" ]; then
-            cp build/libs/UnifiedOptimizer-1.1.0.jar dist/
-            echo "SUCCESS: UnifiedOptimizer-1.1.0.jar compiled on $(date -u +%F)" > ci-status.txt
+            cp build/libs/UnifiedOptimizer-1.2.0.jar dist/
+            echo "SUCCESS: UnifiedOptimizer-1.2.0.jar compiled on $(date -u +%F)" > ci-status.txt
           else
             echo "FAILED: Gradle exit ${{ steps.build.outputs.exit_code }}" > ci-status.txt
             grep -E -A 5 -B 3 'error:|FAILURE:|Could not |What went wrong|Exception' build.log | head -c 24000 >> ci-status.txt || true

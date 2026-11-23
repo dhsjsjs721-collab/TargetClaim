@@ -72,7 +72,11 @@ enabled=c.getBoolean("adaptive.enabled",true);
 requirePlayers=c.getBoolean("adaptive.require-players-in-world",true);
 restoreWhenEmpty=c.getBoolean("adaptive.restore-when-world-empty",true);
 logChanges=c.getBoolean("diagnostics.announce-distance-changes-in-console",true);
-changeView=c.getBoolean("adaptive.adjust-view-distance",true);
+changeView=c.getBoolean("adaptive.adjust-view-distance",false);
+if(c.getBoolean("safety.prevent-dynamic-view-distance",true)){
+if(changeView)getLogger().warning("Chunk safety: dynamic world view-distance disabled to avoid client chunk refresh glitches.");
+changeView=false;
+}
 changeSimulation=c.getBoolean("adaptive.adjust-simulation-distance",true);
 periodTicks=clamp(c.getInt("adaptive.sample-period-ticks",200),100,1200);
 minimumView=clamp(c.getInt("adaptive.min-view-distance",5),2,32);
@@ -235,7 +239,7 @@ String sub=args.length==0?"status":args[0].toLowerCase(Locale.ROOT);
 switch(sub){
 case "reload" -> {
 configure();
-sender.sendMessage("UnifiedOptimizer 1.1 settings reloaded; world baselines captured.");
+sender.sendMessage("UnifiedOptimizer 1.2 settings reloaded; world baselines captured.");
 }
 case "pause", "reset" -> {
 paused=true;
@@ -251,6 +255,7 @@ sender.sendMessage("UnifiedOptimizer resumed.");
 case "profile" -> {
 sender.sendMessage("UnifiedOptimizer 1.1 profile: MSPT="+format(policy.lastMspt())+" EMA="+format(policy.ema())+" windowAvg="+format(policy.average())+" peak="+format(policy.maximum())+" TPS="+format(policy.lastTps()));
 sender.sendMessage("Window="+policy.samples()+"/12 overload streak="+policy.badStreak()+" recovery streak="+policy.goodStreak()+" lastSampleMicros="+lastSampleMicros+" exceptions="+exceptions);
+sender.sendMessage("Chunk safety: automatic world view distance="+(changeView?"ON":"OFF")+"; simulation distance="+(changeSimulation?"ON":"OFF"));
 sender.sendMessage("Changes per sample <= "+maxChangesPerSample+" cooldown="+(cooldownNanos/1_000_000_000L)+"s, interval="+periodTicks+" ticks");
 }
 case "status" -> {

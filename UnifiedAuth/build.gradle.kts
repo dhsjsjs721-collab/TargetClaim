@@ -1,6 +1,6 @@
 plugins { java }
 group = "dev.unified"
-version = "1.2.0"
+version = "1.3.0"
 repositories {
 mavenCentral()
 maven("https://repo.papermc.io/repository/maven-public/")
@@ -13,4 +13,4 @@ testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 java { toolchain.languageVersion.set(JavaLanguageVersion.of(25)) }
 tasks.withType<JavaCompile> { options.encoding = "UTF-8" }
 tasks.test { useJUnitPlatform() }
-tasks.jar { archiveFileName.set("UnifiedAuth-1.2.0.jar") }
+tasks.jar { archiveFileName.set("UnifiedAuth-1.3.0.jar") }

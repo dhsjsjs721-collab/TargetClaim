@@ -1,28 +1,31 @@
-# Version 1.1: safe-by-default. Avoid double-controlling world distance with another plugin.
+# UnifiedOptimizer 1.2 — visual chunk safety
 adaptive:
   enabled: true
-  # Every 200 server ticks: normally about 10 seconds; tick-based under lag.
   sample-period-ticks: 200
   mspt-overload-threshold: 46.0
   mspt-recovery-threshold: 37.0
   tps-overload-threshold: 19.2
   tps-recovery-threshold: 19.8
-  # Higher EMA alpha responds faster but is noisier.
   mspt-smoothing-alpha: 0.35
   consecutive-overload-samples: 3
   consecutive-recovery-samples: 6
   adjustment-cooldown-seconds: 45
-  # Only one world can change distances in a sample by default.
   max-world-adjustments-per-sample: 1
-  adjust-view-distance: true
+  # Dynamic world view distance changes can trigger chunk resend/display issues.
+  adjust-view-distance: false
   adjust-simulation-distance: true
   min-view-distance: 5
   min-simulation-distance: 4
-  # 0: restore no higher than captured startup values.
   max-view-distance: 0
   max-simulation-distance: 0
   require-players-in-world: true
   restore-when-world-empty: true
   excluded-worlds: []
+
+safety:
+  # Applies even if an old generated config still has adjust-view-distance: true.
+  # Only turn OFF after testing on a staging server.
+  prevent-dynamic-view-distance: true
+
 diagnostics:
   announce-distance-changes-in-console: true

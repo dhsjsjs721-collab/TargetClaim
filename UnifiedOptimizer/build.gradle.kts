@@ -1,6 +1,6 @@
 plugins { java }
 group = "dev.unified"
-version = "1.1.0"
+version = "1.2.0"
 repositories {
 mavenCentral()
 maven("https://repo.papermc.io/repository/maven-public/")
@@ -20,5 +20,5 @@ tasks.test {
 useJUnitPlatform()
 }
 tasks.jar {
-archiveFileName.set("UnifiedOptimizer-1.1.0.jar")
+archiveFileName.set("UnifiedOptimizer-1.2.0.jar")
 }

@@ -19,6 +19,7 @@ import org.bukkit.util.Vector;
 public final class UnifiedAntiESP extends JavaPlugin implements Listener {
 private record Pair(UUID viewer, UUID target) {}
 private static final class State {
+long epoch;
 boolean hidden;
 long checked, occluded, visible;
 Location from, to;
@@ -29,6 +30,7 @@ private final UndergroundEntityGuard entityGuard = new UndergroundEntityGuard(th
 private BukkitTask task;
 private long passes, checks, rays, budgetStops, revealed, lastMicros;
 private int pairCursor;
+private long occlusionEpoch;
 private boolean active;
 private int interval, maxPairs, maxMicros;
 private double nearSq, farSq;
@@ -79,7 +81,8 @@ if(active) task=Bukkit.getScheduler().runTaskTimer(this,this::scan,2L,interval);
 entityGuard.configure();
 }
 private void register(World world) {
-boolean enabled=getConfig().getBoolean("ore-shuffle.enabled",true);
+boolean enabled=getConfig().getBoolean("ore-shuffle.enabled",false);
+if(getConfig().getBoolean("chunk-safety.disable-ore-worldgen",true))enabled=false;
 boolean nether=getConfig().getBoolean("ore-shuffle.include-nether",true);
 if(enabled && (world.getEnvironment()==World.Environment.NORMAL || (nether && world.getEnvironment()==World.Environment.NETHER))) {
 if(!world.getPopulators().contains(populator)) world.getPopulators().add(populator);
@@ -142,8 +145,9 @@ checks++;
 if(!allowed(a,b)) {show(a,b,s); s.checked=now; return;}
 Location from=a.getLocation(),to=b.getLocation();
 if(!s.hidden && s.from!=null && s.to!=null && now-s.checked<cache &&
-from.distanceSquared(s.from)<0.0324 && to.distanceSquared(s.to)<0.0324) return;
+from.distanceSquared(s.from)<0.0324 && to.distanceSquared(s.to)<0.0324 && s.epoch==occlusionEpoch) return;
 s.checked=now;
+s.epoch=occlusionEpoch;
 s.from=from; s.to=to;
 boolean visible=trace(a,b);
 if(visible) {
@@ -189,7 +193,7 @@ if(passes++%25==0) states.entrySet().removeIf(e->!e.getValue().hidden && now-e.g
 getLogger().warning("ESP scan error: "+ex.getMessage());clearAll();
 } finally {lastMicros=(System.nanoTime()-start)/1000;}
 }
-private void invalidate() {for(State s:states.values()) {s.from=null;s.to=null;s.checked=0;}}
+private void invalidate() {occlusionEpoch++;} // O(1), avoids iterating all players per block break
 @EventHandler public void blockBreak(BlockBreakEvent e){invalidate();}
 @EventHandler public void blockPlace(BlockPlaceEvent e){invalidate();}
 @EventHandler public void explode(EntityExplodeEvent e){invalidate();}
@@ -214,6 +218,7 @@ e.getCommands().removeIf(s->s.equalsIgnoreCase("seed")||s.toLowerCase(Locale.ROO
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args) {
 if(args.length>0 && args[0].equalsIgnoreCase("reload")) {configure();sender.sendMessage("UnifiedAntiESP reloaded; restart required for Paper Anti-Xray settings.");return true;}
 if(args.length>0 && args[0].equalsIgnoreCase("audit")){for(String line:PaperXrayAudit.inspect())sender.sendMessage(line);return true;}
+sender.sendMessage("UnifiedAntiESP 3.5: chunk mutations="+(getConfig().getBoolean("ore-shuffle.enabled",false)&&!getConfig().getBoolean("chunk-safety.disable-ore-worldgen",true)?"ON":"OFF"));
 sender.sendMessage("UnifiedAntiESP: "+(active?"ON":"OFF")+" passes="+passes+" checks="+checks+" rays="+rays+" cachedPairs="+states.size()+" budgetStops="+budgetStops+" staleReveals="+revealed+" lastScanMicros="+lastMicros+" oreChunks="+populator.chunks()+" oreMoves="+populator.moved()+" | "+entityGuard.stats());
 return true;
 }

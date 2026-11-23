@@ -1,33 +1,9 @@
-# UnifiedProtection 1.0.0
+# UnifiedProtection 1.0 — inventory guard (chunk safety reviewed)
 
-Independent Paper 26.3 / Java 25 plugin. Does not modify TargetClaim. Build with Gradle 9.2.1: `gradle build`.
+Paper 26.3 / Java 25. The plugin performs no chunk view-distance changes, chunk packet manipulation, world generator registration or chunk unloading. It cannot cause artificial terrain holes via those mechanisms.
 
-## What it actually does
+Checks high-rate inventory clicks, overstacked items, optional hopper moves, falling block portal transit and unsupported Paper exploit flags. The flag audit does not alter Paper files. The plugin cannot guarantee all duplication exploits are blocked; most vanilla dupes require Paper core exploit fixes.
 
-- Audits the unsafe Paper global settings (carpet/rail/TNT piston duplication, tripwire, headless pistons, permanent block exploits, unsafe portal teleportation). Reports unsafe settings without editing Paper files.
-- Rejects inventory click/drag/drop/pickup operations involving item amounts beyond the item's own effective max stack size. Custom items with an overridden max-stack-size component are respected.
-- Optional checks for hopper inventory moves/pickups (off by default for performance).
-- Per-player 1-second bounded inventory-click traffic limiter, with player map cleanup.
-- Cancels cross-dimensional portal transit for falling blocks (configurable) and optionally inventory vehicles.
-- /uprotect status, audit, reload, scan <player>.
-- Never modifies or deletes an item while validating, and does not scan all loaded inventories on a timer.
-- Monitors canceled container-break events only when enabled, without claiming that this fixes Paper engine bugs.
+For disappearing chunks, first pause UnifiedOptimizer's dynamic view-distance controller, avoid hot-loading plugins, disable optional anti-xray config changes, and capture Paper's /paper debug chunks data if available. This plugin is unlikely to be the direct culprit, but no plugin can be ruled out without a test on the actual server.
 
-## Requires secure Paper settings
-
-In `config/paper-global.yml`, under `unsupported-settings`, set:
-```yaml
-unsupported-settings:
-  allow-piston-duplication: false
-  allow-headless-pistons: false
-  skip-tripwire-hook-placement-validation: false
-  allow-permanent-block-break-exploits: false
-  allow-unsafe-end-portal-teleportation: false
-```
-Then restart Paper. These engine switches are the primary protection for carpet/rail/TNT/tripwire dupes. This plugin cannot safely replace Paper's engine-level fixes.
-
-## Limits
-
-This is a first line of defense, NOT a proven fix for every exploit, rollback dupe, dupe via item persistence, bundle serialization, or a third-party plugin. Neither an event listener nor unique item ID guarantees the absence of duplicates. Back up the world and test on a staging server with TargetClaim and all inventory plugins before deploying. Standard player and container data stays entirely under Paper ownership. `/uprotect scan` is diagnostic only and never deletes items.
-
-Independent implementation; no third-party source copied.
+Run /uprotect status and /uprotect audit. Stage-test with custom item plugins. This version was only reviewed, not changed by the 1.3 auth/1.2 optimizer/3.5 AntiESP update.
