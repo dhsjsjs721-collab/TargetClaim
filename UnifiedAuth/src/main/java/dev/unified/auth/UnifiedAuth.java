@@ -143,7 +143,7 @@ long now=System.currentTimeMillis();
 ips.entrySet().removeIf(entry->now-entry.getValue().opened>120000);
 failuresByAccountIp.entrySet().removeIf(entry->now-entry.getValue().opened>900000);
 },1200,1200);
-getLogger().info("Two-stage pre-world login: 4-digit PIN then text password; "+accounts.count()+" v2 accounts, "+legacy.count()+" legacy records. IP remember="+rememberEnabled);
+getLogger().info("Pre-world form login: 4-digit PIN and password on one screen; "+accounts.count()+" v2 accounts, "+legacy.count()+" legacy records. IP remember="+rememberEnabled);
 getLogger().warning("Vanilla Minecraft dialog text input SHOWS password characters. Use a private screen.");
 }
 @Override public void onDisable(){
@@ -271,7 +271,7 @@ if(!s.trusted || s.stage!=Stage.LOGIN_PIN) {
 inputs.add(DialogInput.text("password",Component.text("Пароль (ввод виден на экране)"))
 .width(300).initial("").maxLength(64).build());
 if(rememberEnabled && s.ip!=null) {
-inputs.add(DialogInput.bool("remember",Component.text("Запомнить этот IP на "+rememberDays+" дней"),false,"yes","no"));
+inputs.add(DialogInput.bool("remember",Component.text("Запомнить этот IP на "+rememberDays+" дней"),s.remember,"yes","no"));
 }
 }
 intro+="\nMinecraft не скрывает символы в обычных текстовых полях.";
