@@ -22,9 +22,9 @@ enum Kind {
 ZEUS("zeus","§eТалисман Зевса",NamedTextColor.YELLOW,
 "§7Молния +3 урона и замедление игрока (4 с)",1),
 POSEIDON("olympus_poseidon","§3Талисман Посейдона",NamedTextColor.DARK_AQUA,
-"§7Поглощение I; лечит при ударе по игроку (7 с)",1),
+"§7Лечение и поглощение при ударе по игроку (7 с)",1),
 ARES("ares","§cТалисман Ареса",NamedTextColor.RED,
-"§7Сила I; иссушение врага и лечение (5 с)",1),
+"§7Иссушение игрока и боевое лечение (5 с)",1),
 ATHENA("athena","§bТалисман Афины",NamedTextColor.AQUA,
 "§7Сопротивление I; слабость врага и защита при ударе",1),
 HERMES("hermes","§aТалисман Гермеса",NamedTextColor.GREEN,
@@ -111,14 +111,7 @@ for(Player p:Bukkit.getOnlinePlayers()){
 migratePlayer(p);
 Kind k=carried(p);
 if(k==null)continue;
-switch(k){
-case ZEUS->{}
-case POSEIDON->add(p,PotionEffectType.ABSORPTION,65,0);
-case ARES->add(p,PotionEffectType.STRENGTH,65,0);
-case ATHENA->add(p,PotionEffectType.RESISTANCE,65,0);
-case HERMES->{}
-
-}
+// No passive bonuses outside PvP combat.
 }
 long now=System.currentTimeMillis();
 if(offensiveCooldown.size()>20000)offensiveCooldown.clear();
@@ -164,7 +157,8 @@ victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,45,0));
 case POSEIDON->{
 if(ready(offensiveCooldown,attacker.getUniqueId(),7*SEC))
 attacker.setHealth(Math.min(attacker.getMaxHealth(),attacker.getHealth()+3.0));
-victim.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE,50,0));
+attacker.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION,70,0));
+victim.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,50,0));
 }
 case ARES->{
 if(ready(offensiveCooldown,attacker.getUniqueId(),5*SEC)){
