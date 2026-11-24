@@ -46,6 +46,7 @@ private static final long OPEN_DELAY=180_000L;
 private NamespacedKey typeKey,usesKey,chestKey,displayKey,dolphinKey;
 private File saveFile,padsFile;
 private GrapplingHookListener hookListener;
+private FiveTalismanService five;
 private final Map<String,Pad> pads=new HashMap<>();
 private boolean padsChanged=false;
 private final Map<String,Altar> altars=new HashMap<>();
@@ -82,7 +83,6 @@ final List<UUID> visuals=new ArrayList<>();
 private final Map<UUID,Talisman> active=new HashMap<>();
 private final Set<UUID> trackedDrops=new HashSet<>();
 private final Map<UUID,Location> safeLocations=new HashMap<>();
-private final Map<UUID,UUID> thrownEggs=new HashMap<>();
 private final Map<UUID,Long> ghostDolphins=new HashMap<>();
 private final Map<UUID,UUID> ghostDolphinOwners=new HashMap<>();
 private final Map<UUID,Long> ghastCooldowns=new HashMap<>();
@@ -130,6 +130,9 @@ craftedTag.addIngredient(Material.STRING);
 Bukkit.addRecipe(craftedTag);
 PluginCommand c=getCommand("talismanforge");if(c!=null){c.setExecutor(this);c.setTabCompleter(this);}
 Bukkit.getPluginManager().registerEvents(this,this);
+five=new FiveTalismanService(this);
+Bukkit.getPluginManager().registerEvents(five,this);
+Bukkit.getScheduler().runTaskTimer(this,five::pulse,20L,20L);
 for(World world:Bukkit.getWorlds())for(Item item:world.getEntitiesByClass(Item.class))trackTalismanDrop(item);
 for(Player player:Bukkit.getOnlinePlayers()){restoreShieldRing(player);restoreHadesMode(player);}
 hookListener=new GrapplingHookListener(this);
@@ -141,6 +144,7 @@ getLogger().info("TalismanForge 2.7.1: "+altars.size()+" relics");
 }
 @Override public void onDisable(){
 if(hookListener!=null)hookListener.shutdown();
+if(five!=null)five.shutdown();
 for(UUID id:holograms.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 for(UUID id:relicDisplays.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
 for(ShieldRing ring:shieldRings.values())removeShieldVisuals(ring);
@@ -205,9 +209,9 @@ return null;
 private ItemStack equipped(Player p,EquipmentSlot slot){return slot==EquipmentSlot.HAND?p.getInventory().getItemInMainHand():p.getInventory().getItemInOffHand();}
 private void unequip(Player p,EquipmentSlot slot){if(slot==EquipmentSlot.HAND)p.getInventory().setItemInMainHand(new ItemStack(Material.AIR));else p.getInventory().setItemInOffHand(new ItemStack(Material.AIR));}
 private Talisman itemType(ItemStack i){
-if(i==null||i.getType()!=Material.TOTEM_OF_UNDYING||!i.hasItemMeta())return null;
-String k=i.getItemMeta().getPersistentDataContainer().get(typeKey,PersistentDataType.STRING);
-return k==null?null:Talisman.parse(k);
+// Legacy talismans are no longer active; the five-talisman service migrates
+// old inventory items into the new, case-only set without deleting them.
+return null;
 }
 private void trackTalismanDrop(Item item){
 if(itemType(item.getItemStack())!=null)trackedDrops.add(item.getUniqueId());
@@ -509,40 +513,9 @@ e.getPlayer().sendMessage(a.ready?"§aРитуал завершён. Подой�
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void retract(BlockPistonRetractEvent e){if(e.getBlocks().stream().anyMatch(b->protectedAltar(b)!=null))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void open(InventoryOpenEvent e){Location l=e.getInventory().getLocation();if(l!=null&&altars.containsKey(index(l)))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void transfer(InventoryMoveItemEvent e){Location a=e.getSource().getLocation(),b=e.getDestination().getLocation();if(a!=null&&altars.containsKey(index(a))||b!=null&&altars.containsKey(index(b)))e.setCancelled(true);}
-@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void dropBoss(EntityDeathEvent e){
-EntityType entity=e.getEntityType();
-if(entity==EntityType.WITHER&&e.getEntity().getKiller()!=null&&random.nextDouble()<getConfig().getDouble("wither-maiming",.5)){
-int n=1;if(random.nextDouble()<.25)n++;if(random.nextDouble()<.08)n++;
-for(int i=0;i<n;i++)e.getDrops().add(talisman(Talisman.MAIMING,2));
-e.getEntity().getWorld().spawnParticle(Particle.DUST,e.getEntity().getLocation(),50,1,1,1,
-new Particle.DustOptions(Color.fromRGB(162,83,182),1.2f));
-}
-if(entity==EntityType.ELDER_GUARDIAN&&random.nextDouble()<getConfig().getDouble("elder-guardian-poseidon",.25))e.getDrops().add(talisman(Talisman.POSEIDON,1));
-if(entity==EntityType.BLAZE&&random.nextDouble()<getConfig().getDouble("blaze-hades",.015))e.getDrops().add(talisman(Talisman.HADES,1));
-}
-@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)public void netherLoot(org.bukkit.event.world.LootGenerateEvent e){
-if(e.getWorld().getEnvironment()!=World.Environment.NETHER)return;
-String id=e.getLootTable().getKey().toString();
-Talisman choice=null;double prob=0;
-if(id.contains("bastion_treasure")){choice=Talisman.HADES;prob=.075;}
-else if(id.contains("bastion_bridge")){choice=Talisman.WRATH;prob=.003;}
-else if(id.contains("bastion_other")||id.contains("bastion_hoglin_stable")){choice=Talisman.DEFIANCE;prob=.027;}
-else if(id.contains("nether_bridge")||id.contains("fortress")){choice=Talisman.WRATH;prob=.001;}
-if(choice!=null&&random.nextDouble()<prob*getConfig().getDouble("nether-loot-multiplier",1))e.getLoot().add(talisman(choice,initialLives(choice)));
-}
-@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)public void fishing(PlayerFishEvent e){
-if(e.getState()!=PlayerFishEvent.State.CAUGHT_FISH)return;
-double chance=isRaining(e.getPlayer())?getConfig().getDouble("fishing-rain-poseidon",.04):getConfig().getDouble("fishing-dry-poseidon",.005);
-if(random.nextDouble()>=chance)return;
-give(e.getPlayer(),talisman(Talisman.POSEIDON,1));
-e.getPlayer().sendMessage("§3Море подарило Талисман Посейдона!");
-e.getPlayer().getWorld().spawnParticle(Particle.SPLASH,e.getPlayer().getLocation(),60,1,.6,1,.1);
-}
-@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)public void eggDrop(PlayerDropItemEvent e){
-if(e.getItemDrop().getItemStack().getType()!=Material.DRAGON_EGG)return;
-if(e.getPlayer().getWorld().getEnvironment()!=World.Environment.THE_END)return;
-thrownEggs.put(e.getItemDrop().getUniqueId(),e.getPlayer().getUniqueId());
-}
+// All legacy direct talisman drops (bosses, fishing, Nether loot, dragon egg)
+// are removed. In survival, new talismans come ONLY from the reliquary.
+
 private void removeDisplays(List<UUID> ids){
 if(ids==null)return;
 for(UUID uuid:ids){
@@ -718,16 +691,6 @@ for(UUID id:new ArrayList<>(poseidonCompanions.keySet()))if(Bukkit.getPlayer(id)
 
 private void quarterTick(){
 moveDroppedTalismans();moveShieldVisuals();endSwordTick();poseidonCompanionTick();
-if(!thrownEggs.isEmpty())for(World w:Bukkit.getWorlds())if(w.getEnvironment()==World.Environment.THE_END){
-for(Item i:w.getEntitiesByClass(Item.class)){
-if(i.getItemStack().getType()!=Material.DRAGON_EGG||i.getLocation().getY()>w.getMinHeight()+6)continue;
-UUID owner=thrownEggs.remove(i.getUniqueId());if(owner==null)continue;
-i.remove();Player p=Bukkit.getPlayer(owner);
-if(p!=null){give(p,talisman(Talisman.END,0));p.sendMessage("§5Из бездны получен Талисман Энда / Зевса!");}
-else{w.dropItemNaturally(w.getSpawnLocation(),talisman(Talisman.END,0));}
-w.strikeLightningEffect(i.getLocation());
-}
-}
 for(Player p:Bukkit.getOnlinePlayers()){
 if(voidSlot(p)!=null&&p.getLocation().getY()<=p.getWorld().getMinHeight()+6)voidRescue(p);
 }
@@ -1487,21 +1450,16 @@ showHologram(a);beamParticles(a);
 if(a.ready){
 Player nearest=null;double best=25*25;
 for(Player p:w.getPlayers()){double d=p.getLocation().distanceSquared(loc);if(d<best){nearest=p;best=d;}}
-if(nearest!=null){Talisman t=roll();give(nearest,talisman(t,initialLives(t)));nearest.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,1200,1));
-nearest.sendMessage("§b✦ Реликварий пробудился: "+t.name+" §b| Скорость II на 60 сек.");
-reviveParticles(loc,t);removeAltar(a);b.setType(Material.AIR,false);continue;}
+if(nearest!=null){
+// Exactly one of five new talismans. No direct mob/fishing/egg drops.
+ItemStack reward=five.newFromCase();
+give(nearest,reward);
+nearest.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,1200,1));
+nearest.sendMessage("§b✦ Реликварий пробудился: "+reward.getItemMeta().getDisplayName()+" §b| Скорость II на 60 сек.");
+removeAltar(a);b.setType(Material.AIR,false);continue;}
 }
 if(pulses%2==0)ambient(a);
 }
-}
-private Talisman roll(){
-double x=random.nextDouble();
-if(x<.15)return Talisman.JOKER;
-if(x<.40)return Talisman.DEFIANCE;
-if(x<.41)return Talisman.WRATH;
-if(x<.64)return Talisman.POSEIDON;
-if(x<.81)return Talisman.HADES;
-return Talisman.AGES;
 }
 private void showRelicBlock(Altar a){
 if(a.base!=Material.BARRIER)return;
@@ -1562,20 +1520,29 @@ w.playSound(loc,Sound.ENTITY_PLAYER_LEVELUP,1,1.3f);
 private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
-sender.sendMessage("§dTalismanForge 2.7.1 §7| /tf give <ник> <maiming|wrath|defiance|joker|poseidon|hades|ages|end|reliquary|hook>");
-sender.sendMessage("§7Реликварий: 7 аметистов + тотем + обсидиан снизу. Луч без маяка.");return true;
+sender.sendMessage("§dTalismanForge: ровно пять талисманов, награды только из реликвария.");
+sender.sendMessage("§7Феникс / Гроза / Страж / Сумрак / Прилив");
+sender.sendMessage("§7Крафт кейса: 7 аметистов + обычный тотем + обсидиан.");
+sender.sendMessage("§7Админ-тест: /tf give <ник> <phoenix|tempest|guardian|shade|tide|reliquary|hook>");
+return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
 if(args.length<3){sender.sendMessage("§cИспользуй: /tf give <ник> <тип>");return true;}
-Player p=Bukkit.getPlayerExact(args[1]);if(p==null){sender.sendMessage("§cИгрок не найден.");return true;}
-Talisman t=Talisman.parse(args[2]);ItemStack i=(args[2].equalsIgnoreCase("chest")||args[2].equalsIgnoreCase("reliquary"))?chestItem():args[2].equalsIgnoreCase("hook")?hookListener.createHookItem():t==null?null:talisman(t,initialLives(t));
-if(i==null){sender.sendMessage("§cНеизвестный тип.");return true;}
-give(p,i);sender.sendMessage("§aВыдано игроку "+p.getName());return true;
+Player p=Bukkit.getPlayerExact(args[1]);
+if(p==null){sender.sendMessage("§cИгрок не найден.");return true;}
+FiveTalismanService.Kind type=FiveTalismanService.Kind.parse(args[2]);
+ItemStack item=(args[2].equalsIgnoreCase("chest")||args[2].equalsIgnoreCase("reliquary"))?chestItem():
+args[2].equalsIgnoreCase("hook")?hookListener.createHookItem():
+type==null?null:five.create(type);
+if(item==null){sender.sendMessage("§cНеизвестный тип. Доступны только пять новых талисманов.");return true;}
+give(p,item);
+sender.sendMessage("§aВыдано игроку "+p.getName());
+return true;
 }
 @Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] args){
 if(args.length==1)return List.of("give");
 if(args.length==2)return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
-if(args.length==3)return List.of("maiming","wrath","defiance","joker","poseidon","hades","ages","end","reliquary","hook");
+if(args.length==3)return List.of("phoenix","tempest","guardian","shade","tide","reliquary","hook");
 return List.of();
 }
 @EventHandler public void quit(PlayerQuitEvent e){
