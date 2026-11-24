@@ -92,6 +92,9 @@ def main():
             if "Enabled module: "+name not in output:
                 print("\n".join(logs[-100:]))
                 raise AssertionError("Module not enabled: "+name)
+        if "5 new talismans" not in output:
+            print("\\n".join(logs[-120:]))
+            raise AssertionError("New five-case-only TalismanForge module did not start")
         if "Combat shields active: Wither, Turtle, Crusher" not in output:
             print("\\n".join(logs[-100:]))
             raise AssertionError("Three combat shield recipes / startup did not initialize")
