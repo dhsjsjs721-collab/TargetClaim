@@ -20,7 +20,7 @@ import org.bukkit.potion.PotionEffectType;
 final class FiveTalismanService implements Listener {
 enum Kind {
 ZEUS("zeus","§eТалисман Зевса",NamedTextColor.YELLOW,
-"§7Молния +3 урона и замедление игрока (4 с)",1),
+"§7Каждый крит: молния, +3 урона, замедление",1),
 POSEIDON("olympus_poseidon","§3Талисман Посейдона",NamedTextColor.DARK_AQUA,
 "§7Лечение и поглощение при ударе по игроку (7 с)",1),
 ARES("ares","§cТалисман Ареса",NamedTextColor.RED,
@@ -148,7 +148,9 @@ Kind k=carried(attacker);
 if(k==null)return;
 switch(k){
 case ZEUS->{
-if(ready(offensiveCooldown,attacker.getUniqueId(),4*SEC)){
+// Every valid vanilla-style critical PvP hit triggers lightning.
+// No talisman cooldown or random roll; non-critical hits do nothing.
+if(attacker.canCriticalAttack(victim)){
 e.setDamage(e.getDamage()+3.0);
 victim.getWorld().strikeLightningEffect(victim.getLocation());
 victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,45,0));
