@@ -1472,7 +1472,7 @@ new Quaternionf()
 @EventHandler public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();inputCache.remove(id);heldJump.remove(id);airborne.remove(id);fallSpeed.remove(id);bounceLocked.remove(id);groundedTicks.remove(id);}
 @Override public boolean onCommand(CommandSender sender,Command cmd,String label,String[] a){
 if(a.length==0||a[0].equalsIgnoreCase("help")){
-sender.sendMessage("§aSwampSky 1.9.1 §7| /swampsky spawn <flying_pig|giant_frog>");
+sender.sendMessage("§aSwampSky §7| /swampsky spawn giant_frog");
 sender.sendMessage("§7/ss status §8(диагностика AI и скорости свинок)");
 sender.sendMessage("§7/ss repair §8(перезапуск поведения свинок поблизости)");
 sender.sendMessage("§7/swampsky give <ник> <hide|boots|leggings|wings> [1-64]");
@@ -1499,6 +1499,8 @@ sender.sendMessage("§7Застревания подряд: §f"+motionStalls.ge
 return true;
 }
 if(a[0].equalsIgnoreCase("repair")){
+sender.sendMessage("§7Летающие свиньи удалены, восстановление отключено.");return true;
+/*
 if(!(sender instanceof Player player)){sender.sendMessage("§cЭту команду выполняй в игре.");return true;}
 int count=0;
 for(Entity entity:player.getWorld().getNearbyEntities(player.getLocation(),48,36,48)){
@@ -1513,12 +1515,13 @@ count++;
 }
 sender.sendMessage("§aСостояние обновлено у "+count+" летающих свинок в радиусе 48 блоков.");
 return true;
+*/
 }
 if(a[0].equalsIgnoreCase("spawn")){
 if(!(sender instanceof Player p)){sender.sendMessage("§cТолько игрок.");return true;}
 if(a.length<2){sender.sendMessage("§cУкажи тип.");return true;}
 Location loc=p.getLocation().add(p.getLocation().getDirection().multiply(3));
-if(a[1].equalsIgnoreCase("flying_pig"))flyingPig(p.getWorld().spawn(loc,Pig.class));
+if(a[1].equalsIgnoreCase("flying_pig")){sender.sendMessage("§cЛетающие свиньи удалены из мода.");return true;}
 else if(a[1].equalsIgnoreCase("giant_frog"))giantFrog(p.getWorld().spawn(loc,Frog.class));
 else{sender.sendMessage("§cНеизвестный тип.");return true;}
 sender.sendMessage("§aСоздано.");return true;
@@ -1539,7 +1542,7 @@ return false;
 @Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] a){
 if(!sender.hasPermission("swampsky.admin"))return List.of();
 if(a.length==1)return List.of("spawn","give","status","repair","help");
-if(a.length==2&&a[0].equalsIgnoreCase("spawn"))return List.of("flying_pig","giant_frog");
+if(a.length==2&&a[0].equalsIgnoreCase("spawn"))return List.of("giant_frog");
 if(a.length==2&&a[0].equalsIgnoreCase("give"))return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
 if(a.length==3&&a[0].equalsIgnoreCase("give"))return List.of("hide","boots","leggings","wings");
 return List.of();
