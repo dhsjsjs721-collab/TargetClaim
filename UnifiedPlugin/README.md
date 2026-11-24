@@ -1,3 +1,7 @@
+# Pure PvP Olympian talismans — no speed or random proc chances
+
+The five Olympian talismans are combat-only. Zeus: guaranteed +3 damage, visual lightning and Slowness on a player hit (4 s cooldown). Poseidon: heals 1.5 hearts, grants temporary Absorption and Weakness to the player hit (7 s). Ares: applies Wither and heals one heart (5 s). Athena: applies Weakness on hit (6 s), grants stronger Resistance on receiving PvP damage (8 s). Hermes: applies Blindness and Slowness on hit (5 s), retaliates with Weakness when struck in PvP (8 s). No Speed, Jump Boost, Haste, water movement bonuses or random activation rolls. Only direct player-versus-player combat triggers abilities. One-time death rescue applies to PvP damage; VOID/KILL are excluded. Old retired talismans are purged as inventories load. Back up server data before upgrading.
+
 # Olympian five-talisman release
 
 The active TalismanForge module offers exactly five Olympic Greek-god talismans: Zeus, Poseidon, Ares, Athena, Hermes. All combat effects activate deterministically when ready (no proc chances), with fixed cooldowns. The reliquary rotates in a fixed order through the five types. Previously issued five non-Olympian talismans and all eight original versions are purged upon loading. Use /tf give <player> zeus|olympus_poseidon|ares|athena|hermes for OP tests. The five talismans retain deterministic one-time death protection (excluding VOID/KILL). Back up world/player data before updating.
