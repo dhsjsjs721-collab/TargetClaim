@@ -74,7 +74,7 @@ def main():
             if not any("Done (" in line for line in logs):
                 raise RuntimeError("Purpur did not fully start within 150s or crashed")
             print("Purpur started; testing universal routing",flush=True)
-            for cmd in ["u status","u trap","u shield","u shield give nobody wither","u trap give nobody 1","u ss status","u tf","u tf give nobody phoenix","u ce help","u pig","u frog","u trader","u help"]:
+            for cmd in ["u status","u trap","u shield","u shield give nobody wither","u trap give nobody 1","u ss status","u tf","u tf give nobody zeus","u ce help","u pig","u frog","u trader","u help"]:
                 proc.stdin.write(cmd+"\n")
                 proc.stdin.flush()
                 time.sleep(.8)
@@ -92,7 +92,7 @@ def main():
             if "Enabled module: "+name not in output:
                 print("\n".join(logs[-100:]))
                 raise AssertionError("Module not enabled: "+name)
-        if "5 new talismans" not in output:
+        if "5 Olympian talismans" not in output:
             print("\\n".join(logs[-120:]))
             raise AssertionError("New five-case-only TalismanForge module did not start")
         if "Combat shields active: Wither, Turtle, Crusher" not in output:
