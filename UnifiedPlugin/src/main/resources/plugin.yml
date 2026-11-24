@@ -30,7 +30,7 @@ commands:
     usage: /ce [trader|give|apply|help]
     aliases: [ce, enchants]
   swampsky:
-    description: Flying pigs, giant frogs and swamp equipment
+    description: Giant frogs, frog equipment and legacy flying-pig cleanup
     usage: /swampsky
     aliases: [wildlife, ss]
   imagemap:
