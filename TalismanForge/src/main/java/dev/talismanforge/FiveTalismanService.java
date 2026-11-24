@@ -237,7 +237,7 @@ for(Entity entity:event.getEntities())if(entity instanceof Item drop && legacy(d
 }
 @EventHandler public void chunkContainers(org.bukkit.event.world.ChunkLoadEvent event){
 for(org.bukkit.block.BlockState state:event.getChunk().getTileEntities()){
-if(state instanceof org.bukkit.block.Container container)cleanse(container.getBlockInventory());
+if(state instanceof org.bukkit.block.Container container)cleanse(container.getInventory());
 }
 }
 void shutdown(){
