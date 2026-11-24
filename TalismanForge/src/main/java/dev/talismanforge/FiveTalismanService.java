@@ -95,6 +95,7 @@ if(changed)inventory.setContents(contents);
 }
 private void migratePlayer(Player p){
 cleanse(p.getInventory());
+cleanse(p.getEnderChest());
 }
 @EventHandler public void join(PlayerJoinEvent event){
 migratePlayer(event.getPlayer());
@@ -235,7 +236,9 @@ if(legacy(event.getEntity().getItemStack()))event.getEntity().remove();
 for(Entity entity:event.getEntities())if(entity instanceof Item drop && legacy(drop.getItemStack()))drop.remove();
 }
 @EventHandler public void chunkContainers(org.bukkit.event.world.ChunkLoadEvent event){
-// Cleanup of stored legacy talismans is deferred until inventories are opened.
+for(org.bukkit.block.BlockState state:event.getChunk().getTileEntities()){
+if(state instanceof org.bukkit.block.Container container)cleanse(container.getBlockInventory());
+}
 }
 void shutdown(){
 offensiveCooldown.clear();defensiveCooldown.clear();
