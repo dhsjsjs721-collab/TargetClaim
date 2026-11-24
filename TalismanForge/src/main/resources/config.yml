@@ -1,6 +1,8 @@
-wither-maiming: 0.50
-elder-guardian-poseidon: 0.25
-blaze-hades: 0.015
-fishing-rain-poseidon: 0.04
-fishing-dry-poseidon: 0.005
-nether-loot-multiplier: 1.0
+# TalismanForge 2.9.0: five NEW talismans only, all obtained in survival
+# exclusively from the 3-minute Reliquary case.
+# Existing legacy talismans are automatically converted in inventories.
+# No boss/Nether loot/fishing/dragon egg talisman drops.
+# Their old drop rate settings have been retired.
+reliquary:
+  open-delay-seconds: 180
+  rewards: five-talismans-only
