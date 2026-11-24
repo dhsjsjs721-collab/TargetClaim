@@ -1,3 +1,9 @@
+
+## Five universal talismans + flying pig retirement (2026-11-24)
+
+Exactly five talismans remain: Phoenix (fire immunity, low-health regeneration, rescue blast), Tempest (mining haste and lightning strikes), Guardian (absorption and damage resistance), Shade (speed, dark vision and blinding strikes), Tide (underwater mobility and on-hit healing). The old eight talisman types are **removed**, not converted, as player inventories and chests load; ordinary vanilla totems are retained. Back up player inventories and world data before deployment. Flying pigs are no longer spawned and existing PDC-tagged winged pigs are removed as chunks load, including saved pets. Ordinary pigs, frogs, frog equipment, claims and traps remain unchanged. 
+
+Build the updated MinecraftUnified 1.1.7 JAR from this branch's GitHub Actions workflow; replace the older MinecraftUnified JAR (do not install duplicate copies), and verify the five modules in the server console. A successful compile does not replace testing gameplay on a staging world.
 # MinecraftUnified 1.1.7 — ровно пять новых талисманов
 
 В отличие от 1.1.6, TalismanForge 2.9.0 теперь выдаёт только **пять оригинальных талисманов** через реликварий (кейс): Феникса (12%), Грозы (19%), Стража (26%), Сумрака (23%), Прилива (20%). Реликварий готов через три минуты; крафт прежний — семь осколков аметиста, обычный тотем и обсидиан. **Яйцо дракона не требуется** и больше не превращается в талисман.
