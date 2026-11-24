@@ -140,7 +140,7 @@ Bukkit.getPluginManager().registerEvents(hookListener,this);
 Bukkit.getScheduler().runTaskTimer(this,this::quarterTick,5L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::wrathRechargeTick,10L,5L);
 Bukkit.getScheduler().runTaskTimer(this,this::tick,20L,20L);
-getLogger().info("TalismanForge 2.7.1: "+altars.size()+" relics");
+getLogger().info("TalismanForge 2.9.0: "+altars.size()+" reliquaries; "+five.status());
 }
 @Override public void onDisable(){
 if(hookListener!=null)hookListener.shutdown();
