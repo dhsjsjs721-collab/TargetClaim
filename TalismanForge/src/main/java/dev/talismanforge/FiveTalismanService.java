@@ -20,15 +20,15 @@ import org.bukkit.potion.PotionEffectType;
 final class FiveTalismanService implements Listener {
 enum Kind {
 PHOENIX("phoenix","§6Талисман Феникса",NamedTextColor.GOLD,
-"§7Огнестойкость, спасение и огненная вспышка",12),
+"§7Огнестойкость, регенерация в опасности, огненная вспышка",12),
 TEMPEST("tempest","§bТалисман Грозы",NamedTextColor.AQUA,
-"§7Заряженный удар каждые 4 секунды",19),
+"§7Ускоренная добыча и заряженные удары",19),
 GUARDIAN("guardian","§aТалисман Стража",NamedTextColor.GREEN,
-"§7Поглощение и защита после получения урона",26),
+"§7Поглощение, защита и устойчивость к отбрасыванию",26),
 SHADE("shade","§5Талисман Сумрака",NamedTextColor.LIGHT_PURPLE,
-"§7Скорость в темноте, ослепление врага",23),
+"§7Скорость, ночное зрение и ослепление врага",23),
 TIDE("tide","§3Талисман Прилива",NamedTextColor.DARK_AQUA,
-"§7Дыхание и ускорение в воде, лечение",20);
+"§7Водное дыхание, быстрый заплыв, лечение от ударов",20);
 final String key,title,lore;
 final NamedTextColor color;
 final int weight;
@@ -79,38 +79,22 @@ Kind carried(Player player){
 Kind off=kind(player.getInventory().getItemInOffHand());
 return off!=null?off:kind(player.getInventory().getItemInMainHand());
 }
-private Kind migrate(String old){
-return switch(old){
-case "maiming","hades"->Kind.PHOENIX;
-case "wrath","end"->Kind.TEMPEST;
-case "defiance","ages"->Kind.GUARDIAN;
-case "joker"->Kind.SHADE;
-case "poseidon"->Kind.TIDE;
-default->null;
-};
+// Legacy talismans are retired, not converted into new variants.
+// Vanilla untagged Totems of Undying and the five new PDC-tagged talismans survive.
+private boolean legacy(ItemStack item){
+if(item==null||item.getType()!=Material.TOTEM_OF_UNDYING||!item.hasItemMeta())return false;
+return item.getItemMeta().getPersistentDataContainer().has(legacy,PersistentDataType.STRING);
 }
-private ItemStack migrateItem(ItemStack item){
-if(item==null||item.getType()!=Material.TOTEM_OF_UNDYING||!item.hasItemMeta())return item;
-if(kind(item)!=null)return item;
-String old=item.getItemMeta().getPersistentDataContainer().get(legacy,PersistentDataType.STRING);
-Kind to=migrate(old);
-if(to==null)return item;
-ItemStack newer=create(to);
-ItemMeta meta=newer.getItemMeta();
-meta.getPersistentDataContainer().set(new NamespacedKey("talismanforge","legacy_migrated"),PersistentDataType.STRING,old);
-newer.setItemMeta(meta);
-newer.setAmount(item.getAmount());
-converted++;
-return newer;
+private void cleanse(org.bukkit.inventory.Inventory inventory){
+ItemStack[] contents=inventory.getContents();
+boolean changed=false;
+for(int i=0;i<contents.length;i++){
+if(legacy(contents[i])){contents[i]=null;changed=true;converted++;}
+}
+if(changed)inventory.setContents(contents);
 }
 private void migratePlayer(Player p){
-ItemStack[] inventory=p.getInventory().getContents();
-boolean changed=false;
-for(int i=0;i<inventory.length;i++){
-ItemStack next=migrateItem(inventory[i]);
-if(next!=inventory[i]){inventory[i]=next;changed=true;}
-}
-if(changed)p.getInventory().setContents(inventory);
+cleanse(p.getInventory());
 }
 @EventHandler public void join(PlayerJoinEvent event){
 migratePlayer(event.getPlayer());
@@ -118,6 +102,7 @@ migratePlayer(event.getPlayer());
 @EventHandler(priority=EventPriority.MONITOR)
 public void inventoryOpen(InventoryOpenEvent event){
 if(event.getPlayer() instanceof Player p)migratePlayer(p);
+cleanse(event.getInventory());
 }
 void pulse(){
 for(Player p:Bukkit.getOnlinePlayers()){
@@ -125,10 +110,17 @@ migratePlayer(p);
 Kind k=carried(p);
 if(k==null)continue;
 switch(k){
-case PHOENIX->add(p,PotionEffectType.FIRE_RESISTANCE,65,0);
-case GUARDIAN->add(p,PotionEffectType.ABSORPTION,75,0);
+case PHOENIX->{
+add(p,PotionEffectType.FIRE_RESISTANCE,65,0);
+if(p.getHealth()<=p.getMaxHealth()*.45)add(p,PotionEffectType.REGENERATION,65,0);
+}
+case GUARDIAN->{
+add(p,PotionEffectType.ABSORPTION,75,0);
+add(p,PotionEffectType.RESISTANCE,65,0);
+}
 case SHADE->{
-if(p.getLocation().getBlock().getLightFromSky()<7)add(p,PotionEffectType.SPEED,65,0);
+add(p,PotionEffectType.SPEED,65,0);
+if(p.getLocation().getBlock().getLightFromSky()<7)add(p,PotionEffectType.NIGHT_VISION,250,0);
 }
 case TIDE->{
 if(p.isInWater()){
@@ -136,7 +128,7 @@ add(p,PotionEffectType.WATER_BREATHING,65,0);
 add(p,PotionEffectType.DOLPHINS_GRACE,65,0);
 }
 }
-case TEMPEST->{}
+case TEMPEST->add(p,PotionEffectType.HASTE,65,0)
 }
 }
 long now=System.currentTimeMillis();
@@ -187,7 +179,7 @@ java.util.concurrent.ThreadLocalRandom.current().nextDouble()<.28)
 victim.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS,40,0));
 }
 case TIDE->{
-if(attacker.isInWater() && ready(offensiveCooldown,attacker.getUniqueId(),5*SEC))
+if(ready(offensiveCooldown,attacker.getUniqueId(),attacker.isInWater()?5*SEC:8*SEC))
 attacker.setHealth(Math.min(attacker.getMaxHealth(),attacker.getHealth()+2.0));
 }
 default->{}
@@ -236,8 +228,17 @@ if(main.getAmount()<=1)player.getInventory().setItemInMainHand(new ItemStack(Mat
 else main.setAmount(main.getAmount()-1);
 }
 }
+@EventHandler public void dropped(org.bukkit.event.entity.ItemSpawnEvent event){
+if(legacy(event.getEntity().getItemStack()))event.getEntity().remove();
+}
+@EventHandler public void chunkEntities(org.bukkit.event.world.EntitiesLoadEvent event){
+for(Entity entity:event.getEntities())if(entity instanceof Item drop && legacy(drop.getItemStack()))drop.remove();
+}
+@EventHandler public void chunkContainers(org.bukkit.event.world.ChunkLoadEvent event){
+// Cleanup of stored legacy talismans is deferred until inventories are opened.
+}
 void shutdown(){
 offensiveCooldown.clear();defensiveCooldown.clear();
 }
-String status(){return "5 new talismans, awarded="+awarded+", migrated="+converted+", rescues="+rescued;}
+String status(){return "5 new talismans, awarded="+awarded+", removedLegacy="+converted+", rescues="+rescued;}
 }
