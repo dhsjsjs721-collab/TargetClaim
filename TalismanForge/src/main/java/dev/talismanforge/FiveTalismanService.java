@@ -129,7 +129,7 @@ add(p,PotionEffectType.WATER_BREATHING,65,0);
 add(p,PotionEffectType.DOLPHINS_GRACE,65,0);
 }
 }
-case TEMPEST->add(p,PotionEffectType.HASTE,65,0)
+case TEMPEST->add(p,PotionEffectType.HASTE,65,0);
 }
 }
 long now=System.currentTimeMillis();
