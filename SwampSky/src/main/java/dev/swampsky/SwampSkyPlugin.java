@@ -121,6 +121,7 @@ AttributeInstance size=pig.getAttribute(Attribute.SCALE);
 if(size!=null&&Math.abs(size.getBaseValue()-.70)>.001)size.setBaseValue(.70);
 }
 private void flyingPig(Pig p){
+if(!getConfig().getBoolean("enable-flying-pigs",false))return;
 if(marked(p,flyingKey))return;
 mark(p,flyingKey);ground.remove(p.getUniqueId());
 p.setGravity(true);p.setAI(true);p.setAware(true);p.setCollidable(true);
@@ -150,7 +151,9 @@ private void scan(Chunk chunk){
 for(Entity e:chunk.getEntities()){
 if(e instanceof Pig p){
 if(marked(p,flyingKey)){
-wings.add(p.getUniqueId());
+removeRetiredPig(p);
+continue;
+/*wings.add(p.getUniqueId());
 boolean safelyGrounded=p.isOnGround()||!p.getLocation().clone().subtract(0,.45,0).getBlock().isPassable();
 // Older plugin versions could save a flying pig 50+ blocks above the ground.
 // Let our controlled descent catch it instead of switching on gravity
@@ -159,6 +162,7 @@ p.setGravity(safelyGrounded);p.setAI(true);p.setAware(safelyGrounded);p.setColli
 scaleWingedPig(p);
 roamHomes.putIfAbsent(p.getUniqueId(),p.getLocation().clone());
 p.setCustomName(null);p.setCustomNameVisible(false);
+*/
 }else{
 ground.add(p.getUniqueId());p.setAI(true);
 if(owner(p)!=null && p.getCustomName()!=null && (p.getCustomName().contains("свинья")||p.getCustomName().contains("Свинья")))p.setCustomName(null);
@@ -175,6 +179,9 @@ if(e instanceof ItemDisplay && marked(e,displayKey))e.remove();
 public void spawn(CreatureSpawnEvent e){
 if(e.getSpawnReason()!=CreatureSpawnEvent.SpawnReason.NATURAL&&e.getSpawnReason()!=CreatureSpawnEvent.SpawnReason.CHUNK_GEN)return;
 if(e.getEntity() instanceof Pig p){
+// Preserve ordinary pig spawns; retired flying pig variants never generate.
+ground.add(p.getUniqueId());
+if(!getConfig().getBoolean("enable-flying-pigs",false))return;
 Biome pigBiome=p.getLocation().getBlock().getBiome();
 if(allowedPigBiome(pigBiome)){
 double chance=getConfig().getDouble(pigBiome==Biome.MUSHROOM_FIELDS?"mushroom-pig-chance":"flying-chance",pigBiome==Biome.MUSHROOM_FIELDS?.80:.28);
@@ -1351,10 +1358,10 @@ if(p.getGameMode()==GameMode.SPECTATOR||p.isDead())continue;
 World w=p.getWorld();
 if(w.getEnvironment()!=World.Environment.NORMAL)continue;
 Location center=p.getLocation();
-int nearbyFrogs=0,nearbyPigs=0;
+int nearbyFrogs=0;
 for(Entity e:w.getNearbyEntities(center,72,36,72)){
 if(e instanceof Frog && marked(e,giantKey))nearbyFrogs++;
-if(e instanceof Pig && marked(e,flyingKey))nearbyPigs++;
+
 }
 int targetFrogs=Math.max(2,Math.min(3,getConfig().getInt("swamp-giant-frog-target",3)));
 if(nearbyFrogs<targetFrogs){
@@ -1367,20 +1374,7 @@ giantFrog(frog);
 break;
 }
 }
-if(nearbyPigs>=Math.max(1,getConfig().getInt("flying-pig-nearby-cap",5)))continue;
-for(int i=0;i<14;i++){
-Location spawn=surfaceCandidate(w,center,22,66);
-if(spawn==null)continue;
-Biome biome=spawn.getBlock().getBiome();
-if(!allowedPigBiome(biome))continue;
-double chance=biome==Biome.MUSHROOM_FIELDS?
-getConfig().getDouble("mushroom-pig-spawn-chance",.90):
-getConfig().getDouble("flying-pig-spawn-chance",.45);
-if(random.nextDouble()>chance)break;
-Pig pig=w.spawn(spawn,Pig.class);
-flyingPig(pig);
-break;
-}
+
 }
 }
 private Location surfaceCandidate(World w,Location center,int minRadius,int maxRadius){
@@ -1403,6 +1397,17 @@ return new Location(w,x+.5,y+1,z+.5);
 return null;
 }
 
+private void removeRetiredPig(Pig pig){
+UUID id=pig.getUniqueId();
+pigClear(id);
+wings.remove(id);
+ground.remove(id);
+forgetFlight(id);
+groundTargets.remove(id);
+groundPathUntil.remove(id);
+pig.eject();
+pig.remove();
+}
 private void pigClear(UUID id){
 List<UUID> ds=displays.remove(id);
 if(ds!=null)for(UUID d:ds){Entity e=Bukkit.getEntity(d);if(e!=null)e.remove();}
