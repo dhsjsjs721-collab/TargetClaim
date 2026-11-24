@@ -20,15 +20,15 @@ import org.bukkit.potion.PotionEffectType;
 final class FiveTalismanService implements Listener {
 enum Kind {
 ZEUS("zeus","§eТалисман Зевса",NamedTextColor.YELLOW,
-"§7Молния, Спешка II, контроль противника",1),
+"§7Молния +3 урона и замедление игрока (4 с)",1),
 POSEIDON("olympus_poseidon","§3Талисман Посейдона",NamedTextColor.DARK_AQUA,
-"§7Водное дыхание, плавание и лечение",1),
+"§7Поглощение I; лечит при ударе по игроку (7 с)",1),
 ARES("ares","§cТалисман Ареса",NamedTextColor.RED,
-"§7Сила I, кровоточащие удары и боевой отхил",1),
+"§7Сила I; иссушение врага и лечение (5 с)",1),
 ATHENA("athena","§bТалисман Афины",NamedTextColor.AQUA,
-"§7Сопротивление, поглощение и ослабление врага",1),
+"§7Сопротивление I; слабость врага и защита при ударе",1),
 HERMES("hermes","§aТалисман Гермеса",NamedTextColor.GREEN,
-"§7Скорость II, прыгучесть и замедление врага",1);
+"§7Слепота и замедление врага, контрудар (5 с)",1);
 final String key,title,lore;
 final NamedTextColor color;
 final int weight;
@@ -54,8 +54,8 @@ ItemStack create(Kind kind){
 ItemStack item=new ItemStack(Material.TOTEM_OF_UNDYING);
 ItemMeta meta=item.getItemMeta();
 meta.setDisplayName(kind.title);
-meta.setLore(List.of("§dНаграда из реликвария","§7Спасение от смерти без случайного шанса",
-kind.lore,"§8Работает в любой руке","§8Не работает в бездне"));
+meta.setLore(List.of("§dНаграда из реликвария","§7Гарантированное спасение от смертельного PvP-удара",
+kind.lore,"§8Работает в любой руке","§8Только против игроков"));
 meta.getPersistentDataContainer().set(type,PersistentDataType.STRING,kind.key);
 item.setItemMeta(meta);
 awarded++;
@@ -112,22 +112,11 @@ migratePlayer(p);
 Kind k=carried(p);
 if(k==null)continue;
 switch(k){
-case ZEUS->add(p,PotionEffectType.HASTE,65,1);
-case POSEIDON->{
-if(p.isInWater()){
-add(p,PotionEffectType.WATER_BREATHING,65,0);
-add(p,PotionEffectType.DOLPHINS_GRACE,65,0);
-}
-}
+case ZEUS->{}
+case POSEIDON->add(p,PotionEffectType.ABSORPTION,65,0);
 case ARES->add(p,PotionEffectType.STRENGTH,65,0);
-case ATHENA->{
-add(p,PotionEffectType.RESISTANCE,65,0);
-add(p,PotionEffectType.ABSORPTION,75,0);
-}
-case HERMES->{
-add(p,PotionEffectType.SPEED,65,1);
-add(p,PotionEffectType.JUMP_BOOST,65,0);
-}
+case ATHENA->add(p,PotionEffectType.RESISTANCE,65,0);
+case HERMES->{}
 
 }
 }
@@ -160,7 +149,7 @@ return true;
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void attack(EntityDamageByEntityEvent e){
-if(!(e.getDamager() instanceof Player attacker)||!(e.getEntity() instanceof LivingEntity victim))return;
+if(!(e.getDamager() instanceof Player attacker)||!(e.getEntity() instanceof Player victim))return;
 if(e.getFinalDamage()<=0 || !mayAttack(attacker,victim))return;
 Kind k=carried(attacker);
 if(k==null)return;
@@ -173,8 +162,9 @@ victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,45,0));
 }
 }
 case POSEIDON->{
-if(ready(offensiveCooldown,attacker.getUniqueId(),attacker.isInWater()?4*SEC:7*SEC))
+if(ready(offensiveCooldown,attacker.getUniqueId(),7*SEC))
 attacker.setHealth(Math.min(attacker.getMaxHealth(),attacker.getHealth()+3.0));
+victim.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE,50,0));
 }
 case ARES->{
 if(ready(offensiveCooldown,attacker.getUniqueId(),5*SEC)){
@@ -187,17 +177,27 @@ if(ready(offensiveCooldown,attacker.getUniqueId(),6*SEC))
 victim.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,70,0));
 }
 case HERMES->{
-if(ready(offensiveCooldown,attacker.getUniqueId(),5*SEC))
-victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,65,1));
+if(ready(offensiveCooldown,attacker.getUniqueId(),5*SEC)){
+victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,55,0));
+victim.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS,35,0));
+}
 }
 
 }
+}
+private boolean pvpDamage(EntityDamageEvent event){
+if(!(event instanceof EntityDamageByEntityEvent hit))return false;
+Entity source=hit.getDamager();
+if(source instanceof Player)return true;
+if(source instanceof org.bukkit.entity.Projectile projectile)
+return projectile.getShooter() instanceof Player;
+return false;
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void defended(EntityDamageEvent e){
 if(!(e.getEntity() instanceof Player p) || e.getFinalDamage()<=0)return;
 Kind k=carried(p);
-if(k==null)return;
+if(k==null||!pvpDamage(e))return;
 if(e.getCause()!=EntityDamageEvent.DamageCause.VOID &&
 e.getCause()!=EntityDamageEvent.DamageCause.KILL &&
 e.getFinalDamage()>=p.getHealth()){
@@ -213,11 +213,21 @@ if(k==Kind.ZEUS){
 p.getWorld().strikeLightningEffect(p.getLocation());
 }
 if(k==Kind.ARES)add(p,PotionEffectType.STRENGTH,120,1);
-if(k==Kind.HERMES)add(p,PotionEffectType.SPEED,120,2);
+if(k==Kind.HERMES)add(p,PotionEffectType.RESISTANCE,100,1);
 return;
 }
 if(k==Kind.ATHENA&&ready(defensiveCooldown,p.getUniqueId(),8*SEC)){
 p.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE,80,1));
+}
+if(k==Kind.HERMES&&ready(defensiveCooldown,p.getUniqueId(),8*SEC)
+&&e instanceof EntityDamageByEntityEvent hit){
+Entity source=hit.getDamager();
+if(source instanceof Player enemy && enemy!=p){
+enemy.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,60,0));
+}else if(source instanceof org.bukkit.entity.Projectile projectile
+&&projectile.getShooter() instanceof Player enemy && enemy!=p){
+enemy.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,60,0));
+}
 }
 }
 private void consume(Player player){
