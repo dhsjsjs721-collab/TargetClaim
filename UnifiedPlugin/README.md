@@ -1,3 +1,7 @@
+# Olympian five-talisman release
+
+The active TalismanForge module offers exactly five Olympic Greek-god talismans: Zeus, Poseidon, Ares, Athena, Hermes. All combat effects activate deterministically when ready (no proc chances), with fixed cooldowns. The reliquary rotates in a fixed order through the five types. Previously issued five non-Olympian talismans and all eight original versions are purged upon loading. Use /tf give <player> zeus|olympus_poseidon|ares|athena|hermes for OP tests. The five talismans retain deterministic one-time death protection (excluding VOID/KILL). Back up world/player data before updating.
+
 
 ## Five universal talismans + flying pig retirement (2026-11-24)
 
