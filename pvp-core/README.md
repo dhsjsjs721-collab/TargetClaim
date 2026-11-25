@@ -2,7 +2,7 @@
 
 **Precision. Control. Adaptation.**
 
-A compact Minecraft PvP practice client for solo practice and explicitly permitted servers.
+A compact Minecraft PvP practice client for offline solo practice.
 
 - Adaptive aim assistance
 - Weapon-aware attack scheduling
@@ -19,4 +19,6 @@ The Fabric workflow builds the playable mod with Gradle. The separate standalone
 
 Automated tests cover the mathematical model. Actual in-game performance has not been independently verified.
 
-FOV and golem practice preference are stored in `config/land-of-losers.properties`. Combat automation and network permission are never restored automatically. Disable all & close leaves the menu accessible for explicit reactivation.
+FOV and golem practice preference are stored in `config/land-of-losers.properties`. Combat automation is never restored automatically. Disable all & close leaves the menu accessible for explicit reactivation.
+
+Version 1.9.0 restricts automation to unpublished integrated worlds and iron golem targets. Body geometry does not recenter an intersecting ray.

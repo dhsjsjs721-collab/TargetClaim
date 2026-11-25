@@ -11,8 +11,7 @@ import java.util.ArrayDeque;
 import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 public final class PracticeCombat {
 static boolean golemTest;
-static boolean networkTest;
-static boolean autoMove=true;
+static boolean autoMove=false;
 private static final double AIM_RANGE=6.0;
 private record Pending(int entityId,long tick) {}
 private static final ArrayDeque<Pending> pending=new ArrayDeque<>();
@@ -72,13 +71,13 @@ static int readyTicks() { return readyTicks; }
 static CombatEngine.Decision decision() { return decision; }
 private static boolean valid(LocalPlayer self,LivingEntity target) { return aimValid(self,target) && inRange(self,target); }
 private static boolean aimValid(LocalPlayer self,LivingEntity target) {
-return target!=self && (target instanceof Player || (golemTest && "entity.minecraft.iron_golem".equals(target.getType().getDescriptionId()))) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && (!(target instanceof Player other) || self.canHarmPlayer(other)) && self.distanceToSqr(target)<=AIM_RANGE*AIM_RANGE;
+return target!=self && golemTest && "entity.minecraft.iron_golem".equals(target.getType().getDescriptionId()) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && (!(target instanceof Player other) || self.canHarmPlayer(other)) && self.distanceToSqr(target)<=AIM_RANGE*AIM_RANGE;
 }
 private static boolean inRange(LocalPlayer self, LivingEntity target) {
 return self.getAttackRangeWith(self.getMainHandItem()).isInRange(self,target.getBoundingBox(),0.0);
 }
 private static boolean enabled(Minecraft mc) {
-return mc.player!=null && mc.level!=null && mc.gameMode!=null && (mc.hasSingleplayerServer() || networkTest);
+return mc.player!=null && mc.level!=null && mc.gameMode!=null && mc.hasSingleplayerServer() && mc.getSingleplayerServer()!=null && !mc.getSingleplayerServer().isPublished();
 }
 private static boolean available(Minecraft mc,LocalPlayer self) {
 return mc.gui.screen()==null && !mc.isPaused() && mc.getCameraEntity()==self && self.isAlive() && !self.isSpectator() && !self.isCreative() && !self.isUsingItem() && !self.isHandsBusy();
@@ -192,7 +191,7 @@ LivingEntity selected=null;
 for(var target:mc.level.getEntitiesOfClass(LivingEntity.class,self.getBoundingBox().inflate(6),target -> aimValid(self,target))) {
 var bb=target.getBoundingBox();
 var box=new AimModel.Box(new AimModel.Vec(bb.minX,bb.minY,bb.minZ),new AimModel.Vec(bb.maxX,bb.maxY,bb.maxZ));
-var desired=AimModel.direction(new AimModel.Vec(eye.x,eye.y,eye.z),AimModel.trackingPoint(new AimModel.Vec(eye.x,eye.y,eye.z),current,box,trackingTick));
+var desired=AimModel.bodyDirection(new AimModel.Vec(eye.x,eye.y,eye.z),current,box);
 double error=AimModel.error(current,desired);
 if(error>settings.fov()/2) continue;
 double score=AimModel.targetScore(error,settings.fov(),self.distanceToSqr(target));
@@ -218,11 +217,11 @@ motionAngle=AimModel.error(AimModel.direction(zero,previousRelative),AimModel.di
 sampledTarget=selected;
 previousRelative=relative;
 previousEye=origin;
-best=AimModel.direction(origin,AimModel.movingPoint(AimModel.trackingPoint(origin,current,box,trackingTick),box,relativeMotion));
+best=AimModel.bodyDirection(origin,current,box);
 bestError=AimModel.error(current,best);
 angularError=bestError;
-boolean onTarget=rayOn(mc,self,selected);
-if(bestError>.12 && !(onTarget && bestError<1.2 && motionAngle<1.0)) {
+boolean onTarget=rayOn(mc,self,selected) || AimModel.intersects(origin,current,box);
+if(bestError>.12 && !onTarget) {
 turn=AimModel.smoothTurn(current,best,turn,settings,motionAngle);
 self.setYRot(self.getYRot()+(float)turn.yaw());
 self.setXRot((float)Math.max(-90,Math.min(90,self.getXRot()+turn.pitch())));

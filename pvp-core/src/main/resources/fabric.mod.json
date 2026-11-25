@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "pvp_practice",
-  "version": "1.8.3",
+  "version": "1.9.0",
   "name": "Land of Losers",
   "environment": "client",
   "entrypoints": {
@@ -18,5 +18,5 @@
   "mixins": [
     "pvp_practice.mixins.json"
   ],
-  "description": "Precision. Control. Adaptation. A compact PvP practice client with adaptive aim assistance, critical-hit timing, predictive movement and local combat diagnostics. Designed for solo practice and explicitly permitted servers."
+  "description": "Local iron golem practice with hitbox geometry, training automation and local diagnostics. Disabled in multiplayer and LAN."
 }

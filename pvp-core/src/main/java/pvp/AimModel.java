@@ -19,6 +19,44 @@ double t=Math.max(0,(center.x()-eye.x())*dx+(center.y()-eye.y())*dy+(center.z()-
 double mx=(b.max().x()-b.min().x())*.16,my=(b.max().y()-b.min().y())*.18,mz=(b.max().z()-b.min().z())*.16;
 return new Vec(clamp(eye.x()+t*dx,b.min().x()+mx,b.max().x()-mx),clamp(eye.y()+t*dy,b.min().y()+my,b.max().y()-my),clamp(eye.z()+t*dz,b.min().z()+mz,b.max().z()-mz));
 }
+/** Ray / box geometry for local practice. A ray already intersecting the box is never recentered. */
+private static Vec rayDirection(Angles view) {
+double y=Math.toRadians(view.yaw()),p=Math.toRadians(view.pitch());
+return new Vec(-Math.sin(y)*Math.cos(p),-Math.sin(p),Math.cos(y)*Math.cos(p));
+}
+public static boolean intersects(Vec eye,Angles view,Box box) {
+Vec d=rayDirection(view);
+double lo=0,hi=Double.POSITIVE_INFINITY;
+double[] o={eye.x(),eye.y(),eye.z()},v={d.x(),d.y(),d.z()},mn={box.min().x(),box.min().y(),box.min().z()},mx={box.max().x(),box.max().y(),box.max().z()};
+for(int i=0;i<3;i++) {
+if(Math.abs(v[i])<1e-10) { if(o[i]<mn[i] || o[i]>mx[i]) return false; continue; }
+double t1=(mn[i]-o[i])/v[i],t2=(mx[i]-o[i])/v[i];
+lo=Math.max(lo,Math.min(t1,t2)); hi=Math.min(hi,Math.max(t1,t2));
+if(hi<lo) return false;
+}
+return true;
+}
+public static Angles bodyDirection(Vec eye,Angles view,Box box) {
+if(intersects(eye,view,box)) return view;
+Vec d=rayDirection(view);
+double x=(box.max().x()-box.min().x())*.035,y=(box.max().y()-box.min().y())*.035,z=(box.max().z()-box.min().z())*.035;
+Box inner=new Box(new Vec(box.min().x()+x,box.min().y()+y,box.min().z()+z),new Vec(box.max().x()-x,box.max().y()-y,box.max().z()-z));
+double high=0;
+for(double xx:new double[]{inner.min().x(),inner.max().x()})
+for(double yy:new double[]{inner.min().y(),inner.max().y()})
+for(double zz:new double[]{inner.min().z(),inner.max().z()})
+high=Math.max(high,(xx-eye.x())*d.x()+(yy-eye.y())*d.y()+(zz-eye.z())*d.z());
+double lo=0,hi=high;
+for(int i=0;i<24;i++) {
+double l=lo+(hi-lo)/3,r=hi-(hi-lo)/3;
+if(rayBoxDistance(eye,d,inner,l)<=rayBoxDistance(eye,d,inner,r)) hi=r; else lo=l;
+}
+double t=(lo+hi)*.5;
+return direction(eye,new Vec(clamp(eye.x()+d.x()*t,inner.min().x(),inner.max().x()),clamp(eye.y()+d.y()*t,inner.min().y(),inner.max().y()),clamp(eye.z()+d.z()*t,inner.min().z(),inner.max().z())));
+}
+private static double rayBoxDistance(Vec eye,Vec d,Box box,double t) {
+return boxDistance(new Vec(eye.x()+d.x()*t,eye.y()+d.y()*t,eye.z()+d.z()*t),box);
+}
 public static Vec trackingPoint(Vec eye,Angles view,Box b,double phase) {
 Vec near=nearestAimPoint(eye,view,b);
 double fx=.5+.045*Math.sin(phase*.055);

@@ -224,6 +224,22 @@ check(new ClientPreferences(999,false).fov()==150);
 java.nio.file.Files.delete(prefsPath);
 java.nio.file.Files.delete(folder);
 } catch(java.io.IOException ex) { throw new AssertionError(ex); }
+var practiceEye=new AimModel.Vec(0,1.4,0);
+var practiceBox=new AimModel.Box(new AimModel.Vec(-.4,0,2),new AimModel.Vec(.4,1.8,2.8));
+var edgeView=AimModel.direction(practiceEye,new AimModel.Vec(.33,.4,2.01));
+check(AimModel.intersects(practiceEye,edgeView,practiceBox));
+check(AimModel.bodyDirection(practiceEye,edgeView,practiceBox).equals(edgeView));
+var missView=new AimModel.Angles(30,8);
+check(!AimModel.intersects(practiceEye,missView,practiceBox));
+check(AimModel.intersects(practiceEye,AimModel.bodyDirection(practiceEye,missView,practiceBox),practiceBox));
+var behindView=new AimModel.Angles(180,0);
+check(!AimModel.intersects(practiceEye,behindView,practiceBox));
+for(int n=0;n<1000;n++) {
+var view=new AimModel.Angles(n*.73-365,n%178-89);
+var next=AimModel.bodyDirection(practiceEye,view,practiceBox);
+check(AimModel.intersects(practiceEye,next,practiceBox));
+if(AimModel.intersects(practiceEye,view,practiceBox)) check(next.equals(view));
+}
 System.out.println("Combat tests passed");
 }
 }

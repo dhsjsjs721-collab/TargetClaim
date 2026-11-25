@@ -25,7 +25,7 @@ catch(IOException | IllegalArgumentException | SecurityException ex) { System.er
 var s=CombatSettings.defaults();
 settings=new CombatSettings(false,false,s.horizontalSpeed(),s.verticalSpeed(),p.fov());
 PracticeCombat.golemTest=p.golemTest();
-PracticeCombat.networkTest=false;
+PracticeCombat.autoMove=false;
 }
 public void onInitializeClient() {
 loadPreferences();
