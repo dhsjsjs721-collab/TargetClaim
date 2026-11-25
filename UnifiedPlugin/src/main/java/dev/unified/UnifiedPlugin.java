@@ -118,8 +118,8 @@ else sender.sendMessage("§c✗ "+name+" §7ошибка запуска: "+faile
 private void help(CommandSender sender){
 sender.sendMessage("§aMinecraftUnified §7— одна команда для всех модулей:");
 sender.sendMessage("§e/u status §7— проверка всех 5 модулей");
-sender.sendMessage("§e/u pig §7— летающая свинка §8| §e/u frog §7— гигантская жаба");
-sender.sendMessage("§e/u repair §7— восстановить AI свинок");
+sender.sendMessage("§e/u frog §7— гигантская жаба; летающие свиньи удалены");
+sender.sendMessage("§7Обычные свиньи и верховая езда сохранены.");
 sender.sendMessage("§e/u trader §7— странствующий торговец");
 sender.sendMessage("§e/u tf give <ник> <тип> §7— талисман");
 sender.sendMessage("§e/u ss give <ник> <hide|boots|leggings|wings> §7— вещи");
@@ -134,13 +134,12 @@ sender.sendMessage("§7Поддерживаются также /u ce, /u ss, /u 
 }
 private String route(String input){
 return switch(input){
-case "pig","frog","repair","trader" -> input.equals("trader")?"enchantmentforge":"swampsky";
+case "frog","repair","trader" -> input.equals("trader")?"enchantmentforge":"swampsky";
 default -> ROUTES.get(input);
 };
 }
 private String forwarded(String action,String[] args){
 return switch(action){
-case "pig" -> "swampsky spawn flying_pig";
 case "frog" -> "swampsky spawn giant_frog";
 case "repair" -> "swampsky repair";
 case "trader" -> "enchantmentforge trader";
@@ -179,7 +178,7 @@ return true;
 @Override public List<String> onTabComplete(CommandSender sender,Command command,String alias,String[] args){
 if(args.length<=1){
 String prefix=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-return List.of("help","status","pig","frog","repair","trader","p","team","tf","ce","ss","map","trap","shield")
+return List.of("help","status","frog","repair","trader","p","team","tf","ce","ss","map","trap","shield")
 .stream().filter(x->x.startsWith(prefix)).toList();
 }
 String action=args[0].toLowerCase(Locale.ROOT);
