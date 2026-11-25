@@ -18,10 +18,10 @@ private static Component combatLabel() { return Component.literal(PracticeCombat
 @Override public void tick() { super.tick(); if(hitStatus!=null) hitStatus.setMessage(hitLabel()); if(combatStatus!=null) combatStatus.setMessage(combatLabel()); }
 @Override protected void init() {
 int x=width/2-110;
-int step=Math.max(18,Math.min(24,(height-40)/9)), h=step-3;
+int step=Math.max(16,Math.min(24,(height-34)/9)), h=step-2;
 int y=Math.max(30,(height-(9*step+30))/2+30);
 addRenderableOnly(new StringWidget(x,y-28,220,12,Component.literal("LAND OF LOSERS").withStyle(ChatFormatting.GOLD,ChatFormatting.BOLD),font));
-addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Adaptive Combat Engine | 1.8.2").withStyle(ChatFormatting.GRAY),font));
+addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Adaptive Combat Engine | 1.8.3").withStyle(ChatFormatting.GRAY),font));
 addRenderableWidget(Button.builder(status("AimAssist",PracticeClient.settings.aimEnabled()),button -> {
 var s=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(!s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
@@ -37,12 +37,17 @@ var s=PracticeClient.settings;
 double fov=s.fov()>=360?35:s.fov()<60?60:s.fov()<90?90:s.fov()<150?150:s.fov()<180?180:s.fov()<270?270:360;
 PracticeClient.settings=new CombatSettings(s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),fov);
 button.setMessage(Component.literal("FOV: "+(int)fov));
+PracticeClient.savePreferences();
 }).tooltip(Tooltip.create(Component.literal("Field of view for target selection."))).bounds(x,y+2*step,220,h).build());
-addRenderableWidget(Checkbox.builder(Component.literal("Iron Golem Test"),font).pos(x,y+3*step).selected(PracticeCombat.golemTest).onValueChange((checkbox,value)->PracticeCombat.golemTest=value).build());
+addRenderableWidget(Checkbox.builder(Component.literal("Iron Golem Test"),font).pos(x,y+3*step).selected(PracticeCombat.golemTest).onValueChange((checkbox,value)->{ PracticeCombat.golemTest=value; PracticeClient.savePreferences(); }).build());
 addRenderableWidget(Checkbox.builder(Component.literal("Auto Move"),font).pos(x+120,y+3*step).selected(PracticeCombat.autoMove).onValueChange((checkbox,value)->PracticeCombat.autoMove=value).build());
 addRenderableWidget(Checkbox.builder(Component.literal("Network Test (allowed servers)"),font).pos(x,y+4*step).selected(PracticeCombat.networkTest).onValueChange((checkbox,value)->PracticeCombat.networkTest=value).build());
-addRenderableWidget(Button.builder(Component.literal("Lock GUI (until restart)"),button -> {
-PracticeClient.guiLocked=true;
+addRenderableWidget(Button.builder(Component.literal("Disable all & close"),button -> {
+var defaults=CombatSettings.defaults();
+var current=PracticeClient.settings;
+PracticeClient.settings=new CombatSettings(false,false,defaults.horizontalSpeed(),defaults.verticalSpeed(),current.fov());
+PracticeCombat.networkTest=false;
+PracticeCombat.releaseInput(net.minecraft.client.Minecraft.getInstance());
 onClose();
 }).bounds(x,y+5*step,220,h).build());
 hitStatus=Button.builder(hitLabel(),button -> {}).bounds(x,y+6*step,220,h).build();

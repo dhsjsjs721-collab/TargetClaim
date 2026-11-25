@@ -18,3 +18,5 @@ Minecraft 26.3, Fabric Loader 0.20.1 or later, Fabric API, Java 25 or later. Pla
 The Fabric workflow builds the playable mod with Gradle. The separate standalone Java 21+ model is built using `bash build.sh`; its JAR is not a playable Minecraft mod.
 
 Automated tests cover the mathematical model. Actual in-game performance has not been independently verified.
+
+FOV and golem practice preference are stored in `config/land-of-losers.properties`. Combat automation and network permission are never restored automatically. Disable all & close leaves the menu accessible for explicit reactivation.
