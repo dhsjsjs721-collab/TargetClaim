@@ -6,7 +6,6 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Directional;
 import org.bukkit.block.data.type.Light;
 import org.bukkit.command.CommandSender;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.*;
 import org.bukkit.event.*;
 import org.bukkit.event.block.*;
@@ -18,8 +17,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.*;
-import java.io.*;
-import java.nio.file.*;
 import java.util.*;
 
 final class MiningGear implements Listener {
@@ -35,10 +32,10 @@ private record Lease(String original,int level){}
 private record Flight(UUID owner,Location location,Vector velocity,int age){}
 private final Map<Pos,Lease> lamps=new HashMap<>();
 private final Map<UUID,Flight> flights=new HashMap<>();
-private final File journal;
-MiningGear(UnifiedPlugin h){host=h;journal=new File(h.getDataFolder(),"temporary-lights.yml");}
+private static final String LIGHT_PREFIX="temporary_light_";
+MiningGear(UnifiedPlugin h){host=h;}
 void enable(){
-loadLights();restoreUnwanted(Set.of());persistLights();
+for(World w:Bukkit.getWorlds())for(Chunk c:w.getLoadedChunks())recover(c);
 Bukkit.getPluginManager().registerEvents(this,host);
 Bukkit.removeRecipe(helmetRecipe);Bukkit.removeRecipe(toolRecipe);
 ShapedRecipe helmet=new ShapedRecipe(helmetRecipe,item("helmet"));helmet.shape(" I ","LHL"," R ");helmet.setIngredient('I',Material.IRON_INGOT);helmet.setIngredient('L',Material.LANTERN);helmet.setIngredient('H',Material.IRON_HELMET);helmet.setIngredient('R',Material.REDSTONE);Bukkit.addRecipe(helmet);
@@ -72,26 +69,32 @@ private int level(ItemStack i){
 if(i==null)return 0;
 return switch(i.getType()){case TORCH,WALL_TORCH,GLOWSTONE,SEA_LANTERN,SHROOMLIGHT,LANTERN,END_ROD,JACK_O_LANTERN -> 14;case SOUL_TORCH,SOUL_LANTERN -> 10;case REDSTONE_TORCH -> 7;default -> 0;};
 }
-private boolean persistLights(){
-YamlConfiguration y=new YamlConfiguration();int n=0;
-for(var e:lamps.entrySet()){String p="lights."+(n++)+".";y.set(p+"pos",e.getKey().encode());y.set(p+"original",e.getValue().original());y.set(p+"level",e.getValue().level());}
-try{Path tmp=journal.toPath().resolveSibling(journal.getName()+".tmp");y.save(tmp.toFile());try{Files.move(tmp,journal.toPath(),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}catch(AtomicMoveNotSupportedException ex){Files.move(tmp,journal.toPath(),StandardCopyOption.REPLACE_EXISTING);}return true;}
-catch(IOException ex){host.getLogger().warning("Light journal: "+ex.getMessage());return false;}
-}
-private void loadLights(){
-YamlConfiguration y=YamlConfiguration.loadConfiguration(journal);var sec=y.getConfigurationSection("lights");if(sec==null)return;
-for(String k:sec.getKeys(false))try{String p="lights."+k+".";String[] a=y.getString(p+"pos").split(",");lamps.put(new Pos(UUID.fromString(a[0]),Integer.parseInt(a[1]),Integer.parseInt(a[2]),Integer.parseInt(a[3])),new Lease(y.getString(p+"original"),y.getInt(p+"level")));}catch(Exception ex){host.getLogger().warning("Invalid temporary light record: "+k);}
-}
+private NamespacedKey leaseKey(Pos p){return new NamespacedKey("minecraftunified",LIGHT_PREFIX+(p.x()&15)+"_"+p.y()+"_"+(p.z()&15));}
+private void mark(Block b,Pos p,Lease l){b.getChunk().getPersistentDataContainer().set(leaseKey(p),PersistentDataType.STRING,l.level()+"|"+l.original());}
 private boolean restore(Pos p,Lease l){
 Block b=p.loaded();if(b==null)return false;
 if(b.getBlockData() instanceof Light light&&light.getLevel()==l.level()&&!light.isWaterlogged())b.setBlockData(Bukkit.createBlockData(l.original()),false);
-return true;
+b.getChunk().getPersistentDataContainer().remove(leaseKey(p));return true;
 }
-private boolean restoreUnwanted(Set<Pos> wanted){
-boolean changed=false;for(var e:new ArrayList<>(lamps.entrySet()))if(!wanted.contains(e.getKey())&&restore(e.getKey(),e.getValue())){lamps.remove(e.getKey());changed=true;}return changed;
+private void recover(Chunk c){
+var data=c.getPersistentDataContainer();
+for(NamespacedKey key:new HashSet<>(data.getKeys()))if(key.getNamespace().equals("minecraftunified")&&key.getKey().startsWith(LIGHT_PREFIX)){
+try{
+String[] xyz=key.getKey().substring(LIGHT_PREFIX.length()).split("_");
+int x=Integer.parseInt(xyz[0]),y=Integer.parseInt(xyz[1]),z=Integer.parseInt(xyz[2]);
+String raw=data.get(key,PersistentDataType.STRING);if(raw==null)continue;
+int split=raw.indexOf('|'),level=Integer.parseInt(raw.substring(0,split));String previous=raw.substring(split+1);
+Block b=c.getBlock(x,y,z);BlockData old=Bukkit.createBlockData(previous);
+if(old.getMaterial().isAir()&&b.getBlockData() instanceof Light light&&light.getLevel()==level&&!light.isWaterlogged())b.setBlockData(old,false);
+data.remove(key);lamps.remove(Pos.of(b));
+}catch(Exception ex){host.getLogger().warning("Temporary light recovery: "+ex.getMessage());}
+}
+}
+private void restoreUnwanted(Set<Pos> wanted){
+for(var e:new ArrayList<>(lamps.entrySet()))if(!wanted.contains(e.getKey())&&restore(e.getKey(),e.getValue()))lamps.remove(e.getKey());
 }
 private void updateLights(){
-if(!host.getConfig().getBoolean("mining.dynamic-light",true)){if(restoreUnwanted(Set.of()))persistLights();return;}
+if(!host.getConfig().getBoolean("mining.dynamic-light",true)){restoreUnwanted(Set.of());return;}
 Map<Pos,Integer> wanted=new HashMap<>();
 for(Player p:Bukkit.getOnlinePlayers()){
 if(!survival(p)||p.isDead())continue;var inv=p.getInventory();int light=Math.max(level(inv.getItemInMainHand()),level(inv.getItemInOffHand()));
@@ -101,34 +104,25 @@ Block b=p.getEyeLocation().getBlock();Pos pos=Pos.of(b);
 if(!b.getType().isAir()&&!lamps.containsKey(pos))continue;
 wanted.merge(pos,light,Math::max);
 }
-boolean changed=restoreUnwanted(wanted.keySet());
+restoreUnwanted(wanted.keySet());
 for(var entry:wanted.entrySet()){
 Pos pos=entry.getKey();Block b=pos.loaded();if(b==null)continue;
 Lease old=lamps.get(pos);int value=entry.getValue();
 if(old!=null&&b.getBlockData() instanceof Light l&&l.getLevel()==old.level()){
 if(value==old.level())continue;
-// Keep one light level until the carrier moves; avoids crash windows and excess relighting.
-continue;
+Lease next=new Lease(old.original(),value);mark(b,pos,next);lamps.put(pos,next);l.setLevel(value);b.setBlockData(l,false);continue;
 }
-if(old!=null){lamps.remove(pos);changed=true;}
+if(old!=null){b.getChunk().getPersistentDataContainer().remove(leaseKey(pos));lamps.remove(pos);}
 if(!b.getType().isAir())continue;
-Lease next=new Lease(b.getBlockData().getAsString(),value);lamps.put(pos,next);
-if(!persistLights()){lamps.remove(pos);continue;}
-Light data=(Light)Material.LIGHT.createBlockData();data.setLevel(value);b.setBlockData(data,false);changed=true;
+Lease next=new Lease(b.getBlockData().getAsString(),value);mark(b,pos,next);lamps.put(pos,next);
+Light data=(Light)Material.LIGHT.createBlockData();data.setLevel(value);b.setBlockData(data,false);
 }
-if(changed)persistLights();
 }
-@EventHandler public void unload(ChunkUnloadEvent e){
-boolean changed=false;for(var entry:new ArrayList<>(lamps.entrySet())){Pos p=entry.getKey();if(p.world().equals(e.getWorld().getUID())&&(p.x()>>4)==e.getChunk().getX()&&(p.z()>>4)==e.getChunk().getZ()&&restore(p,entry.getValue())){lamps.remove(p);changed=true;}}
-if(changed)persistLights();
-}
-@EventHandler public void load(ChunkLoadEvent e){
-boolean changed=false;for(var entry:new ArrayList<>(lamps.entrySet())){Pos p=entry.getKey();if(p.world().equals(e.getWorld().getUID())&&(p.x()>>4)==e.getChunk().getX()&&(p.z()>>4)==e.getChunk().getZ()&&restore(p,entry.getValue())){lamps.remove(p);changed=true;}}
-if(changed)persistLights();
-}
-@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void throwTorch(PlayerInteractEvent e){
+@EventHandler public void unload(ChunkUnloadEvent e){recover(e.getChunk());}
+@EventHandler public void load(ChunkLoadEvent e){recover(e.getChunk());}
+@EventHandler(priority=EventPriority.HIGHEST) public void throwTorch(PlayerInteractEvent e){
 Player p=e.getPlayer();if(e.getHand()!=EquipmentSlot.HAND||!p.isSneaking()||p.getGameMode()!=GameMode.SURVIVAL||e.getItem()==null||e.getItem().getType()!=Material.TORCH||!(e.getAction()==Action.RIGHT_CLICK_AIR||e.getAction()==Action.RIGHT_CLICK_BLOCK))return;
-if(e.getItem().hasItemMeta())return;
+if(e.getItem().hasItemMeta()||e.getAction()==Action.RIGHT_CLICK_BLOCK&&e.isCancelled())return;
 e.setCancelled(true);if(flights.containsKey(p.getUniqueId()))return;
 ItemStack stack=p.getInventory().getItemInMainHand();if(stack.getType()!=Material.TORCH||stack.getAmount()<1)return;
 stack.setAmount(stack.getAmount()-1);p.getInventory().setItemInMainHand(stack.getAmount()==0?new ItemStack(Material.AIR):stack);
@@ -165,5 +159,5 @@ if(hit!=null){flights.remove(entry.getKey());if(!placeTorch(f,hit))refund(f);con
 flights.put(entry.getKey(),new Flight(f.owner(),next,v.clone().multiply(.98).add(new Vector(0,-.045,0)),f.age()+1));
 }
 }
-void disable(){for(Flight f:flights.values())refund(f);flights.clear();restoreUnwanted(Set.of());persistLights();Bukkit.removeRecipe(helmetRecipe);Bukkit.removeRecipe(toolRecipe);}
+void disable(){for(Flight f:flights.values())refund(f);flights.clear();restoreUnwanted(Set.of());Bukkit.removeRecipe(helmetRecipe);Bukkit.removeRecipe(toolRecipe);}
 }

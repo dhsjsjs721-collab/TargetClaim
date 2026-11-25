@@ -184,7 +184,7 @@ org.bukkit.scoreboard.Team team=a.getScoreboard().getEntryTeam(a.getName());
 return team!=null&&team.equals(b.getScoreboard().getEntryTeam(b.getName()));
 }
 private boolean prepare(Player caster,Player victim){
-if(host.isPeace(caster.getLocation())||host.isPeace(victim.getLocation()))return false;
+if(plugin.isPeace(caster.getLocation())||plugin.isPeace(victim.getLocation()))return false;
 Location feet=victim.getLocation().clone();
 // Put both PvP participants inside the arena when they are close enough.
 if(caster.getLocation().getWorld()==feet.getWorld()
@@ -212,7 +212,7 @@ if(occupied.containsKey(key))return false;
 if(!w.isChunkLoaded(xx>>4,zz>>4))return false;
 Block block=w.getBlockAt(xx,yy,zz);
 if(!w.getWorldBorder().isInside(block.getLocation()))return false;
-if(host.isPeace(block.getLocation())||claims==null||!claims.allowsTemporaryStructure(caster,block.getLocation()))return false;
+if(plugin.isPeace(block.getLocation())||claims==null||!claims.allowsTemporaryStructure(caster,block.getLocation()))return false;
 if(dy==-1){
 if(block.isLiquid()||(!block.getType().isSolid()&&!block.getType().isAir()))return false;
 t.protectedFloor.add(key);

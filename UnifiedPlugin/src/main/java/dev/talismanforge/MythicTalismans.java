@@ -330,7 +330,7 @@ final class MythicTalismans implements Listener {
     private void tickRituals(){
         for(Ritual r:new ArrayList<>(rituals.values())){
             Item egg=findItem(r.egg()),relic=findItem(r.relic());Player p=Bukkit.getPlayer(r.owner());State st=states.get(r.kind());
-            boolean valid=p!=null&&usable(p)&&closeTo(p.getLocation(),r.center(),8)&&!st.awakened&&dragonEgg(egg)&&closeTo(egg.getLocation(),r.center(),3);
+            boolean valid=p!=null&&usable(p)&&!peace(p.getLocation())&&!peace(r.center())&&closeTo(p.getLocation(),r.center(),8)&&!st.awakened&&dragonEgg(egg)&&closeTo(egg.getLocation(),r.center(),3);
             if(r.relic()!=null)valid=valid&&relic!=null&&kind(relic.getItemStack())==r.kind()&&relic.getItemStack().getAmount()==1&&closeTo(relic.getLocation(),r.center(),3);
             else valid=valid&&st.egg!=null&&r.owner().equals(st.owner)&&!st.broken&&closeTo(st.egg,r.center(),2)&&eggBlock(st.egg.getBlock());
             if(!valid||!safeRitual(egg.getLocation())||relic!=null&&!safeRitual(relic.getLocation())){abortRitual(r,"условия больше не выполнены");continue;}
@@ -514,7 +514,7 @@ final class MythicTalismans implements Listener {
             if(!candidate||l.getBlockY()<e.getWorld().getHighestBlockYAt(l)-1)continue;
             double d=l.distanceSquared(original);if(d<distance){distance=d;best=l;holder=entity instanceof Player p?p:null;}
         }
-        if(best==null)return;e.setCancelled(true);e.getWorld().strikeLightningEffect(best);burst(best,Kind.THOR,24);charge(Kind.THOR,1,holder);
+        if(best==null||peace(best))return;e.setCancelled(true);e.getWorld().strikeLightningEffect(best);burst(best,Kind.THOR,24);charge(Kind.THOR,1,holder);
         if(holder!=null&&active(holder)==Kind.THOR&&states.get(Kind.THOR).awakened)heal(holder,4);
     }
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void targeting(EntityTargetLivingEntityEvent e){
