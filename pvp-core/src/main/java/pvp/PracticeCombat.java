@@ -9,6 +9,7 @@ final class PracticeCombat {
 static boolean golemTest;
 static boolean networkTest;
 private static LocalPlayer lastPlayer;
+private static LivingEntity aimTarget;
 private static float lastHealth;
 private static int responseWindow;
 private static int readyTicks;
@@ -23,6 +24,7 @@ return target!=self && (target instanceof Player || (golemTest && "entity.minecr
 static void tick(Minecraft mc, CombatSettings settings, CombatEngine.Mode mode) {
 if(mc.player==null || mc.level==null || mc.gameMode==null || (!mc.hasSingleplayerServer() && !networkTest)) {
 lastPlayer=null;
+aimTarget=null;
 angularError=Double.NaN;
 decision=CombatEngine.Decision.WAIT;
 readyTicks=0;
@@ -30,31 +32,38 @@ responseWindow=0;
 return;
 }
 var self=mc.player;
-if(lastPlayer!=self) { lastPlayer=self; lastHealth=self.getHealth(); responseWindow=0; readyTicks=0; }
+if(lastPlayer!=self) { lastPlayer=self; aimTarget=null; lastHealth=self.getHealth(); responseWindow=0; readyTicks=0; }
 if(self.getHealth()<lastHealth) responseWindow=12;
 else if(responseWindow>0) responseWindow--;
 lastHealth=self.getHealth();
-if(mc.gui.screen()!=null) return;
+if(mc.gui.screen()!=null) { aimTarget=null; return; }
 angularError=Double.NaN;
 decision=CombatEngine.Decision.WAIT;
 if(!self.isAlive() || self.isSpectator() || self.isCreative() || self.isUsingItem()) return;
+if(!settings.aimEnabled()) aimTarget=null;
 if(settings.aimEnabled()) {
 var eye=self.getEyePosition();
 var current=new AimModel.Angles(self.getYRot(),self.getXRot());
 AimModel.Angles best=null;
 double bestError=settings.fov()/2;
+LivingEntity selected=null;
 for(var target:mc.level.getEntitiesOfClass(LivingEntity.class,self.getBoundingBox().inflate(3),target -> valid(self,target))) {
 var bb=target.getBoundingBox();
 var box=new AimModel.Box(new AimModel.Vec(bb.minX,bb.minY,bb.minZ),new AimModel.Vec(bb.maxX,bb.maxY,bb.maxZ));
-var desired=AimModel.direction(new AimModel.Vec(eye.x,eye.y,eye.z),AimModel.point(box,.67));
+var desired=AimModel.direction(new AimModel.Vec(eye.x,eye.y,eye.z),AimModel.nearestAimPoint(new AimModel.Vec(eye.x,eye.y,eye.z),current,box));
 double error=Math.hypot(AimModel.wrap(desired.yaw()-current.yaw()),desired.pitch()-current.pitch());
-if(error<bestError) { bestError=error; best=desired; }
+if(error>=settings.fov()/2) continue;
+if(target==aimTarget || error<bestError) { bestError=error; best=desired; selected=target; }
+if(target==aimTarget) break;
 }
+aimTarget=selected;
 if(best!=null) {
 angularError=bestError;
+if(!(mc.hitResult instanceof EntityHitResult aimed && aimed.getEntity()==selected)) {
 var next=AimModel.step(current,best,settings);
 self.setYRot((float)next.yaw());
 self.setXRot((float)next.pitch());
+}
 }
 }
 if(!(mc.hitResult instanceof EntityHitResult hit) || !(hit.getEntity() instanceof LivingEntity target) || !valid(self,target)) return;
