@@ -25,7 +25,11 @@ double dot=velocity.x()*measured.x()+velocity.y()*measured.y()+velocity.z()*meas
 if(speed>.09 && sampleSpeed>.09 && dot<-.25*speed*sampleSpeed) {
 position=observed; velocity=scale(measured,.70); noise=Math.min(.35,noise+.08); return velocity;
 }
-if(sampleSpeed<.025 && speed>.08) { velocity=scale(velocity,.55); }
+if(sampleSpeed<.025 && speed>.08) {
+velocity=scale(velocity,.55);
+residual=sub(observed,add(position,velocity));
+error=norm(residual);
+}
 noise=.8*noise+.2*error;
 double gain=clamp(.45+noise*.9,.45,.85);
 position=add(add(position,velocity),scale(residual,gain));
@@ -71,11 +75,16 @@ return new MovementChoice(chosen,best);
 }
 /** A short receding-horizon search over two sequential input choices. */
 public static MovementChoice choosePath(double dx,double dz,double targetYaw,double viewYaw,double ownX,double ownZ,double targetX,double targetZ,double ideal,AimModel.Movement last,BiPredicate<Double,Double> safe) {
+return choosePath(dx,dz,targetYaw,viewYaw,ownX,ownZ,targetX,targetZ,ideal,3,0,last,safe);
+}
+public static MovementChoice choosePath(double dx,double dz,double targetYaw,double viewYaw,double ownX,double ownZ,double targetX,double targetZ,double ideal,double reach,double uncertainty,AimModel.Movement last,BiPredicate<Double,Double> safe) {
 double y=Math.toRadians(viewYaw),o=Math.toRadians(targetYaw);
 double fx=-Math.sin(y),fz=Math.cos(y),rx=-Math.cos(y),rz=-Math.sin(y);
 double rearX=Math.sin(o),rearZ=-Math.cos(o);
 double initial=Math.hypot(dx,dz);
 ideal=clamp(ideal,1.6,2.8);
+reach=clamp(reach,1.5,6);
+uncertainty=clamp(uncertainty,0,.6);
 var moves=new AimModel.Movement[9];
 var xs=new double[9]; var zs=new double[9];
 int index=0;
@@ -86,15 +95,16 @@ xs[index]=(fx*f+rx*right)/mag*.22;
 zs[index]=(fz*f+rz*right)/mag*.22;
 index++;
 }
-double best=Double.POSITIVE_INFINITY;
-var chosen=moves[4];
+double best=Double.POSITIVE_INFINITY,shortBest=Double.POSITIVE_INFINITY;
+var chosen=moves[4]; var shortChoice=moves[4];
 for(int first=0;first<9;first++) {
 double px=0,pz=0,vx=clamp(ownX,-.5,.5),vz=clamp(ownZ,-.5,.5),cost=0;
 boolean ok=true;
 for(int tick=1;tick<=2;tick++) {
 vx=.45*vx+.55*xs[first]; vz=.45*vz+.55*zs[first]; px+=vx; pz+=vz;
 if(!safe.test(px,pz)) { ok=false; break; }
-cost+=pathCost(dx,dz,targetX,targetZ,tick,px,pz,ideal,initial,rearX,rearZ);
+cost+=pathCost(dx,dz,targetX,targetZ,tick,px,pz,ideal,initial,rearX,rearZ,reach,uncertainty);
+if(tick==1 && cost<shortBest) { shortBest=cost; shortChoice=moves[first]; }
 }
 if(!ok) continue;
 if(last!=null && !moves[first].equals(last)) cost+=.22;
@@ -104,20 +114,37 @@ boolean valid=true;
 for(int tick=3;tick<=4;tick++) {
 u=.45*u+.55*xs[second]; v=.45*v+.55*zs[second]; x+=u; z+=v;
 if(!safe.test(x,z)) { valid=false; break; }
-s+=pathCost(dx,dz,targetX,targetZ,tick,x,z,ideal,initial,rearX,rearZ)*(tick==4?1.2:1);
+s+=pathCost(dx,dz,targetX,targetZ,tick,x,z,ideal,initial,rearX,rearZ,reach,uncertainty)*(tick==4?1.2:1);
+if(s>=best) { valid=false; break; }
 }
 if(valid && s<best) { best=s; chosen=moves[first]; }
 }
 }
-if(!Double.isFinite(best)) return chooseMovement(dx,dz,targetYaw,viewYaw,ownX,ownZ,targetX,targetZ,ideal,last,safe);
+if(!Double.isFinite(best) && Double.isFinite(shortBest)) return new MovementChoice(shortChoice,shortBest);
+if(!Double.isFinite(best)) return new MovementChoice(moves[4],Double.POSITIVE_INFINITY);
 return new MovementChoice(chosen,best);
 }
-private static double pathCost(double dx,double dz,double tx,double tz,int tick,double x,double z,double ideal,double initial,double rearX,double rearZ) {
+private static double pathCost(double dx,double dz,double tx,double tz,int tick,double x,double z,double ideal,double initial,double rearX,double rearZ,double reach,double uncertainty) {
 double a=dx+clamp(tx,-.35,.35)*tick-x,b=dz+clamp(tz,-.35,.35)*tick-z;
 double dist=Math.hypot(a,b),delta=dist-ideal;
-double cost=delta*delta*(delta>0?1.6:2)+Math.max(0,dist-3)*2.2;
+double spread=Math.min(.75,uncertainty*tick*.5);
+double cost=delta*delta*(delta>0?1.6:2)+Math.max(0,dist+spread-reach)*2.2;
+cost+=3*Math.pow(Math.max(0,1.05-dist+spread*.3),2);
 if(initial<3.4 && dist<3.1 && dist>.01) cost+=.38*(1-(-a*rearX-b*rearZ)/dist);
 return cost;
+}
+/** Learns the observed delay from a requested jump to its first descending tick. */
+public static final class JumpTiming {
+private double estimate=6;
+private int samples;
+public void reset() { estimate=6; samples=0; }
+public void observe(int ticks) {
+if(ticks<2 || ticks>20) return;
+estimate=samples==0?ticks:.75*estimate+.25*ticks;
+samples++;
+}
+public int horizon() { return (int)Math.round(clamp(estimate,3,14)); }
+public int samples() { return samples; }
 }
 private CombatAI() {}
 }

@@ -162,6 +162,28 @@ var pathBlocked=CombatAI.choosePath(0,5,0,0,0,0,0,0,2.3,null,(x,z)->false);
 check(!Double.isFinite(pathBlocked.cost()));
 var pathStop=CombatAI.choosePath(0,5,0,0,0,0,0,0,2.3,null,(x,z)->Math.abs(x)<1e-8 && Math.abs(z)<1e-8);
 check(pathStop.movement().equals(new AimModel.Movement(false,false,false,false)));
+var timing=new CombatAI.JumpTiming();
+check(timing.horizon()==6 && timing.samples()==0);
+timing.observe(9);
+check(timing.horizon()==9 && timing.samples()==1);
+timing.observe(5);
+check(timing.horizon()==8 && timing.samples()==2);
+timing.observe(99);
+check(timing.samples()==2);
+timing.reset();
+check(timing.horizon()==6);
+check(CombatEngine.adaptivePlan(half,0,false,true,false,false,true,false,20,0,10)==CombatEngine.Action.JUMP);
+check(CombatEngine.adaptivePlan(half,0,false,true,false,false,true,false,20,0,3)==CombatEngine.Action.WAIT_COOLDOWN);
+var shortPath=CombatAI.choosePath(0,5,0,0,0,0,0,0,2.3,3,.1,null,(x,z)->Math.abs(x)<.15 && z>=0 && z<.15);
+check(shortPath.movement().forward() && Double.isFinite(shortPath.cost()));
+var rng=new java.util.Random(2026);
+for(int i=0;i<500;i++) {
+double dx=rng.nextDouble()*8-4,dz=rng.nextDouble()*8-4;
+var choice=CombatAI.choosePath(dx,dz,rng.nextDouble()*360,rng.nextDouble()*360,0,0,0,0,2.3,3,.2,null,(x,z)->true);
+check(Double.isFinite(choice.cost()));
+var m=choice.movement();
+check(!(m.forward()&&m.back()) && !(m.left()&&m.right()));
+}
 System.out.println("Combat tests passed");
 }
 }
