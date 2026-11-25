@@ -67,6 +67,14 @@ if(CombatEngine.autoCritical(nearFull,fall,spent)!=CombatEngine.Decision.WAIT) {
 }
 }
 check(strikes==10);
+var still=AimModel.movingStep(front,rear,new CombatSettings(true,false,.55,.4,360),0);
+check(still.equals(AimModel.step(front,rear,new CombatSettings(true,false,.55,.4,360))));
+var moving=AimModel.movingStep(front,rear,new CombatSettings(true,false,.55,.4,360),7);
+check(Math.abs(moving.yaw())==18);
+var ahead=AimModel.movingPoint(track1,box,new AimModel.Vec(.3,.1,0));
+check(ahead.x()>track1.x());
+var bounded=AimModel.movingPoint(track1,box,new AimModel.Vec(100,-100,100));
+check(bounded.x()<.3 && bounded.y()>0 && bounded.z()<2.6);
 System.out.println("Combat tests passed");
 }
 }
