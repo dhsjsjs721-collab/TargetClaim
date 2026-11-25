@@ -25,7 +25,7 @@ button.setMessage(Component.literal("Mode: "+PracticeClient.mode));
 }).bounds(x,y+48,220,20).build());
 addRenderableWidget(Button.builder(Component.literal("FOV: "+(int)PracticeClient.settings.fov()),button -> {
 var s=PracticeClient.settings;
-double fov=s.fov()>=65?15:s.fov()+10;
+double fov=s.fov()>=360?35:s.fov()<60?60:s.fov()<90?90:s.fov()<150?150:s.fov()<180?180:s.fov()<270?270:360;
 PracticeClient.settings=new CombatSettings(s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),fov);
 button.setMessage(Component.literal("FOV: "+(int)fov));
 }).bounds(x,y+72,220,20).build());
