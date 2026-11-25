@@ -13,6 +13,8 @@ import org.bukkit.command.PluginCommand;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.player.PlayerCommandSendEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -21,7 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public final class UnifiedPlugin extends JavaPlugin implements CommandExecutor,TabCompleter {
+public final class UnifiedPlugin extends JavaPlugin implements CommandExecutor,TabCompleter,Listener {
 private final List<ModuleBridge> enabledModules=new ArrayList<>();
 private final Map<String,String> failedModules=new LinkedHashMap<>();
 private TrapItems trapItems;
@@ -40,6 +42,7 @@ private static final Map<String,String> OWNERS=Map.of(
 "enchantmentforge","EnchantmentForge","swampsky","SwampSky","imagemap","ImageMaps");
 @Override public void onEnable(){
 getDataFolder().mkdirs();
+Bukkit.getPluginManager().registerEvents(this,this);
 PluginCommand entry=getCommand("unified");
 if(entry!=null){entry.setExecutor(this);entry.setTabCompleter(this);}
 List<ModuleBridge> modules=List.of(
@@ -100,6 +103,15 @@ deepslateCrafts=null;
 }
 getLogger().info("MinecraftUnified 1.1.7 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
+}
+@EventHandler public void unifiedCommandList(PlayerCommandSendEvent event){
+String[] internal={"unified","allmods","mods","trap","trapka","p","claim","privat","team","tc",
+"talismanforge","tf","talismans","enchantmentforge","ce","enchants",
+"swampsky","wildlife","ss","imagemap","im"};
+for(String name:internal){
+event.getCommands().remove(name);
+event.getCommands().remove("minecraftunified:"+name);
+}
 }
 private boolean enabled(String module){
 for(ModuleBridge m:enabledModules)if(m.getName().equals(module))return true;
