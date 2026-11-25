@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.20
+
+Yellow Verity block and particles, a single line of local dialogue. Mirror chestplate default display name changed to Зеркальная броня; legacy default names upgraded on inventory access without altering enchants or damage. Auth art overlay retained in resource pack. No changes to damage balance or other gameplay.
+
 # MinecraftUnified 1.1.19 — Verity
 
 Rare smiling block with a 5% chance to appear in each newly configured wandering trader's stable offers. One purchase, random survival-obtainable item and quantity from 1 to its stack limit (maximum 64). Custom blackstone cube, persistent chunk marker, normal mining, no piston/explosion displacement. Repels loaded mobs within 16 blocks using navigation and horizontal push; prevents attacks by frightened mobs, no player knockback. Riding mobs are excluded. Four per chunk, speech throttled, optional via verity.speech. Local chat and sound, not recorded voice. /u give verity [player].

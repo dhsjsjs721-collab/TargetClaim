@@ -18,7 +18,7 @@ public final class Verity implements Listener {
 private static final NamespacedKey ITEM=new NamespacedKey("minecraftunified","verity"),VISUAL=new NamespacedKey("minecraftunified","verity_visual");
 private static final String PREFIX="verity_block_";
 private static final Material BASE=Material.POLISHED_BLACKSTONE;
-private static final String[] LINES={"Иди нахуй! Я здесь главный.","Пошли нахрен, ходячие мешки с костями!","Какого хрена вы тут забыли? Бегите!","Съебались отсюда, пока я добрый!","Верити смотрит на вас. И очень недоволен."};
+private static final String LINE="Пошёл нахуй, пёс";
 private static final List<Material> PRICES=List.of(
 Material.OAK_SAPLING,Material.SPRUCE_SAPLING,Material.BIRCH_SAPLING,Material.JUNGLE_SAPLING,Material.ACACIA_SAPLING,Material.DARK_OAK_SAPLING,Material.CHERRY_SAPLING,Material.MANGROVE_PROPAGULE,
 Material.DIRT,Material.COBBLESTONE,Material.SAND,Material.GRAVEL,Material.CLAY_BALL,Material.OAK_LOG,Material.BIRCH_LOG,Material.STICK,Material.TORCH,Material.GLASS,Material.AMETHYST_SHARD,Material.COPPER_INGOT,Material.IRON_INGOT,Material.GOLD_INGOT,Material.DIAMOND,Material.EMERALD,Material.LAPIS_LAZULI,Material.REDSTONE,Material.COAL,Material.FLINT,Material.BONE,Material.STRING,Material.ROTTEN_FLESH,Material.SPIDER_EYE,Material.GUNPOWDER,Material.FEATHER,Material.EGG,Material.LEATHER,Material.WHEAT,Material.WHEAT_SEEDS,Material.CARROT,Material.POTATO,Material.BEETROOT,Material.APPLE,Material.BREAD,Material.PUMPKIN,Material.MELON_SLICE,Material.CACTUS,Material.BAMBOO,Material.SUGAR_CANE,Material.KELP,Material.RED_MUSHROOM,Material.BROWN_MUSHROOM,Material.HONEYCOMB,Material.CACTUS,Material.INK_SAC,Material.GLOW_INK_SAC,Material.SLIME_BALL,Material.ENDER_PEARL,Material.BLAZE_ROD,Material.GHAST_TEAR,Material.NETHER_WART,Material.QUARTZ,Material.OBSIDIAN,Material.CRYING_OBSIDIAN,Material.SNOWBALL,Material.SNOW_BLOCK,Material.ICE,Material.MOSS_BLOCK,Material.NAUTILUS_SHELL,Material.SHULKER_SHELL,Material.PHANTOM_MEMBRANE,Material.PAPER,Material.BOOK,Material.NAME_TAG,Material.COMPASS,Material.CLOCK,Material.HEART_OF_THE_SEA,Material.ECHO_SHARD,Material.GOLDEN_APPLE,Material.NETHERITE_SCRAP,Material.DRAGON_BREATH,Material.COOKED_BEEF,Material.COD,Material.TROPICAL_FISH,Material.SWEET_BERRIES,Material.GLOW_BERRIES,Material.LILY_PAD,Material.BELL,Material.SADDLE,Material.IRON_SWORD);
@@ -35,7 +35,7 @@ private final Map<UUID,Long> lastSpeech=new HashMap<>();
 private int ticks;
 Verity(UnifiedPlugin h){host=h;}
 public static ItemStack item(){
-ItemStack i=new ItemStack(BASE);var m=i.getItemMeta();m.setDisplayName("§5§lВерити");m.setLore(List.of("§7Грубый блок с огромной улыбкой","§dОтпугивает мобов в радиусе 16 блоков","§7Редкий товар странствующего торговца"));
+ItemStack i=new ItemStack(BASE);var m=i.getItemMeta();m.setDisplayName("§e§lВерити");m.setLore(List.of("§7Грубый блок с огромной улыбкой","§6Отпугивает мобов в радиусе 16 блоков","§7Редкий товар странствующего торговца"));
 m.setItemModel(ITEM);m.getPersistentDataContainer().set(ITEM,PersistentDataType.BYTE,(byte)1);i.setItemMeta(m);return i;
 }
 public static MerchantRecipe offer(Random random){
@@ -75,8 +75,8 @@ private void speak(Location l,Placed p,boolean first){
 long now=System.currentTimeMillis();if(!host.getConfig().getBoolean("verity.speech",true))return;
 if(!first&&now-p.spoke<35000||now-lastSpeech.getOrDefault(l.getWorld().getUID(),0L)<4000)return;
 p.spoke=now;lastSpeech.put(l.getWorld().getUID(),now);
-String line=LINES[ThreadLocalRandom.current().nextInt(LINES.length)];
-for(Player player:l.getWorld().getPlayers())if(player.getLocation().distanceSquared(l)<=16*16)player.sendMessage("§5§l[Верити] §r§f"+line);
+String line=LINE;
+for(Player player:l.getWorld().getPlayers())if(player.getLocation().distanceSquared(l)<=16*16)player.sendMessage("§e§l[Верити] §r§f"+line);
 l.getWorld().playSound(l,Sound.ENTITY_VILLAGER_NO,.85f,.55f);
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void placeLimit(BlockPlaceEvent e){
@@ -130,7 +130,7 @@ if(!(entity instanceof Mob m)||!m.isValid()||m.isDead()||m.isInsideVehicle()||!m
 Location l=m.getLocation();double dist=l.distanceSquared(center);if(dist>256)continue;
 Location old=frightened.get(m);if(old==null||l.distanceSquared(old)>dist)frightened.put(m,center);nearby.add(pos);
 }
-if(ticks%20==0){center.getWorld().spawnParticle(Particle.DUST,center.clone().add(0,.7,0),6,.35,.1,.35,0,new Particle.DustOptions(Color.fromRGB(0xA755D7),.8f));if(nearby.contains(pos))speak(center,p,false);}
+if(ticks%20==0){center.getWorld().spawnParticle(Particle.DUST,center.clone().add(0,.7,0),6,.35,.1,.35,0,new Particle.DustOptions(Color.fromRGB(0xFFCC32),.8f));if(nearby.contains(pos))speak(center,p,false);}
 }
 for(var entry:frightened.entrySet()){
 if(budget--<=0)break;Mob m=entry.getKey();Location center=entry.getValue(),loc=m.getLocation();

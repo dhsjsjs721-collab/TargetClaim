@@ -27,12 +27,12 @@ Bukkit.getPluginManager().registerEvents(this,host);
 Bukkit.removeRecipe(recipe);
 ShapedRecipe r=new ShapedRecipe(recipe,item());
 r.shape("G G","GGG","GGG");r.setIngredient('G',Material.TINTED_GLASS);
-Bukkit.addRecipe(r);host.getLogger().info("MirrorArmor enabled: 1/3 full damage reflection; 7 armor, 1 toughness, 400 durability.");
+Bukkit.addRecipe(r);Bukkit.getScheduler().runTaskTimer(host,()->{for(Player p:Bukkit.getOnlinePlayers())renameInventory(p.getInventory());},20L,100L);host.getLogger().info("MirrorArmor enabled: 1/3 full damage reflection; 7 armor, 1 toughness, 400 durability.");
 }
 void disable(){Bukkit.removeRecipe(recipe);}
 ItemStack item(){
 ItemStack i=new ItemStack(Material.IRON_CHESTPLATE);var m=i.getItemMeta();
-m.setDisplayName("§b§lЗеркальный нагрудник");
+m.setDisplayName("§b§lЗеркальная броня");
 m.setLore(List.of("§7Защита: 7 · Твёрдость: 1","§bПримерно 1 из 3 ударов отражается полностью","§7Отражённый урон не проходит по владельцу","§7Без атакующего — полное поглощение","§7Прочность: 400"));
 m.getPersistentDataContainer().set(id,PersistentDataType.BYTE,(byte)1);
 m.setItemModel(id);var eq=m.getEquippable();eq.setModel(id);m.setEquippable(eq);
@@ -43,10 +43,15 @@ if(m instanceof Damageable d)d.setMaxDamage(400);
 i.setItemMeta(m);return i;
 }
 private boolean mirror(ItemStack i){return i!=null&&i.getType()==Material.IRON_CHESTPLATE&&i.hasItemMeta()&&i.getItemMeta().getPersistentDataContainer().has(id,PersistentDataType.BYTE);}
+private void renameInventory(Inventory inv){
+for(int slot=0;slot<inv.getSize();slot++){ItemStack i=inv.getItem(slot);if(!mirror(i))continue;var meta=i.getItemMeta();if(!"§b§lЗеркальный нагрудник".equals(meta.getDisplayName()))continue;meta.setDisplayName("§b§lЗеркальная броня");i.setItemMeta(meta);inv.setItem(slot,i);}
+}
+@EventHandler public void open(org.bukkit.event.inventory.InventoryOpenEvent e){renameInventory(e.getInventory());}
+@EventHandler public void join(org.bukkit.event.player.PlayerJoinEvent e){renameInventory(e.getPlayer().getInventory());renameInventory(e.getPlayer().getEnderChest());}
 boolean give(CommandSender sender,Player p){
 if(!sender.hasPermission("minecraftunified.mirror.admin")){sender.sendMessage("§cНет прав.");return true;}
 for(ItemStack extra:p.getInventory().addItem(item()).values())p.getWorld().dropItemNaturally(p.getLocation(),extra);
-sender.sendMessage("§bЗеркальный нагрудник выдан: "+p.getName());return true;
+sender.sendMessage("§bЗеркальная броня выдана: "+p.getName());return true;
 }
 @EventHandler(priority=EventPriority.HIGH)
 public void smith(PrepareSmithingEvent e){
