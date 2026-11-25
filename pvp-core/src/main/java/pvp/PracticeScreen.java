@@ -3,14 +3,36 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 public final class PracticeScreen extends Screen {
-private static CombatEngine.Mode mode=CombatEngine.Mode.CRITICAL;
 public PracticeScreen() { super(Component.literal("PvP Practice")); }
+private static Component status(String name, boolean value) { return Component.literal(name+": "+(value?"ON":"OFF")); }
 @Override protected void init() {
-addRenderableWidget(Button.builder(Component.literal("Practice: "+mode), button -> {
-mode=CombatEngine.Mode.values()[(mode.ordinal()+1)%CombatEngine.Mode.values().length];
-button.setMessage(Component.literal("Practice: "+mode));
-}).bounds(width/2-100,height/2-24,200,20).build());
-addRenderableWidget(Button.builder(Component.literal("Close"),button -> onClose()).bounds(width/2-100,height/2+4,200,20).build());
+int x=width/2-110, y=height/2-72;
+addRenderableWidget(Button.builder(status("Aim practice",PracticeClient.settings.aimEnabled()),button -> {
+var s=PracticeClient.settings;
+PracticeClient.settings=new CombatSettings(!s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
+button.setMessage(status("Aim practice",PracticeClient.settings.aimEnabled()));
+}).bounds(x,y,220,20).build());
+addRenderableWidget(Button.builder(status("Timing practice",PracticeClient.settings.triggerEnabled()),button -> {
+var s=PracticeClient.settings;
+PracticeClient.settings=new CombatSettings(s.aimEnabled(),!s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
+button.setMessage(status("Timing practice",PracticeClient.settings.triggerEnabled()));
+}).bounds(x,y+24,220,20).build());
+addRenderableWidget(Button.builder(Component.literal("Mode: "+PracticeClient.mode),button -> {
+var values=CombatEngine.Mode.values();
+PracticeClient.mode=values[(PracticeClient.mode.ordinal()+1)%values.length];
+button.setMessage(Component.literal("Mode: "+PracticeClient.mode));
+}).bounds(x,y+48,220,20).build());
+addRenderableWidget(Button.builder(Component.literal("FOV: "+(int)PracticeClient.settings.fov()),button -> {
+var s=PracticeClient.settings;
+double fov=s.fov()>=65?15:s.fov()+10;
+PracticeClient.settings=new CombatSettings(s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),fov);
+button.setMessage(Component.literal("FOV: "+(int)fov));
+}).bounds(x,y+72,220,20).build());
+addRenderableWidget(Button.builder(Component.literal("Lock GUI (until restart)"),button -> {
+PracticeClient.guiLocked=true;
+onClose();
+}).bounds(x,y+96,220,20).build());
+addRenderableWidget(Button.builder(Component.literal("Close"),button -> onClose()).bounds(x,y+120,220,20).build());
 }
 @Override public boolean isPauseScreen() { return false; }
 }
