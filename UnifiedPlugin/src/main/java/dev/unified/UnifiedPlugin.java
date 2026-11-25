@@ -218,7 +218,7 @@ sender.sendMessage("§74. §e/u claim list §7— список, §e/u claim <н�
 private boolean spawnMob(CommandSender sender,String[] args){
 if(args.length==0||args[0].equalsIgnoreCase("help")){sender.sendMessage("§6Мобы: §e/u spawn frog §7— гигантская жаба; §e/u spawn goblin [1-12] [forest|mushroom]");sender.sendMessage("§e/u spawn trader §7— странствующий торговец. Нужны права администратора; в мирной зоне враждебные мобы запрещены.");return true;}
 switch(args[0].toLowerCase(Locale.ROOT)){
-case "frog","giant_frog" -> {return enabled("SwampSky")?runModule(sender,"swampsky","spawn","giant_frog"):unavailable(sender);}
+case "frog","giant_frog" -> {if(sender instanceof org.bukkit.entity.Player p&&(isPeace(p.getLocation())||isPeace(p.getLocation().add(p.getLocation().getDirection().multiply(3))))){sender.sendMessage("§cВыйди за границу мирной зоны, чтобы вызвать гигантскую жабу.");return true;}return enabled("SwampSky")?runModule(sender,"swampsky","spawn","giant_frog"):unavailable(sender);}
 case "goblin","goblins" -> {return goblins==null?unavailable(sender):goblins.command(sender,Arrays.copyOfRange(args,1,args.length));}
 case "trader" -> {return enabled("EnchantmentForge")?runModule(sender,"enchantmentforge","trader"):unavailable(sender);}
 default -> {sender.sendMessage("§cНеизвестный моб. /u spawn");return true;}
@@ -246,6 +246,7 @@ if(command.getName().equals("unifiedmsg")||command.getName().equals("unifiedrepl
 if(args.length==0||args[0].equalsIgnoreCase("help")){help(sender);return true;}
 String action=args[0].toLowerCase(Locale.ROOT);
 if(action.equals("spawn")||action.equals("mobs"))return spawnMob(sender,Arrays.copyOfRange(args,1,args.length));
+if(action.equals("frog"))return spawnMob(sender,new String[]{"frog"});
 if(action.equals("goblin")||action.equals("goblins"))return goblins==null?unavailable(sender):goblins.command(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("give"))return giveShortcut(sender,args);
 if(action.equals("recipes")){recipes(sender);return true;}

@@ -167,11 +167,12 @@ final class MythicTalismans implements Listener {
     private boolean usable(Player p){return p.getGameMode()==GameMode.SURVIVAL||p.getGameMode()==GameMode.ADVENTURE;}
     private boolean canRitual(Player p){return usable(p)||p.getGameMode()==GameMode.CREATIVE&&p.hasPermission("talismanforge.admin");}
     private boolean peace(Location l){return ((dev.unified.UnifiedPlugin)plugin.host()).isPeace(l);}
-    private State heldState(Player p){
-        State s=state(p.getInventory().getItemInOffHand());if(validHeld(p,s))return s;
-        s=state(p.getInventory().getItemInMainHand());return validHeld(p,s)?s:null;
+    private State heldState(Player p){return selectHeld(p.getUniqueId(),p.getInventory().getItemInOffHand(),p.getInventory().getItemInMainHand());}
+    private State selectHeld(UUID owner,ItemStack off,ItemStack main){
+        State s=state(off);if(validHeld(owner,s))return s;
+        s=state(main);return validHeld(owner,s)?s:null;
     }
-    private boolean validHeld(Player p,State s){return s!=null&&(s.kind!=Kind.KOSCHEI||!s.broken&&s.egg!=null&&p.getUniqueId().equals(s.owner)&&boundEggs.get(s.owner)==s);}
+    private boolean validHeld(UUID owner,State s){return s!=null&&(s.kind!=Kind.KOSCHEI||!s.broken&&s.egg!=null&&owner.equals(s.owner)&&boundEggs.get(owner)==s);}
     private State activeState(Player p){
         if(!usable(p))return null;
         State s=heldState(p);
@@ -256,6 +257,19 @@ final class MythicTalismans implements Listener {
             finally{states.remove(a.serial);states.remove(b.serial);}
         }
         sender.sendMessage("SELFTEST relic registry "+passed+"/5");
+        heldLinkSelfTest(sender);
+    }
+    private void heldLinkSelfTest(CommandSender sender){
+        UUID owner=UUID.randomUUID();State s=new State(Kind.KOSCHEI);s.serial=UUID.randomUUID().toString();s.charges=3;s.owner=owner;states.put(s.serial,s);
+        try{
+            ItemStack egg=item(s);if(selectHeld(owner,egg,null)!=null)throw new IllegalStateException("unplaced egg active");
+            s.egg=Bukkit.getWorlds().getFirst().getSpawnLocation();boundEggs.put(owner,s);ItemStack link=item(s);
+            if(selectHeld(owner,null,null)!=null||selectHeld(owner,egg,null)!=null||selectHeld(owner,link,null)!=s||selectHeld(owner,null,link)!=s||selectHeld(UUID.randomUUID(),link,null)!=null)throw new IllegalStateException("wrong held link behavior");
+            changeSerial(s,UUID.randomUUID().toString());ItemStack replacement=item(s);if(selectHeld(owner,link,null)!=null||selectHeld(owner,replacement,null)!=s)throw new IllegalStateException("old token valid");
+            s.broken=true;s.egg=null;if(selectHeld(owner,replacement,null)!=null)throw new IllegalStateException("destroyed egg active");
+            sender.sendMessage("SELFTEST koschei held-link OK");
+        }catch(Exception e){sender.sendMessage("SELFTEST koschei held-link FAILED: "+e.getMessage());}
+        finally{states.remove(s.serial);boundEggs.remove(owner);}
     }
     private boolean take(Player p,Material type,int count){
         int available=0;for(ItemStack i:p.getInventory().getStorageContents())if(i!=null&&i.getType()==type&&!tagged(i))available+=i.getAmount();
@@ -550,7 +564,7 @@ final class MythicTalismans implements Listener {
         burst(p.getLocation(),k,70);ring(p.getLocation(),k,2);rescueVfx(p.getLocation().clone(),k);
         switch(k){
             case THOR->{if(!peace(p.getLocation()))resurrectThor(p,s);}
-            case ANUBIS->{if(!peace(p.getLocation()))summonArmy(p,before,s.awakened);}
+            case ANUBIS->{if(!peace(p.getLocation()))summonArmy(p,before,s);}
             case KOSCHEI->{if(!s.awakened&&s.charges==0)destroyEgg(s);else ring(p.getLocation(),k,2);}
             case KITSUNE->{if(!peace(p.getLocation())){conceal(p);makeClones(p,s.awakened?9:3);}}
             case MEDUSA->{double radius=s.awakened?20:8;for(Entity entity:p.getNearbyEntities(radius,radius,radius))if(entity instanceof LivingEntity l&&enemy(p,l)&&l.getLocation().distanceSquared(p.getLocation())<=radius*radius)freeze(l);}
@@ -632,7 +646,8 @@ final class MythicTalismans implements Listener {
             State s=activeState(p);if(s.charges<cap(k,s)){if(++s.progress>=20){s.progress=0;charge(s,1,p);}save();}
         }
     }
-    private void summonArmy(Player p,int souls,boolean awakened){
+    private void summonArmy(Player p,int souls,State source){
+        if(activeState(p)!=source)return;boolean awakened=source.awakened;
         int count=Math.min(10,Math.max(4,souls/50));
         for(int i=0;i<count+(awakened?3:0);i++){
             boolean elite=i>=count;double a=i*Math.PI*2/(count+(awakened?3:0));
@@ -644,7 +659,7 @@ final class MythicTalismans implements Listener {
             EntityEquipment eq=m.getEquipment();
             if(eq!=null){eq.setItemInMainHand(new ItemStack(elite?Material.NETHERITE_AXE:Material.STONE_SWORD));if(elite){eq.setItemInOffHand(new ItemStack(Material.SHIELD));eq.setHelmet(new ItemStack(Material.NETHERITE_HELMET));eq.setChestplate(new ItemStack(Material.NETHERITE_CHESTPLATE));eq.setLeggings(new ItemStack(Material.NETHERITE_LEGGINGS));eq.setBoots(new ItemStack(Material.NETHERITE_BOOTS));}}
             m.customName(title(Kind.ANUBIS,elite?"Страж Дуата":"Душа Анубиса"));m.setCustomNameVisible(true);
-            minions.put(m.getUniqueId(),new Minion(p.getUniqueId(),activeState(p),now()+30000));burst(l,Kind.ANUBIS,12);
+            minions.put(m.getUniqueId(),new Minion(p.getUniqueId(),source,now()+30000));burst(l,Kind.ANUBIS,12);
         }
     }
     private boolean claimed(Location loc){
@@ -933,7 +948,7 @@ final class MythicTalismans implements Listener {
         ticks+=5;long time=now();
         tickRituals();if(ticks%10==0)detectRituals();
         for(Player p:Bukkit.getOnlinePlayers()){
-            UUID id=p.getUniqueId();State bound=boundEggs.get(id);if(bound!=null&&bound.egg!=null&&!bound.broken&&!bound.linkIssued){issueLink(p,bound,true);}
+            UUID id=p.getUniqueId();State bound=boundEggs.get(id);if(ticks%100==0&&bound!=null&&bound.egg!=null&&!bound.broken&&!bound.linkIssued){issueLink(p,bound,true);}
             Kind k=active(p);
             if(stonePlayers.containsKey(id)&&(stonePlayers.get(id)<=time||peace(p.getLocation())))thaw(p);
             if(k==Kind.KITSUNE&&!peace(p.getLocation())){

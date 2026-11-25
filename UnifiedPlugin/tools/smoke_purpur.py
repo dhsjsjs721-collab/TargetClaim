@@ -97,6 +97,7 @@ def main():
                 except subprocess.TimeoutExpired:proc.kill();proc.wait(timeout=5)
             reader.join(timeout=5)
         output="\n".join(logs)
+        if "SELFTEST koschei held-link OK" not in output:raise AssertionError("Koschei held-link test failed")
         if "SELFTEST relic registry 5/5" not in output:raise AssertionError("Independent relic self-test did not pass")
         for kind in kinds:
             if f"SELFTEST {kind} OK" not in output:raise AssertionError("Relic self-test failed: "+kind)
