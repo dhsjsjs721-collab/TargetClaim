@@ -13,7 +13,7 @@ import os
 import sys
 
 ROOT=Path(__file__).resolve().parents[2]
-JAR=ROOT/"UnifiedPlugin"/"build"/"libs"/"MinecraftUnified-1.1.10.jar"
+JAR=ROOT/"UnifiedPlugin"/"build"/"libs"/"MinecraftUnified-1.1.11.jar"
 URL="https://api.purpurmc.org/v2/purpur/26.3/2659/download"
 EXPECTED=["TargetClaim","TalismanForge","EnchantmentForge","SwampSky","ImageMaps"]
 
@@ -30,7 +30,7 @@ def main():
         )
         print("Downloading official Purpur 26.3 build 2659...",flush=True)
         server=wd/"server.jar"
-        headers={"User-Agent":"MinecraftUnified-CI/1.1.10 (github.com/dhsjsjs721-collab/TargetClaim)","Accept":"application/json"}
+        headers={"User-Agent":"MinecraftUnified-CI/1.1.11 (github.com/dhsjsjs721-collab/TargetClaim)","Accept":"application/json"}
         tested="Purpur 26.3 build 2659"
         try:
             request=urllib.request.Request(URL,headers=headers)

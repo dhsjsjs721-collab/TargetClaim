@@ -18,7 +18,7 @@ resources=base/"generated-resources"/"module-defaults"
 MODULES=[
 ("origin/main","src/main/java/dev/targetclaim/TargetClaimPlugin.java","targetclaim","TargetClaim"),
 ("origin/feature/enchantmentforge-soulbound-triple-shot","EnchantmentForge/src/main/java/dev/enchantmentforge/EnchantmentForgePlugin.java","enchantmentforge","EnchantmentForge"),
-("origin/feature/swampsky-creatures","SwampSky/src/main/java/dev/swampsky/SwampSkyPlugin.java","swampsky","SwampSky"),
+("0bcbba5500159637a7205e31a9e44c022f74bd6a","SwampSky/src/main/java/dev/swampsky/SwampSkyPlugin.java","swampsky","SwampSky"),
 ("origin/main","ImageMaps/src/main/java/dev/imagemaps/ImageMapsPlugin.java","imagemaps","ImageMaps"),
 ("origin/talismanforge-v2","TalismanForge/src/main/java/dev/talismanforge/GrapplingHookListener.java","talismanforge","GrapplingHookListener"),
 ("origin/feature/enchantmentforge-soulbound-triple-shot","EnchantmentForge/src/main/java/dev/enchantmentforge/WanderingTraderFeature.java","enchantmentforge","WanderingTraderFeature"),
@@ -92,7 +92,7 @@ def main():
         print(f"{name}: {len(source)} -> {len(patched)} bytes ({ref})")
     for ref,config,name in [
         ("origin/main","TalismanForge/src/main/resources/config.yml","TalismanForge"),
-        ("origin/feature/swampsky-creatures","SwampSky/src/main/resources/config.yml","SwampSky"),
+        ("0bcbba5500159637a7205e31a9e44c022f74bd6a","SwampSky/src/main/resources/config.yml","SwampSky"),
         ("origin/feature/enchantmentforge-soulbound-triple-shot","EnchantmentForge/src/main/resources/config.yml","EnchantmentForge")
     ]:
         (resources/(name+".yml")).write_text(git(ref,config),encoding="utf8")

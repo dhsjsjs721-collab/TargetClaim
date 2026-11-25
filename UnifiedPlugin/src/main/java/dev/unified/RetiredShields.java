@@ -33,7 +33,7 @@ ItemMeta meta=i.getItemMeta();
 String type=meta.getPersistentDataContainer().get(KEY,PersistentDataType.STRING);
 if(i.getType()==Material.SHIELD&&type!=null&&TYPES.contains(type)){
 meta.getPersistentDataContainer().remove(KEY);meta.setItemModel(null);meta.displayName(null);meta.lore(null);
-if(meta instanceof Damageable d&&d.hasMaxDamage()){
+if(meta instanceof org.bukkit.inventory.meta.Damageable d&&d.hasMaxDamage()){
 int oldMax=d.getMaxDamage();int oldDamage=d.getDamage();
 d.setMaxDamage(null);
 d.setDamage(Math.min(Material.SHIELD.getMaxDurability()-1,(int)Math.round(oldDamage*(double)Material.SHIELD.getMaxDurability()/Math.max(1,oldMax))));

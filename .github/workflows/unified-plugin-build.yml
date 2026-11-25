@@ -33,23 +33,23 @@ jobs:
       - name: Package one JAR with current unified resource pack
         run: |
           mkdir -p dist/plugins dist/resourcepacks
-          cp UnifiedPlugin/build/libs/MinecraftUnified-1.1.10.jar dist/plugins/
+          cp UnifiedPlugin/build/libs/MinecraftUnified-1.1.11.jar dist/plugins/
           git show f86361fbca758522a5cfa7a07652c7e044263fb3:resourcepacks/TalismanForge-2.0.0-ResourcePack.zip > dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.zip
           git show f86361fbca758522a5cfa7a07652c7e044263fb3:resourcepacks/TalismanForge-2.0.0-ResourcePack.sha1 > dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.sha1
           python -m zipfile -t dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.zip
           test "$(sha1sum dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.zip | cut -d ' ' -f 1)" = "$(cat dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.sha1)"
-          python -c "import zipfile; z=zipfile.ZipFile('UnifiedPlugin/build/libs/MinecraftUnified-1.1.10.jar'); assert 'dev/talismanforge/MythicTalismans.class' in z.namelist(); assert not any('FiveTalismanService' in n or 'CombatShields' in n for n in z.namelist())"
+          python -c "import zipfile; z=zipfile.ZipFile('UnifiedPlugin/build/libs/MinecraftUnified-1.1.11.jar'); assert 'dev/talismanforge/MythicTalismans.class' in z.namelist(); assert not any('FiveTalismanService' in n or 'CombatShields' in n for n in z.namelist())"
       - uses: actions/upload-artifact@v4
         with:
-          name: MinecraftUnified-1.1.10-Full
+          name: MinecraftUnified-1.1.11-Full
           path: dist/
       - uses: actions/upload-artifact@v4
         with:
-          name: MinecraftUnified-1.1.10-JAR
-          path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.10.jar
+          name: MinecraftUnified-1.1.11-JAR
+          path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.11.jar
       - name: Start real Purpur 26.3 and verify all modules
         run: python3 UnifiedPlugin/tools/smoke_purpur.py
       - uses: actions/upload-artifact@v4
         with:
           name: MinecraftUnified-One-JAR
-          path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.10.jar
+          path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.11.jar

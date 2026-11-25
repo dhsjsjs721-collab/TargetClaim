@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.11
+
+Frog leggings: 5 armor, 1 toughness, 25% knockback resistance, sprint-only speed and crouch wall slide. Frog wings: 3 armor, 1024 durability, slower controlled gliding with rain advantage, sprint swimming, no rockets or infinite rain ascent. Existing equipment migrates on access by updating keyed attributes, lore and proportional wear. Vanilla Elytra and frog boots unchanged. Fixes ambiguous Damageable import in retired shield migration.
+
 # MinecraftUnified 1.1.10
 
 Retired all three custom shields. Existing tagged shields are converted to vanilla shields on inventory/chunk access, retaining enchantments and proportional durability. Recipes, special effects and /u shield are removed. Unused shield textures remain in the unchanged compatible resource pack. Spawn peace-zone redesign and other gameplay changes are not included.
