@@ -7,36 +7,29 @@ description: All 5 Minecraft Paper gameplay systems in a single JAR
 commands:
   trap:
     description: FunTime-style temporary obsidian trap
-    usage: /trap [give <player> [amount]]
-    aliases: [trapka]
+    usage: /u trap [give <player> [amount]]
   unified:
     description: Show status of all five gameplay modules
-    usage: /unified
-    aliases: [allmods, u, mods]
+    usage: /u
+    aliases: [u]
   p:
     description: Protected claims and team menu
-    usage: /p
-    aliases: [claim, privat]
+    usage: /u claim
   team:
     description: Claim team commands
-    usage: /team
-    aliases: [tc]
+    usage: /u team
   talismanforge:
     description: Talismans and reliquaries
-    usage: /tf give <player> <type>
-    aliases: [tf, talismans]
+    usage: /u talisman give <player> <type>
   enchantmentforge:
     description: Custom enchantments and trader
-    usage: /ce [trader|give|apply|help]
-    aliases: [ce, enchants]
+    usage: /u enchant [trader|give|apply|help]
   swampsky:
     description: Giant frogs, frog equipment and legacy flying-pig cleanup
-    usage: /swampsky
-    aliases: [wildlife, ss]
+    usage: /u wildlife
   imagemap:
     description: Edit a map using an HTTPS image
-    usage: /imagemap
-    aliases: [im]
+    usage: /u map
 permissions:
   minecraftunified.shields.admin:
     default: op
