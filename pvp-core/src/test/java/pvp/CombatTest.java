@@ -98,6 +98,18 @@ var lostCrosshair=new CombatEngine.Frame(1,false,.2,false,false,true,false,false
 check(CombatEngine.plan(lostCrosshair,2,false,true,false,true,true)==CombatEngine.Action.WAIT_TARGET);
 var farApproach=AimModel.flank(0,5,180,0);
 check(farApproach.forward() && !farApproach.left() && !farApproach.right());
+var smoothSettings=new CombatSettings(true,false,.55,.4,360);
+var turn=AimModel.smoothTurn(front,rear,new AimModel.Turn(0,0),smoothSettings,0);
+check(Math.abs(turn.yaw())<=2.5);
+var nextTurn=AimModel.smoothTurn(front,rear,turn,smoothSettings,0);
+check(Math.abs(nextTurn.yaw()-turn.yaw())<=2.5);
+var tiny=AimModel.smoothTurn(front,new AimModel.Angles(.2,.2),new AimModel.Turn(5,4),smoothSettings,0);
+check(Math.abs(tiny.yaw())<=.200001 && Math.abs(tiny.pitch())<=.200001);
+check(CombatEngine.plan(normal,0,false,true,true,true,true,true)==CombatEngine.Action.NORMAL);
+var early=new CombatEngine.Frame(.92,false,.2,false,false,true,true,false,false,t);
+check(CombatEngine.plan(early,1,false,true,false,true,true)==CombatEngine.Action.CRITICAL);
+check(CombatEngine.plan(early,0,false,true,false,true,true)==CombatEngine.Action.WAIT_DESCENT);
+check(CombatEngine.plan(lostCrosshair,1,false,true,false,true,true,true)==CombatEngine.Action.WAIT_TARGET);
 System.out.println("Combat tests passed");
 }
 }

@@ -21,11 +21,11 @@ return new Vec(clamp(eye.x()+t*dx,b.min().x()+mx,b.max().x()-mx),clamp(eye.y()+t
 }
 public static Vec trackingPoint(Vec eye,Angles view,Box b,double phase) {
 Vec near=nearestAimPoint(eye,view,b);
-double fx=.5+.10*Math.sin(phase*.11);
-double fy=.63+.09*Math.sin(phase*.073);
-double fz=.5+.10*Math.cos(phase*.097);
+double fx=.5+.045*Math.sin(phase*.055);
+double fy=.63+.045*Math.sin(phase*.043);
+double fz=.5+.045*Math.cos(phase*.049);
 Vec anchor=new Vec(b.min().x()+(b.max().x()-b.min().x())*fx,b.min().y()+(b.max().y()-b.min().y())*fy,b.min().z()+(b.max().z()-b.min().z())*fz);
-return new Vec(near.x()*.45+anchor.x()*.55,near.y()*.45+anchor.y()*.55,near.z()*.45+anchor.z()*.55);
+return new Vec(near.x()*.75+anchor.x()*.25,near.y()*.75+anchor.y()*.25,near.z()*.75+anchor.z()*.25);
 }
 public static double error(Angles a,Angles b) { double ap=Math.toRadians(a.pitch()),bp=Math.toRadians(b.pitch()),dy=Math.toRadians(wrap(b.yaw()-a.yaw()));
 return Math.toDegrees(Math.acos(clamp(Math.sin(ap)*Math.sin(bp)+Math.cos(ap)*Math.cos(bp)*Math.cos(dy),-1,1))); }
@@ -42,6 +42,22 @@ if(!settings.aimEnabled() || error(current,target)>settings.fov()/2) return curr
 double boost=clamp(motion/5,0,1);
 double dy=wrap(target.yaw()-current.yaw()),dp=target.pitch()-current.pitch();
 return new Angles(wrap(current.yaw()+clamp(dy*(settings.horizontalSpeed()+(1-settings.horizontalSpeed())*.55*boost),-12-6*boost,12+6*boost)),clamp(current.pitch()+clamp(dp*(settings.verticalSpeed()+(1-settings.verticalSpeed())*.55*boost),-8-4*boost,8+4*boost),-90,90));
+}
+public record Turn(double yaw,double pitch) {}
+public static Turn smoothTurn(Angles current,Angles target,Turn previous,CombatSettings settings,double motion) {
+if(!settings.aimEnabled() || error(current,target)>settings.fov()/2) return new Turn(0,0);
+double dy=wrap(target.yaw()-current.yaw()),dp=target.pitch()-current.pitch();
+double boost=clamp(motion/7,0,1);
+double capY=7+3*boost,capP=4+2*boost;
+double wantY=clamp(dy*(.34+.17*boost),-capY,capY);
+double wantP=clamp(dp*(.29+.16*boost),-capP,capP);
+return new Turn(slew(dy,wantY,previous.yaw(),2.5+boost),slew(dp,wantP,previous.pitch(),1.5+.7*boost));
+}
+private static double slew(double error,double desired,double previous,double acceleration) {
+if(Math.abs(error)<.12) return 0;
+if(Math.signum(previous)!=Math.signum(error)) previous=0;
+double next=previous+clamp(desired-previous,-acceleration,acceleration);
+return Math.copySign(Math.min(Math.abs(error),Math.abs(next)),error);
 }
 public static boolean shouldApproach(double horizontalDistanceSquared,double yawError) {
 return horizontalDistanceSquared>6.25 && horizontalDistanceSquared<=36 && Math.abs(yawError)<25;
