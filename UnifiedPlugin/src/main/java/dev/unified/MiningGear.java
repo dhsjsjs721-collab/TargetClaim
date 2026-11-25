@@ -138,7 +138,7 @@ else if(f.location().getWorld()!=null&&f.location().getWorld().isChunkLoaded(f.l
 private boolean placeTorch(Flight f,RayTraceResult hit){
 Player p=Bukkit.getPlayer(f.owner());Block anchor=hit.getHitBlock();BlockFace face=hit.getHitBlockFace();
 if(p==null||p.getGameMode()!=GameMode.SURVIVAL||anchor==null||face==null||face==BlockFace.DOWN)return false;
-Block target=anchor.getRelative(face);if(!target.getWorld().isChunkLoaded(target.getX()>>4,target.getZ()>>4)||!target.getType().isAir())return false;
+int tx=anchor.getX()+face.getModX(),ty=anchor.getY()+face.getModY(),tz=anchor.getZ()+face.getModZ();World world=anchor.getWorld();if(ty<world.getMinHeight()||ty>=world.getMaxHeight()||!world.isChunkLoaded(tx>>4,tz>>4))return false;Block target=world.getBlockAt(tx,ty,tz);if(!target.getType().isAir())return false;
 if(host.claimModule()==null||!host.claimModule().allowsTemporaryStructure(p,target.getLocation()))return false;
 BlockData data=face==BlockFace.UP?Material.TORCH.createBlockData():Material.WALL_TORCH.createBlockData();
 if(data instanceof Directional d)d.setFacing(face);

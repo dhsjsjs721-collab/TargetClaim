@@ -149,10 +149,11 @@ saveAltars();
 if(protectedAltar(e.getBlockPlaced())!=null){e.setCancelled(true);return;}
 if(!specialChest(e.getItemInHand()))return;
 Block b=e.getBlockPlaced();Player p=e.getPlayer();
+if(((dev.unified.UnifiedPlugin)host()).isPeace(b.getLocation())){e.setCancelled(true);p.sendMessage("§cРеликварий можно устанавливать только за пределами мирной зоны.");return;}
 if(!canBeam(b)){e.setCancelled(true);p.sendMessage("§cНедостаточно места над Реликварием.");return;}
 Altar a=new Altar();a.owner=p.getUniqueId();a.world=b.getWorld().getUID();a.x=b.getX();a.y=b.getY();a.z=b.getZ();a.base=b.getType();a.due=System.currentTimeMillis()+OPEN_DELAY;
 altars.put(a.index(),a);saveAltars();
-p.sendMessage("§b✦ Реликварий установлен! §7Координаты: "+a.x+", "+a.y+", "+a.z);
+p.sendMessage("§b✦ Реликварий установлен!");
 showRelicBlock(a);
 p.sendMessage("§7Светящийся луч без блока маяка. Открытие через §d03:00§7.");
 b.getWorld().playSound(b.getLocation(),Sound.BLOCK_BEACON_ACTIVATE,1,.8f);
