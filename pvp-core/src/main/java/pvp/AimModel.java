@@ -29,7 +29,7 @@ public static Angles step(Angles current,Angles target,CombatSettings settings) 
 if (!settings.aimEnabled()) return current;
 double dy=wrap(target.yaw()-current.yaw()),dp=target.pitch()-current.pitch();
 if (error(current,target)>settings.fov()/2) return current;
-return new Angles(wrap(current.yaw()+clamp(dy*settings.horizontalSpeed(),-4,4)),clamp(current.pitch()+clamp(dp*settings.verticalSpeed(),-3,3),-90,90));
+return new Angles(wrap(current.yaw()+clamp(dy*settings.horizontalSpeed(),-8,8)),clamp(current.pitch()+clamp(dp*settings.verticalSpeed(),-5,5),-90,90));
 }
 private AimModel() {}
 }
