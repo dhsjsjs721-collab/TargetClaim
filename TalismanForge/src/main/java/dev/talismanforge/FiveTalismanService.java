@@ -61,6 +61,7 @@ ItemStack create(Kind kind){
 ItemStack item=new ItemStack(Material.TOTEM_OF_UNDYING);
 ItemMeta meta=item.getItemMeta();
 meta.setDisplayName(kind.title);
+meta.setEnchantmentGlintOverride(true); // distinguish mythic talismans from ordinary vanilla totems
 meta.setLore(List.of("§dНаграда из реликвария","§7Уникальные PvP-способности и спасение от смерти",
 kind.lore,"§8Работает в любой руке","§8Только против игроков"));
 meta.getPersistentDataContainer().set(type,PersistentDataType.STRING,kind.key);
