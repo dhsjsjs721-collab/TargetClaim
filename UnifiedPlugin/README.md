@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.9
+
+Anubis soul attribution now uses Paper spawn reasons and recent confirmed hits, with clear feedback for excluded mobs. Drop an ordinary dragon egg and one unawakened relic next to each other on solid ground, same survival player, then remain within 8 blocks for six seconds. The ritual locks both inputs against pickup, merging, hoppers, damage and teleportation. It uses an atomic registry commit for spent egg UUIDs, new serials and crash recovery. Existing placed Koschei eggs support an adjacent egg offering from their owner. A crash across Minecraft player/chunk saves cannot be guaranteed fully atomic; test disconnects and crash recovery in staging. New pixel textures for reliquary and hook, same unified resource pack path; packaging pins the matching pack commit. No other systems changed.
+
 # MinecraftUnified 1.1.8 — five mythic relics
 
 One JAR with Thor, Anubis, Koschei, Kitsune, Medusa. Replaces all older talisman mechanics and removes retired custom tagged items on access. Keeps TargetClaim, EnchantmentForge, SwampSky, ImageMaps, grappling hook, custom shields, traps, the existing three-minute reliquary and other recipes. Hosted claim APIs enforce Koschei placement and team damage rules. The unified resource pack is packaged from main. Use allow-flight=true. Stop server and back up existing plugin data, then replace the old MinecraftUnified JAR; do not install standalone TargetClaim/TalismanForge alongside it.

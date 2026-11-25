@@ -65,6 +65,7 @@ final class MythicTalismans implements Listener {
     private record Ritual(Kind kind,UUID owner,UUID relic,UUID egg,Location center,long start){}
     private final Map<UUID,Drop> ritualDrops=new HashMap<>();
     private final Map<Kind,Ritual> rituals=new EnumMap<>(Kind.class);
+    private final Map<Kind,List<UUID>> ritualDisplays=new EnumMap<>(Kind.class);
     private final Set<UUID> spentEggs=new HashSet<>();
     private final Map<UUID,Credit> soulHits=new HashMap<>();
     private final Map<UUID,Long> soulFeedback=new HashMap<>(),soulVfx=new HashMap<>();
@@ -277,7 +278,7 @@ final class MythicTalismans implements Listener {
             boolean found=false;
             for(var candidate:new ArrayList<>(ritualDrops.entrySet())){
                 if(!candidate.getValue().owner().equals(owner)||candidate.getKey().equals(egg.getUniqueId()))continue;
-                Item relic=findItem(candidate.getKey());if(relic==null||locked(relic)||!relic.isOnGround()||!closeTo(relic.getLocation(),egg.getLocation(),2.5))continue;
+                Item relic=findItem(candidate.getKey());if(relic==null||locked(relic)||!relic.isOnGround()||!safeRitual(relic.getLocation())||!closeTo(relic.getLocation(),egg.getLocation(),2.5))continue;
                 Kind k=kind(relic.getItemStack());if(k==null||relic.getItemStack().getAmount()!=1||states.get(k).awakened||rituals.containsKey(k))continue;
                 State st=states.get(k);if(k==Kind.KOSCHEI&&(st.egg!=null||st.broken||st.owner!=null&&!owner.equals(st.owner)))continue;
                 startRitual(k,p,relic,egg,egg.getLocation().clone().add(relic.getLocation()).multiply(.5));found=true;break;
@@ -288,15 +289,25 @@ final class MythicTalismans implements Listener {
                 startRitual(Kind.KOSCHEI,p,null,egg,st.egg.clone().add(.5,.2,.5));
         }
     }
+    private ItemDisplay ritualModel(Location l,ItemStack stack){
+        ItemStack visual=stack.clone();visual.setAmount(1);
+        // Display copies are non-pickup entities, not item drops; strip all relic identity tags.
+        ItemMeta meta=visual.getItemMeta();if(meta!=null){meta.getPersistentDataContainer().remove(serialKey);meta.getPersistentDataContainer().remove(typeKey);visual.setItemMeta(meta);}
+        return l.getWorld().spawn(l,ItemDisplay.class,d->{d.setItemStack(visual);d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);d.setBillboard(Display.Billboard.FIXED);d.setPersistent(false);d.setInvulnerable(true);d.setGravity(false);d.setTeleportDuration(5);d.getPersistentDataContainer().set(key("ritual_visual"),PersistentDataType.BYTE,(byte)1);});
+    }
+    private void clearRitualDisplays(Kind k){List<UUID> ids=ritualDisplays.remove(k);if(ids!=null)for(UUID id:ids){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}}
     private void startRitual(Kind k,Player p,Item relic,Item egg,Location center){
         Ritual r=new Ritual(k,p.getUniqueId(),relic==null?null:relic.getUniqueId(),egg.getUniqueId(),center.clone(),now());
         rituals.put(k,r);lockItem(egg);if(relic!=null)lockItem(relic);
+        List<UUID> displays=new ArrayList<>();ritualDisplays.put(k,displays);
+        displays.add(ritualModel(center.clone().add(0,.7,0),egg.getItemStack()).getUniqueId());
+        if(relic!=null)displays.add(ritualModel(center.clone().add(0,.9,0),relic.getItemStack()).getUniqueId());
         ritualDrops.remove(egg.getUniqueId());if(relic!=null)ritualDrops.remove(relic.getUniqueId());
         p.showTitle(net.kyori.adventure.title.Title.title(title(k,"ПРОБУЖДЕНИЕ"),Component.text(k.title+" · 6 секунд")));
         p.getWorld().playSound(center,Sound.BLOCK_BEACON_ACTIVATE,1,.65f);
     }
     private void abortRitual(Ritual r,String why){
-        rituals.remove(r.kind());unlockItem(findItem(r.relic()));unlockItem(findItem(r.egg()));
+        rituals.remove(r.kind());clearRitualDisplays(r.kind());unlockItem(findItem(r.relic()));unlockItem(findItem(r.egg()));
         Player p=Bukkit.getPlayer(r.owner());if(p!=null)message(p,r.kind(),"Ритуал прерван: "+why+". Предметы возвращены на землю.");
     }
     private void finishRitual(Ritual r,Item relic,Item egg,Player p){
@@ -306,7 +317,7 @@ final class MythicTalismans implements Listener {
         // The same atomic registry write commits the awakening, new serial and spent egg UUID.
         // On a restart, the exact old item entity is repaired and a still-saved egg is removed.
         if(!save()){st.awakened=false;st.serial=old;st.ritualResult=previousResult;st.ritualOldSerial=previousOld;spentEggs.remove(r.egg());abortRitual(r,"ошибка сохранения");return;}
-        rituals.remove(r.kind());egg.remove();
+        rituals.remove(r.kind());clearRitualDisplays(r.kind());egg.remove();
         if(relic!=null){relic.setItemStack(item(r.kind()));unlockItem(relic);}
         else if(st.egg!=null)renderEgg(st);
         p.showTitle(net.kyori.adventure.title.Title.title(title(r.kind(),r.kind().awakening),Component.text("Реликвия пробуждена")));
@@ -319,9 +330,10 @@ final class MythicTalismans implements Listener {
             boolean valid=p!=null&&usable(p)&&closeTo(p.getLocation(),r.center(),8)&&!st.awakened&&dragonEgg(egg)&&closeTo(egg.getLocation(),r.center(),3);
             if(r.relic()!=null)valid=valid&&relic!=null&&kind(relic.getItemStack())==r.kind()&&relic.getItemStack().getAmount()==1&&closeTo(relic.getLocation(),r.center(),3);
             else valid=valid&&st.egg!=null&&r.owner().equals(st.owner)&&!st.broken&&closeTo(st.egg,r.center(),2)&&eggBlock(st.egg.getBlock());
-            if(!valid){abortRitual(r,"условия больше не выполнены");continue;}
+            if(!valid||!safeRitual(egg.getLocation())||relic!=null&&!safeRitual(relic.getLocation())){abortRitual(r,"условия больше не выполнены");continue;}
             long elapsed=now()-r.start();if(elapsed>=RITUAL_MS){finishRitual(r,relic,egg,p);continue;}
             double t=elapsed/(double)RITUAL_MS;World w=r.center().getWorld();Location c=r.center().clone();
+            List<UUID> displays=ritualDisplays.getOrDefault(r.kind(),List.of());for(int i=0;i<displays.size();i++){Entity display=Bukkit.getEntity(displays.get(i));if(display==null)continue;double a=t*6*Math.PI+i*Math.PI,orbit=.8*(1-t)+.15;Location q=c.clone().add(Math.cos(a)*orbit,.7+1.45*Math.sin(Math.PI*t),Math.sin(a)*orbit);q.setYaw((float)(t*1080+i*180));display.teleport(q);}
             double radius=1.6-.65*t;Particle.DustOptions dust=new Particle.DustOptions(Color.fromRGB(r.kind().color),1.15f);
             for(int j=0;j<24;j++){double a=j*Math.PI/12+t*8*Math.PI;w.spawnParticle(Particle.DUST,c.clone().add(Math.cos(a)*radius,.08,Math.sin(a)*radius),1,0,0,0,0,dust);}
             for(int j=0;j<12;j++){double a=j*Math.PI/6+t*12*Math.PI;w.spawnParticle(Particle.END_ROD,c.clone().add(Math.cos(a)*radius,.35+1.8*j/12.0,Math.sin(a)*radius),1,0,0,0,0);}
@@ -749,6 +761,7 @@ final class MythicTalismans implements Listener {
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void frozenInventory(InventoryClickEvent e){if(e.getWhoClicked() instanceof Player p&&isStone(p))e.setCancelled(true);}
     @EventHandler public void entitiesLoaded(EntitiesLoadEvent e){for(Entity entity:e.getEntities()){
         if(entity instanceof Item i)recoverItem(i);
+        else if(entity instanceof ItemDisplay&&entity.getPersistentDataContainer().has(key("ritual_visual"),PersistentDataType.BYTE)&&ritualDisplays.values().stream().noneMatch(ids->ids.contains(entity.getUniqueId()))){entity.remove();continue;}
         else if(generatedChunks.getOrDefault(chunkKey(entity.getLocation().getChunk()),0L)>now())markGenerated(entity);
         if(entity instanceof ItemDisplay&&entity.getPersistentDataContainer().has(key("koschei_display"),PersistentDataType.BYTE)&&!entity.getUniqueId().equals(eggDisplay)){entity.remove();continue;}
         if(entity.getPersistentDataContainer().has(summonKey,PersistentDataType.STRING)&&!minions.containsKey(entity.getUniqueId())&&!clones.containsKey(entity.getUniqueId()))entity.remove();

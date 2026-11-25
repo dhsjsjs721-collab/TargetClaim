@@ -247,7 +247,7 @@ for(ItemStack i:rest.values())p.getWorld().dropItemNaturally(p.getLocation(),i);
 if(myths!=null&&myths.command(sender,args))return true;
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
 sender.sendMessage("§dTalismanForge §7| /tf give <ник> <thor|anubis|koschei|kitsune|medusa|reliquary|hook|all>");
-sender.sendMessage("§7/tf awaken · /tf status · /tf restore");
+sender.sendMessage("§7Пробуждение: брось реликвию и яйцо дракона рядом · /tf status · /tf restore");
 sender.sendMessage("§7Рецепт сундука: 7 аметистов + тотем по центру + обсидиан снизу.");return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
