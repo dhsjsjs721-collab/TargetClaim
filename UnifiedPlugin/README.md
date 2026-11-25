@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.12 — peaceful spawn and mining
+
+500×500 square around overworld spawn; ordinary building and mining allowed subject to existing claims. PvP, hostile mobs, explosions and mythic activation are blocked. 16 containers per chunk within zone (existing containers are preserved). Set server.properties spawn-protection=0 if ordinary players should build at exact spawn. Dynamic lighting uses temporary LIGHT blocks only in air, with durable cleanup journal and no forced chunk loads; existing blocks are not replaced. Shift+right click a torch throws it and places it on a permitted surface; unsuccessful throws refund once while server remains running. Miner helmet and iron multitool craftable, vanilla model icons for now. Coordinate packet translation and darkness-based ore masking are not included. Back up before deployment; test player interactions and crash recovery.
+
 # MinecraftUnified 1.1.11
 
 Frog leggings: 5 armor, 1 toughness, 25% knockback resistance, sprint-only speed and crouch wall slide. Frog wings: 3 armor, 1024 durability, slower controlled gliding with rain advantage, sprint swimming, no rockets or infinite rain ascent. Existing equipment migrates on access by updating keyed attributes, lore and proportional wear. Vanilla Elytra and frog boots unchanged. Fixes ambiguous Damageable import in retired shield migration.

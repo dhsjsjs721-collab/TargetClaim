@@ -29,6 +29,8 @@ private final Map<String,String> failedModules=new LinkedHashMap<>();
 private TrapItems trapItems;
 private RetiredShields retiredShields;
 private DeepslateCrafts deepslateCrafts;
+private PeaceZone peace;
+private MiningGear mining;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("claims","p"),Map.entry("p","p"),Map.entry("private","p"),
 Map.entry("team","team"),Map.entry("teams","team"),
@@ -42,6 +44,8 @@ private static final Map<String,String> OWNERS=Map.of(
 "enchantmentforge","EnchantmentForge","swampsky","SwampSky","imagemap","ImageMaps");
 @Override public void onEnable(){
 getDataFolder().mkdirs();
+getConfig().addDefault("peace.world","world");getConfig().addDefault("peace.radius",250);getConfig().addDefault("peace.containers-per-chunk",16);getConfig().addDefault("mining.dynamic-light",true);getConfig().options().copyDefaults(true);saveConfig();
+peace=new PeaceZone(this);peace.enable();
 Bukkit.getPluginManager().registerEvents(this,this);
 PluginCommand entry=getCommand("unified");
 if(entry!=null){entry.setExecutor(this);entry.setTabCompleter(this);}
@@ -84,6 +88,7 @@ trapItems=null;
 }
 retiredShields=new RetiredShields(this);
 retiredShields.enable();
+mining=new MiningGear(this);mining.enable();
 try{
 deepslateCrafts=new DeepslateCrafts(this);
 deepslateCrafts.enable();
@@ -96,7 +101,7 @@ deepslateCrafts=null;
 if(Bukkit.getPluginManager().getPlugin("TalismanForge")!=null){
 getLogger().severe("WARNING: standalone TalismanForge detected. Remove its old JAR from plugins to prevent duplicate abilities or command conflicts.");
 }
-getLogger().info("MinecraftUnified 1.1.11 started modules "+enabledModules.size()+"/"+modules.size()+
+getLogger().info("MinecraftUnified 1.1.12 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
 @EventHandler public void unifiedCommandList(PlayerCommandSendEvent event){
@@ -108,6 +113,7 @@ event.getCommands().remove(name);
 event.getCommands().remove("minecraftunified:"+name);
 }
 }
+public boolean isPeace(org.bukkit.Location l){return peace!=null&&peace.contains(l);}
 public TargetClaimPlugin claimModule(){for(ModuleBridge m:enabledModules)if(m instanceof TargetClaimPlugin c)return c;return null;}
 public org.bukkit.Location getKoscheiEggLocation(){for(ModuleBridge m:enabledModules)if(m instanceof TalismanForgePlugin t)return t.getKoscheiEggLocation();return null;}
 private boolean enabled(String module){
@@ -115,7 +121,7 @@ for(ModuleBridge m:enabledModules)if(m.getName().equals(module))return true;
 return false;
 }
 private void status(CommandSender sender){
-sender.sendMessage("§aMinecraftUnified 1.1.11 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
+sender.sendMessage("§aMinecraftUnified 1.1.12 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
 sender.sendMessage(trapItems!=null?"§a✓ PvP-трапки §7активны":"§c✗ PvP-трапки §7не активны");
 sender.sendMessage(deepslateCrafts!=null?"§a✓ Крафт сланца §7активен":"§c✗ Крафт сланца §7не запущен");
 for(String name:List.of("TargetClaim","TalismanForge","EnchantmentForge","SwampSky","ImageMaps")){
@@ -139,6 +145,7 @@ sender.sendMessage("§e/u talisman give <ник> all §7— выдать все 
 sender.sendMessage("§e/u enchant §7— зачарования; §e/u trader §7— торговец");
 sender.sendMessage("§e/u wildlife §7— лягушки и экипировка; §e/u frog §7— гигантская лягушка");
 sender.sendMessage("§e/u map §7— карты; §e/u trap §7— обсидиановая ловушка");
+sender.sendMessage("§e/u mining §7— шахтёрская экипировка и метательные факелы");
 sender.sendMessage("§7Летающие свиньи удалены; обычные свиньи сохранены.");
 }
 
@@ -162,6 +169,7 @@ yield command==null?null:command+(args.length==1?"":" "+String.join(" ",Arrays.c
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||args[0].equalsIgnoreCase("help")){help(sender);return true;}
 String action=args[0].toLowerCase(Locale.ROOT);
+if(action.equals("mining"))return mining.command(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("status")||action.equals("check")||action.equals("list")){status(sender);return true;}
 if(action.equals("trap")||action.equals("trapka")){
 if(trapItems==null){sender.sendMessage("§cМодуль PvP-трапок не запущен.");return true;}
@@ -192,7 +200,7 @@ return true;
 @Override public List<String> onTabComplete(CommandSender sender,Command command,String alias,String[] args){
 if(args.length<=1){
 String prefix=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-return List.of("help","status","claim","team","talisman","enchant","wildlife","frog","trader","map","trap")
+return List.of("help","status","claim","team","talisman","enchant","wildlife","frog","trader","map","trap","mining")
 .stream().filter(x->x.startsWith(prefix)).toList();
 }
 String action=args[0].toLowerCase(Locale.ROOT);
@@ -217,6 +225,7 @@ return sub.tabComplete(sender,target,rest);
 }catch(Exception ex){return List.of();}
 }
 @Override public void onDisable(){
+if(mining!=null){mining.disable();mining=null;}
 if(deepslateCrafts!=null){try{deepslateCrafts.disable();}catch(Throwable ex){getLogger().warning("Recipe cleanup failed: "+ex);}deepslateCrafts=null;}
 if(trapItems!=null){try{trapItems.disable();}catch(Throwable failure){getLogger().warning("PvP trap cleanup failed: "+failure.getMessage());}trapItems=null;}
 for(int i=enabledModules.size()-1;i>=0;i--){

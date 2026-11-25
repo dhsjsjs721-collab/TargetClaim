@@ -156,7 +156,9 @@ final class MythicTalismans implements Listener {
     }
     private boolean tagged(ItemStack i){return i!=null&&i.hasItemMeta()&&i.getItemMeta().getPersistentDataContainer().has(typeKey,PersistentDataType.STRING);}
     private boolean usable(Player p){return p.getGameMode()==GameMode.SURVIVAL||p.getGameMode()==GameMode.ADVENTURE;}
+    private boolean peace(Location l){return ((dev.unified.UnifiedPlugin)plugin.host()).isPeace(l);}
     private Kind active(Player p){
+        if(peace(p.getLocation()))return null;
         if(!usable(p))return null;
         Kind k=kind(p.getInventory().getItemInOffHand());
         if(k!=null&&k!=Kind.KOSCHEI){
@@ -266,6 +268,7 @@ final class MythicTalismans implements Listener {
     }
     private boolean closeTo(Location a,Location b,double radius){return a!=null&&b!=null&&a.getWorld()!=null&&a.getWorld().equals(b.getWorld())&&a.distanceSquared(b)<=radius*radius;}
     private boolean safeRitual(Location l){
+        if(peace(l))return false;
         if(l==null||l.getWorld()==null||l.getY()<l.getWorld().getMinHeight()+2||!l.getWorld().isChunkLoaded(l.getBlockX()>>4,l.getBlockZ()>>4))return false;
         Block b=l.getBlock();return !b.isLiquid()&&b.getRelative(BlockFace.DOWN).getType().isSolid()&&b.isPassable();
     }
@@ -405,7 +408,7 @@ final class MythicTalismans implements Listener {
         return null;
     }
     private boolean enemy(Player p,LivingEntity target){
-        if(target==p||!eligible(target))return false;
+        if(target==p||!eligible(target)||peace(p.getLocation())||peace(target.getLocation()))return false;
         if(target instanceof Player other){
             if(!usable(other))return false;
             var claim=((dev.unified.UnifiedPlugin)plugin.host()).claimModule();
@@ -566,6 +569,7 @@ final class MythicTalismans implements Listener {
         }
     }
     private boolean claimed(Location loc){
+        if(peace(loc))return true;
         var claim=((dev.unified.UnifiedPlugin)plugin.host()).claimModule();
         return claim==null||claim.isClaimed(loc);
     }
