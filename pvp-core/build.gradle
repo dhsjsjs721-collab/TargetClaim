@@ -10,3 +10,16 @@ implementation 'net.fabricmc:fabric-loader:0.20.1'
 implementation 'net.fabricmc.fabric-api:fabric-api:0.166.2+26.3'
 }
 java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+
+tasks.named('test', Test) {
+    enabled = false
+}
+['CoreTest', 'CombatTest'].each { testClass ->
+    def execution = tasks.register("run${testClass}", JavaExec) {
+        dependsOn tasks.named('testClasses')
+        classpath = sourceSets.test.runtimeClasspath
+        mainClass = "pvp.${testClass}"
+        javaLauncher = javaToolchains.launcherFor(java.toolchain)
+    }
+    tasks.named('check') { dependsOn execution }
+}
