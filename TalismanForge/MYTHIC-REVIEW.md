@@ -19,7 +19,7 @@ Paper 26.3 / Java 25. Five new world-unique artifacts, distributed via the exist
 - Test damage event ordering against UnifiedDefend and existing combat plugins; void rescue, kill commands, resurrection with vanilla totems, disconnect during rescue.
 - Test claim placement/upgrade from every direction, egg movement and unloaded chunks, crash recovery and simultaneous inventory transfers.
 - Test Kitsune conceal/reveal with UnifiedAntiESP, mannequin profiles, ender chest and unloaded-container storage, death marker visibility, statue save/load and mob cleanup.
-- The current patch uses vanilla item icons with colored lore, action bars, sound and particles. Custom pack models are optional and require art assets; the existing main ZIP is not modified in this review build.
+- The unified resource pack contains ten 32×32 pixel-art models (normal and awakened for each relic) with the updated SHA-1. Color-coded lore, action bars, sounds and particles complement the item art. Set mythic-custom-models: false to use vanilla fallback icons.
 - Existing legacy items are retained for migration; they are not issued from the altar or loot by default. The new artifact registry is in plugins/TalismanForge/mythic-artifacts.yml. Back up before testing.
 
 This is a review build, not a production release. No local Paper 26.3 runtime or Gradle toolchain is available in the editing environment.

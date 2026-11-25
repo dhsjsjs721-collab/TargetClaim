@@ -50,7 +50,7 @@ final class MythicTalismans implements Listener {
     private record Clone(UUID owner,long until,Vector direction){}
     private final TalismanForgePlugin plugin;
     private final File file;
-    private final NamespacedKey typeKey,serialKey,healthKey,rainKey,naturalKey,frozenKey,aiKey,despawnKey,summonKey;
+    private final NamespacedKey typeKey,serialKey,healthKey,rainKey,naturalKey,frozenKey,aiKey,despawnKey,gravityKey,summonKey;
     private final EnumMap<Kind,State> states=new EnumMap<>(Kind.class);
     private final Map<UUID,Long> combat=new HashMap<>(),sneak=new HashMap<>(),revealUntil=new HashMap<>(),stonePlayers=new HashMap<>(),stoneImmune=new HashMap<>(),storm=new HashMap<>();
     private final Map<UUID,Gaze> gazes=new HashMap<>();
@@ -67,7 +67,7 @@ final class MythicTalismans implements Listener {
     MythicTalismans(TalismanForgePlugin plugin){
         this.plugin=plugin;file=new File(plugin.getDataFolder(),"mythic-artifacts.yml");
         typeKey=key("mythic_kind");serialKey=key("mythic_serial");healthKey=key("koschei_health");rainKey=key("anubis_rain");
-        naturalKey=key("mythic_natural");frozenKey=key("mythic_stone");aiKey=key("mythic_original_ai");despawnKey=key("mythic_original_despawn");summonKey=key("mythic_summon");
+        naturalKey=key("mythic_natural");frozenKey=key("mythic_stone");aiKey=key("mythic_original_ai");despawnKey=key("mythic_original_despawn");gravityKey=key("mythic_original_gravity");summonKey=key("mythic_summon");
         for(Kind k:Kind.values())states.put(k,new State());
         load(); Bukkit.getPluginManager().registerEvents(this,plugin);
         Bukkit.getScheduler().runTaskTimer(plugin,this::tick,5,5);
@@ -115,7 +115,7 @@ final class MythicTalismans implements Listener {
         m.setMaxStackSize(1);m.setEnchantmentGlintOverride(s.awakened);
         m.getPersistentDataContainer().set(typeKey,PersistentDataType.STRING,k.key());
         m.getPersistentDataContainer().set(serialKey,PersistentDataType.STRING,s.serial);
-        if(plugin.getConfig().getBoolean("mythic-custom-models",false))m.setItemModel(new NamespacedKey("talismanforge","mythic_"+k.key()));
+        if(plugin.getConfig().getBoolean("mythic-custom-models",true))m.setItemModel(new NamespacedKey("talismanforge","mythic_"+k.key()+(s.awakened?"_awakened":"")));
         List<String> lore=new ArrayList<>(List.of("§8МИФИЧЕСКАЯ РЕЛИКВИЯ", "§7"+(s.awakened?"Пробуждена":"Способна пробудиться"),"§7Заряды: §f"+chargeText(k,s)));
         switch(k){
             case THOR -> {lore.add("§bМолния · +13% некритического урона");lore.add("§7Естественная молния восстанавливает заряд");lore.add("§cВ Незере: Слабость I");}
@@ -125,7 +125,7 @@ final class MythicTalismans implements Listener {
             case MEDUSA -> {lore.add("§dКаменный взгляд · 20 убитых статуй за заряд");lore.add("§7ПКМ-щит отражает взгляд");}
         }
         if(k!=Kind.KOSCHEI)lore.add("§7Активна во второй руке");
-        if(!s.awakened)lore.add("§8/ tf awaken с яйцом дракона");
+        if(!s.awakened)lore.add("§8/tf awaken с яйцом дракона");
         m.setLore(lore);i.setItemMeta(m);return i;
     }
     private Kind kind(ItemStack i){
@@ -227,9 +227,14 @@ final class MythicTalismans implements Listener {
         for(ItemStack i:e.getInventory().getMatrix())if(tagged(i)){e.getInventory().setResult(null);return;}
     }
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void spawnNatural(CreatureSpawnEvent e){
-        if(e.getSpawnReason()==CreatureSpawnEvent.SpawnReason.NATURAL||e.getSpawnReason()==CreatureSpawnEvent.SpawnReason.CHUNK_GEN)e.getEntity().getPersistentDataContainer().set(naturalKey,PersistentDataType.BYTE,(byte)1);
+        if(e.getSpawnReason()==CreatureSpawnEvent.SpawnReason.NATURAL||e.getSpawnReason().name().equals("CHUNK_GEN"))e.getEntity().getPersistentDataContainer().set(naturalKey,PersistentDataType.BYTE,(byte)1);
     }
-    private boolean natural(LivingEntity e){return e.getPersistentDataContainer().has(naturalKey,PersistentDataType.BYTE)&&!e.getPersistentDataContainer().has(summonKey,PersistentDataType.STRING);}
+    private boolean natural(LivingEntity e){
+        if(e.getPersistentDataContainer().has(summonKey,PersistentDataType.STRING))return false;
+        if(e.getPersistentDataContainer().has(naturalKey,PersistentDataType.BYTE))return true;
+        try{Object reason=e.getClass().getMethod("getEntitySpawnReason").invoke(e);return reason!=null&&Set.of("NATURAL","CHUNK_GEN").contains(reason.toString());}
+        catch(ReflectiveOperationException ex){return false;}
+    }
     private boolean eligible(LivingEntity e){return !(e instanceof ArmorStand)&&!(e instanceof Mannequin)&&!Set.of("ENDER_DRAGON","WITHER","WARDEN","ELDER_GUARDIAN").contains(e.getType().name());}
     private Player attacker(Entity e){
         if(e instanceof Player p)return p;
@@ -291,6 +296,7 @@ final class MythicTalismans implements Listener {
         Location destination=null;
         if(k==Kind.KOSCHEI){if(s.egg==null||claimed(s.egg)||s.egg.getBlock().getType()!=Material.DRAGON_EGG)return;destination=safeEgg(s.egg);if(destination==null)return;}
         if(e.getCause()==EntityDamageEvent.DamageCause.VOID&&destination==null)destination=p.getWorld().getSpawnLocation();
+        if(e.getCause().name().equals("KILL"))return;
         if(destination!=null&&!p.teleport(destination))return;
         int before=s.charges;s.charges-=cost;
         if(!save()){s.charges=before;return;}
@@ -329,7 +335,7 @@ final class MythicTalismans implements Listener {
             if(strike.distanceSquared(p.getLocation())<=12.25)heal(p,4);
             for(Entity e:w.getNearbyEntities(strike,3,4,3))if(e instanceof LivingEntity l&&enemy(p,l)){
                 internalDamage.add(p.getUniqueId());try{l.damage(5,p);}finally{internalDamage.remove(p.getUniqueId());}
-                if(!l.isDead()){l.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,100,1));l.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,100,1));}
+                if(!l.isDead()&&l.getHealth()>0){l.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,100,1));l.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,100,1));}
             }
         }
     }
@@ -507,12 +513,12 @@ final class MythicTalismans implements Listener {
     private void freeze(LivingEntity l){
         if(!eligible(l)||isStone(l)||stoneImmune.getOrDefault(l.getUniqueId(),0L)>now())return;
         if(l instanceof Player p)stonePlayers.put(p.getUniqueId(),now()+15000);
-        else {var data=l.getPersistentDataContainer();data.set(frozenKey,PersistentDataType.BYTE,(byte)1);data.set(aiKey,PersistentDataType.BYTE,(byte)(l.hasAI()?1:0));data.set(despawnKey,PersistentDataType.BYTE,(byte)(l.getRemoveWhenFarAway()?1:0));l.setAI(false);l.setRemoveWhenFarAway(false);}
+        else {var data=l.getPersistentDataContainer();data.set(frozenKey,PersistentDataType.BYTE,(byte)1);data.set(aiKey,PersistentDataType.BYTE,(byte)(l.hasAI()?1:0));data.set(despawnKey,PersistentDataType.BYTE,(byte)(l.getRemoveWhenFarAway()?1:0));data.set(gravityKey,PersistentDataType.BYTE,(byte)(l.hasGravity()?1:0));l.setAI(false);l.setGravity(false);l.setRemoveWhenFarAway(false);}
         l.setVelocity(new Vector());burst(l.getLocation(),Kind.MEDUSA,24);l.getWorld().playSound(l.getLocation(),Sound.BLOCK_STONE_PLACE,1,.6f);
     }
     private void thaw(LivingEntity l){
         if(l instanceof Player p)stonePlayers.remove(p.getUniqueId());
-        else {var data=l.getPersistentDataContainer();if(!data.has(frozenKey,PersistentDataType.BYTE))return;l.setAI(data.getOrDefault(aiKey,PersistentDataType.BYTE,(byte)1)==1);l.setRemoveWhenFarAway(data.getOrDefault(despawnKey,PersistentDataType.BYTE,(byte)1)==1);data.remove(frozenKey);data.remove(aiKey);data.remove(despawnKey);}
+        else {var data=l.getPersistentDataContainer();if(!data.has(frozenKey,PersistentDataType.BYTE))return;l.setAI(data.getOrDefault(aiKey,PersistentDataType.BYTE,(byte)1)==1);l.setRemoveWhenFarAway(data.getOrDefault(despawnKey,PersistentDataType.BYTE,(byte)1)==1);l.setGravity(data.getOrDefault(gravityKey,PersistentDataType.BYTE,(byte)1)==1);data.remove(frozenKey);data.remove(aiKey);data.remove(despawnKey);data.remove(gravityKey);}
         stoneImmune.put(l.getUniqueId(),now()+30000);l.getWorld().playSound(l.getLocation(),Sound.BLOCK_STONE_BREAK,1,1.2f);
         l.getWorld().spawnParticle(Particle.BLOCK,l.getLocation().add(0,.7,0),18,.4,.5,.4,0,Material.STONE.createBlockData());
     }
@@ -536,7 +542,7 @@ final class MythicTalismans implements Listener {
         freeze(best);
     }
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void frozenMove(PlayerMoveEvent e){
-        if(isStone(e.getPlayer())&&e.getTo()!=null&&e.getFrom().distanceSquared(e.getTo())>0)e.setCancelled(true);
+        if(isStone(e.getPlayer())&&e.getTo()!=null&&(!Objects.equals(e.getFrom().getWorld(),e.getTo().getWorld())||e.getFrom().distanceSquared(e.getTo())>0))e.setCancelled(true);
     }
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void frozenInteract(PlayerInteractEvent e){if(isStone(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void frozenInteract(PlayerInteractEntityEvent e){if(isStone(e.getPlayer()))e.setCancelled(true);}
@@ -548,7 +554,7 @@ final class MythicTalismans implements Listener {
     @EventHandler public void entitiesLoaded(EntitiesLoadEvent e){for(Entity entity:e.getEntities()){
         if(entity instanceof Item i)protect(i);
         if(entity.getPersistentDataContainer().has(summonKey,PersistentDataType.STRING)&&!minions.containsKey(entity.getUniqueId())&&!clones.containsKey(entity.getUniqueId()))entity.remove();
-        else if(entity instanceof LivingEntity l&&isStone(l)&&!(l instanceof Player)){l.setAI(false);l.setRemoveWhenFarAway(false);}
+        else if(entity instanceof LivingEntity l&&isStone(l)&&!(l instanceof Player)){l.setAI(false);l.setGravity(false);l.setRemoveWhenFarAway(false);}
     }}
     private void modifier(Player p,Attribute attribute,NamespacedKey key,double amount,AttributeModifier.Operation op,boolean apply){
         var a=p.getAttribute(attribute);if(a==null)return;var old=a.getModifier(key);
@@ -585,6 +591,8 @@ final class MythicTalismans implements Listener {
             UUID id=p.getUniqueId();Kind k=active(p);
             if(stonePlayers.containsKey(id)&&stonePlayers.get(id)<=time)thaw(p);
             if(k==Kind.KITSUNE){
+                State storage=states.get(Kind.KITSUNE);
+                if(storage.store!=null||storage.enderOwner!=null){storage.store=null;storage.enderOwner=null;storage.storedAt=0;save();}
                 if(kitsuneEquipped.add(id)){combat.put(id,time);sneak.remove(id);}
                 if(p.isSneaking())sneak.putIfAbsent(id,time);else sneak.remove(id);
                 if(!hidden.contains(id)&&time>=revealUntil.getOrDefault(id,0L)){

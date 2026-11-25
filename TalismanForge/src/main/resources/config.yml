@@ -3,4 +3,4 @@ nether-loot-multiplier: 1.0
 
 # New world-unique mythic artifacts.
 legacy-loot: false
-mythic-custom-models: false
+mythic-custom-models: true
