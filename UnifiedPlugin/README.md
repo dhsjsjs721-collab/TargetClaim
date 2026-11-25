@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.13
+
+Adds manually drawn 32px icons for miner helmet and iron multitool, and a custom worn miner helmet texture. Existing tagged items receive the models on access without replacing their enchantments or durability. The full pack is committed alongside the build; SHA-1 is verified by CI. Coordinate packet remapping is deferred due to documented GrimAC incompatibility. Use Paper Anti-Xray mode 3 as a baseline; light-conditioned packet hiding is not included.
+
 # MinecraftUnified 1.1.12 — peaceful spawn and mining
 
 500×500 square around overworld spawn; ordinary building and mining allowed subject to existing claims. PvP, hostile mobs, explosions and mythic activation are blocked. 16 containers per chunk within zone (existing containers are preserved). Set server.properties spawn-protection=0 if ordinary players should build at exact spawn. Dynamic lighting uses temporary LIGHT blocks only in air, with chunk-persistent cleanup metadata and no forced chunk loads; existing blocks are not replaced. Shift+right click a torch throws it and places it on a permitted surface; unsuccessful throws refund once while server remains running. Miner helmet and iron multitool craftable, vanilla model icons for now. Coordinate packet translation and darkness-based ore masking are not included. Back up before deployment; test player interactions and crash recovery.

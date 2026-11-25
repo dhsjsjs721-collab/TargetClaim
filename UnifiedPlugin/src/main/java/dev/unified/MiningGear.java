@@ -43,11 +43,13 @@ ShapedRecipe helmet=new ShapedRecipe(helmetRecipe,item("helmet"));helmet.shape("
 ShapedRecipe tool=new ShapedRecipe(toolRecipe,item("multitool"));tool.shape("PAS"," I "," T ");tool.setIngredient('P',Material.IRON_PICKAXE);tool.setIngredient('A',Material.IRON_AXE);tool.setIngredient('S',Material.IRON_SHOVEL);tool.setIngredient('I',Material.IRON_INGOT);tool.setIngredient('T',Material.STICK);Bukkit.addRecipe(tool);
 Bukkit.getScheduler().runTaskTimer(host,this::updateLights,10L,10L);
 Bukkit.getScheduler().runTaskTimer(host,this::throwTick,1L,1L);
+Bukkit.getScheduler().runTaskTimer(host,()->{for(Player p:Bukkit.getOnlinePlayers())upgradeInventory(p.getInventory());},20L,100L);
 host.getLogger().info("MiningGear enabled: dynamic lights, miner helmet, throwable torches, iron multitool.");
 }
 private ItemStack item(String type){
 ItemStack i=new ItemStack(type.equals("helmet")?Material.IRON_HELMET:Material.IRON_PICKAXE);ItemMeta m=i.getItemMeta();
 m.getPersistentDataContainer().set(key,PersistentDataType.STRING,type);
+applyModel(m,type);
 if(type.equals("helmet")){m.setDisplayName("§6Шахтёрская каска");m.setLore(List.of("§7Освещает путь без факела в руке","§7Уровень света: 12"));}
 else{
 m.setDisplayName("§6Железный мультитул");m.setLore(List.of("§7Кирка · Топор · Лопата","§7Железный уровень добычи · Общая прочность: 500"));
@@ -58,6 +60,14 @@ m.setTool(t);if(m instanceof Damageable d)d.setMaxDamage(500);
 }
 i.setItemMeta(m);return i;
 }
+private boolean applyModel(ItemMeta m,String type){
+boolean changed=false;NamespacedKey model=new NamespacedKey("minecraftunified",type.equals("helmet")?"miner_helmet":"iron_multitool");
+if(!model.equals(m.getItemModel())){m.setItemModel(model);changed=true;}
+if(type.equals("helmet")){
+var eq=m.getEquippable();if(!model.equals(eq.getModel())){eq.setModel(model);m.setEquippable(eq);changed=true;}
+}
+return changed;
+}
 private boolean is(ItemStack i,String type){return i!=null&&i.hasItemMeta()&&type.equals(i.getItemMeta().getPersistentDataContainer().get(key,PersistentDataType.STRING));}
 private boolean survival(Player p){return p.getGameMode()==GameMode.SURVIVAL||p.getGameMode()==GameMode.ADVENTURE;}
 boolean command(CommandSender sender,String[] args){
@@ -66,6 +76,10 @@ if(!sender.hasPermission("minecraftunified.mining.admin")){sender.sendMessage("�
 Player p=Bukkit.getPlayerExact(args[1]);if(p==null||!Set.of("helmet","multitool").contains(args[2])){sender.sendMessage("§cИгрок или предмет не найден.");return true;}
 for(ItemStack rest:p.getInventory().addItem(item(args[2])).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);return true;
 }
+private void upgradeInventory(Inventory inv){
+for(int slot=0;slot<inv.getSize();slot++){ItemStack i=inv.getItem(slot);if(i==null||!i.hasItemMeta())continue;ItemMeta m=i.getItemMeta();String t=m.getPersistentDataContainer().get(key,PersistentDataType.STRING);if(t!=null&&Set.of("helmet","multitool").contains(t)&&applyModel(m,t)){i.setItemMeta(m);inv.setItem(slot,i);}}
+}
+@EventHandler public void openGear(org.bukkit.event.inventory.InventoryOpenEvent e){upgradeInventory(e.getInventory());}
 private int level(ItemStack i){
 if(i==null)return 0;
 return switch(i.getType()){case TORCH,WALL_TORCH,GLOWSTONE,SEA_LANTERN,SHROOMLIGHT,LANTERN,END_ROD,JACK_O_LANTERN -> 14;case SOUL_TORCH,SOUL_LANTERN -> 10;case REDSTONE_TORCH -> 7;default -> 0;};
