@@ -56,14 +56,14 @@ if(settings.aimEnabled()) {
 var eye=self.getEyePosition();
 var current=new AimModel.Angles(self.getYRot(),self.getXRot());
 AimModel.Angles best=null;
-double bestError=settings.fov()/2;
+double bestError=Double.POSITIVE_INFINITY;
 LivingEntity selected=null;
 for(var target:mc.level.getEntitiesOfClass(LivingEntity.class,self.getBoundingBox().inflate(3),target -> valid(self,target))) {
 var bb=target.getBoundingBox();
 var box=new AimModel.Box(new AimModel.Vec(bb.minX,bb.minY,bb.minZ),new AimModel.Vec(bb.maxX,bb.maxY,bb.maxZ));
 var desired=AimModel.direction(new AimModel.Vec(eye.x,eye.y,eye.z),AimModel.nearestAimPoint(new AimModel.Vec(eye.x,eye.y,eye.z),current,box));
-double error=Math.hypot(AimModel.wrap(desired.yaw()-current.yaw()),desired.pitch()-current.pitch());
-if(error>=settings.fov()/2) continue;
+double error=AimModel.error(current,desired);
+if(error>settings.fov()/2) continue;
 if(target==aimTarget || error<bestError) { bestError=error; best=desired; selected=target; }
 if(target==aimTarget) break;
 }
