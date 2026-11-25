@@ -40,6 +40,17 @@ if(mc.gui.screen()!=null) { aimTarget=null; return; }
 angularError=Double.NaN;
 decision=CombatEngine.Decision.WAIT;
 if(!self.isAlive() || self.isSpectator() || self.isCreative() || self.isUsingItem()) return;
+if(settings.triggerEnabled() && mc.hitResult instanceof EntityHitResult hit && hit.getEntity() instanceof LivingEntity target && valid(self,target)) {
+var candidate=new TargetFilter.Candidate(true,false,true,true,false,false);
+var frame=new CombatEngine.Frame(self.getAttackStrengthScale(0),self.onGround(),self.getDeltaMovement().y<0 ? self.fallDistance : 0,self.isSprinting(),self.isUsingItem() || self.isInWater() || self.isPassenger() || self.onClimbable(),self.distanceToSqr(target)<=9,true,!target.onGround() && target.getDeltaMovement().y<0,responseWindow>0,candidate);
+decision=CombatEngine.evaluate(mode,frame);
+if(decision!=CombatEngine.Decision.WAIT) {
+mc.gameMode.attack(self,target);
+self.swingAndResetAttackStrength(InteractionHand.MAIN_HAND,self.getMainHandItem().getAttackAnimation(),false);
+readyTicks++;
+responseWindow=0;
+}
+}
 if(!settings.aimEnabled()) aimTarget=null;
 if(settings.aimEnabled()) {
 var eye=self.getEyePosition();
@@ -66,18 +77,7 @@ self.setXRot((float)next.pitch());
 }
 }
 }
-if(!(mc.hitResult instanceof EntityHitResult hit) || !(hit.getEntity() instanceof LivingEntity target) || !valid(self,target)) return;
-if(settings.triggerEnabled()) {
-var candidate=new TargetFilter.Candidate(true,false,true,true,false,false);
-var frame=new CombatEngine.Frame(self.getAttackStrengthScale(0),self.onGround(),self.fallDistance,self.isSprinting(),self.isUsingItem() || self.isInWater() || self.isPassenger() || self.onClimbable(),self.distanceToSqr(target)<=9,true,false,responseWindow>0,candidate);
-decision=CombatEngine.evaluate(mode,frame);
-if(decision!=CombatEngine.Decision.WAIT) {
-mc.gameMode.attack(self,target);
-self.swingAndResetAttackStrength(InteractionHand.MAIN_HAND,self.getMainHandItem().getAttackAnimation(),false);
-readyTicks++;
-responseWindow=0;
-}
-}
+
 }
 private PracticeCombat() {}
 }
