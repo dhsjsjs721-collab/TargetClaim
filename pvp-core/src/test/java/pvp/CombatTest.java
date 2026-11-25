@@ -110,6 +110,30 @@ var early=new CombatEngine.Frame(.92,false,.2,false,false,true,true,false,false,
 check(CombatEngine.plan(early,1,false,true,false,true,true)==CombatEngine.Action.CRITICAL);
 check(CombatEngine.plan(early,0,false,true,false,true,true)==CombatEngine.Action.WAIT_DESCENT);
 check(CombatEngine.plan(lostCrosshair,1,false,true,false,true,true,true)==CombatEngine.Action.WAIT_TARGET);
+check(CombatEngine.predictedCharge(.5,10,5)==1);
+check(CombatEngine.predictedCharge(.5,20,5)==.75);
+check(CombatEngine.predictedCharge(.5,0,5)==0);
+var half=new CombatEngine.Frame(.5,true,0,false,false,true,true,false,false,t);
+check(CombatEngine.adaptivePlan(half,0,false,true,false,false,true,false,10,0)==CombatEngine.Action.JUMP);
+check(CombatEngine.adaptivePlan(half,0,false,true,false,false,true,false,20,0)==CombatEngine.Action.WAIT_COOLDOWN);
+check(CombatEngine.adaptivePlan(normal,0,false,true,false,true,true,false,12,4)==CombatEngine.Action.NORMAL);
+check(CombatEngine.adaptivePlan(normal,0,false,true,true,true,true,true,12,1)==CombatEngine.Action.NORMAL);
+check(CombatEngine.adaptivePlan(early,1,false,true,false,true,true,true,12,1)==CombatEngine.Action.CRITICAL);
+check(CombatEngine.adaptivePlan(lostCrosshair,1,false,true,false,true,true,true,12,5)==CombatEngine.Action.WAIT_TARGET);
+check(CombatEngine.adaptivePlan(crit,1,true,true,false,true,true,true,12,5)==CombatEngine.Action.WAIT_LANDING);
+var rising=new CombatEngine.Frame(.95,false,0,false,false,true,true,false,false,t);
+check(CombatEngine.adaptivePlan(rising,0,false,true,false,true,true,true,12,1)==CombatEngine.Action.NORMAL);
+check(CombatEngine.adaptivePlan(rising,0,false,true,false,true,true,false,12,1)==CombatEngine.Action.WAIT_DESCENT);
+var eye=new AimModel.Vec(0,1.6,0);
+check(Math.abs(AimModel.boxDistance(eye,box)-2)<1e-8);
+check(AimModel.futureBoxDistance(eye,box,new AimModel.Vec(0,0,.2),4)>2.7);
+check(AimModel.futureBoxDistance(eye,box,new AimModel.Vec(0,0,-.2),4)<1.3);
+for(int i=0;i<=100;i++) {
+double charge=i/100.0;
+var state=new CombatEngine.Frame(charge,false,.2,false,false,true,true,false,false,t);
+var action=CombatEngine.adaptivePlan(state,1,false,true,false,true,true,false,12,0);
+check((action==CombatEngine.Action.CRITICAL)==(charge>.90));
+}
 System.out.println("Combat tests passed");
 }
 }

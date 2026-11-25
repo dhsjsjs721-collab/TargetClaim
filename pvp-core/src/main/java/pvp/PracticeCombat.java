@@ -18,6 +18,8 @@ private static final ArrayDeque<Pending> pending=new ArrayDeque<>();
 private static int confirmedHits,expiredHits,jumpCount;
 private static int jumpPressTicks;
 private static int blockedJumpTicks;
+private static int readyWait;
+private static LivingEntity waitingTarget;
 static int confirmedHits() { return confirmedHits; }
 static int expiredHits() { return expiredHits; }
 static int jumpCount() { return jumpCount; }
@@ -67,7 +69,8 @@ return self.isInWater() || self.isInLava() || self.isPassenger() || self.onClimb
 private static void resetWorld(Minecraft mc) {
 lastPlayer=mc.player; lastLevel=mc.level; clearJump(); aimTarget=null; resetTracking();
 lastHealth=mc.player==null?0:mc.player.getHealth();
-responseWindow=readyTicks=attackDelay=jumpDelay=descendingTicks=confirmedHits=expiredHits=jumpCount=blockedJumpTicks=0;
+responseWindow=readyTicks=attackDelay=jumpDelay=descendingTicks=confirmedHits=expiredHits=jumpCount=blockedJumpTicks=readyWait=0;
+waitingTarget=null;
 trackingTick=0; hitThisFall=false; angularError=Double.NaN; decision=CombatEngine.Decision.WAIT; pending.clear();
 }
 static void tick(Minecraft mc,CombatSettings settings) {
@@ -89,23 +92,30 @@ hitThisFall=false;
 if(jumpTarget!=null && !jumpRequested && jumpAge>2) clearJump();
 } else if(jumpRequested) { jumpRequested=false; jumpPressTicks=0; jumpCount++; }
 if(jumpTarget!=null && (++jumpAge>26 || !aimValid(self,jumpTarget) || jumpItem!=self.getMainHandItem().getItem())) clearJump();
-if(!settings.triggerEnabled()) { clearJump(); status="AutoCritical off"; return; }
+if(!settings.triggerEnabled()) { clearJump(); readyWait=0; waitingTarget=null; status="AutoCritical off"; return; }
 decision=CombatEngine.Decision.WAIT;
 EntityHitResult hit=pickTarget(mc,self);
 LivingEntity crosshair=hit!=null && hit.getEntity() instanceof LivingEntity living && aimValid(self,living)?living:null;
 LivingEntity target=crosshair!=null?crosshair:settings.aimEnabled() && aimTarget!=null && valid(self,aimTarget) && Double.isFinite(angularError) && angularError<9?aimTarget:null;
-if(target==null) { status=aimTarget!=null?"Approach / align":"No valid target"; return; }
+if(target==null) { readyWait=0; waitingTarget=null; status=aimTarget!=null?"Approach / align":"No valid target"; return; }
 boolean restricted=restricted(self);
 boolean canJump=!restricted && !self.isShiftKeyDown() && mc.level.noCollision(self,self.getBoundingBox().move(0,.35,0)) && blockedJumpTicks==0;
 boolean counter=responseWindow>0 || (!target.onGround() && target.getDeltaMovement().y<0);
 float cooldown=self.getAttackStrengthScale(.5f);
 boolean itemReady=!self.cannotAttackWithItem(self.getMainHandItem(),0);
-double dx=target.getX()-self.getX(),dz=target.getZ()-self.getZ();
-double distance=Math.hypot(dx,dz);
-double radial=target==sampledTarget && distance>.01?(dx*relativeMotion.x()+dz*relativeMotion.z())/distance:0;
-boolean urgent=crosshair==target && (distance+Math.max(0,radial)*4>3.0 || blockedJumpTicks>0);
+if(waitingTarget!=target) { waitingTarget=target; readyWait=0; }
+if(crosshair==target && cooldown>.90 && itemReady) readyWait=Math.min(20,readyWait+1);
+else readyWait=0;
+var eye=self.getEyePosition();
+var bounds=target.getBoundingBox();
+var box=new AimModel.Box(new AimModel.Vec(bounds.minX,bounds.minY,bounds.minZ),new AimModel.Vec(bounds.maxX,bounds.maxY,bounds.maxZ));
+var origin=new AimModel.Vec(eye.x,eye.y,eye.z);
+var motion=target==sampledTarget?relativeMotion:new AimModel.Vec(0,0,0);
+double reach=self.getAttackRangeWith(self.getMainHandItem()).effectiveMaxRange(self);
+double now=AimModel.boxDistance(origin,box),future=AimModel.futureBoxDistance(origin,box,motion,4);
+boolean urgent=crosshair==target && (future>reach-.18 && future>now+.04 || now>reach-.20 || blockedJumpTicks>0);
 var frame=new CombatEngine.Frame(cooldown,self.onGround(),falling?self.fallDistance:0,self.isSprinting(),restricted,crosshair==target || inRange(self,target),crosshair==target,!target.onGround() && target.getDeltaMovement().y<0,responseWindow>0,new TargetFilter.Candidate(true,false,true,true,false,false));
-var action=CombatEngine.plan(frame,descendingTicks,hitThisFall,canJump,jumpRequested,attackDelay==0 && itemReady,jumpDelay==0,urgent);
+var action=CombatEngine.adaptivePlan(frame,descendingTicks,hitThisFall,canJump,jumpRequested,attackDelay==0 && itemReady,jumpDelay==0,urgent,self.getCurrentItemAttackStrengthDelay(),readyWait);
 status=action.name();
 switch(action) {
 case JUMP -> { jumpRequested=true; jumpPressTicks=3; jumpDelay=5; jumpTarget=target; jumpItem=self.getMainHandItem().getItem(); jumpAge=0; }
@@ -118,7 +128,8 @@ clearJump();
 readyTicks++;
 pending.addLast(new Pending(target.getId(),trackingTick));
 while(pending.size()>32) { pending.removeFirst(); expiredHits++; }
-status=action==CombatEngine.Action.CRITICAL?(counter?"Counter attempt":"Critical attempt"):"Ground attack";
+status=action==CombatEngine.Action.CRITICAL?(counter?"Counter attempt":"Critical attempt"):"Normal attack";
+readyWait=0;
 decision=action==CombatEngine.Action.CRITICAL?CombatEngine.Decision.CRITICAL_WINDOW:CombatEngine.Decision.NORMAL_WINDOW;
 responseWindow=0;
 } else { status="Attack not consumed"; attackDelay=1; }
@@ -165,7 +176,7 @@ previousRelative=relative;
 best=AimModel.direction(origin,AimModel.movingPoint(AimModel.trackingPoint(origin,current,box,trackingTick),box,relativeMotion));
 bestError=AimModel.error(current,best);
 angularError=bestError;
-if(bestError>.12) {
+if(bestError>.12 && !(bestError<.45 && rayOn(mc,self,selected))) {
 turn=AimModel.smoothTurn(current,best,turn,settings,motionAngle);
 self.setYRot(self.getYRot()+(float)turn.yaw());
 self.setXRot((float)Math.max(-90,Math.min(90,self.getXRot()+turn.pitch())));
@@ -194,10 +205,11 @@ if(!mc.options.keyJump.isDown()) { mc.options.keyJump.setDown(true); forcedJump=
 jumpPressTicks--;
 } else { blockedJumpTicks=12; clearJump(); status="Jump blocked"; }
 } else if(jumpRequested && self.onGround() && (!critActive || (!valid(self,jumpTarget) && !rayOn(mc,self,jumpTarget)))) clearJump();
-if(autoMove && !jumpRequested && settings.aimEnabled() && aimTarget!=null && aimValid(self,aimTarget) && !self.isShiftKeyDown() && !mc.options.keyDown.isDown() && !mc.options.keyLeft.isDown() && !mc.options.keyRight.isDown() && !mc.options.keyUp.isDown()) {
+if(autoMove && !jumpRequested && self.onGround() && settings.aimEnabled() && aimTarget!=null && aimValid(self,aimTarget) && !self.isShiftKeyDown() && !mc.options.keyDown.isDown() && !mc.options.keyLeft.isDown() && !mc.options.keyRight.isDown() && !mc.options.keyUp.isDown()) {
 double dx=aimTarget.getX()-self.getX(),dz=aimTarget.getZ()-self.getZ();
 if(Math.abs(aimTarget.getY()-self.getY())<1.5 && !self.isInWater() && !self.isPassenger()) {
 var move=AimModel.flank(dx,dz,aimTarget.getYRot(),self.getYRot());
+if(!inRange(self,aimTarget) && Math.abs(AimModel.wrap(AimModel.direction(new AimModel.Vec(0,0,0),new AimModel.Vec(dx,0,dz)).yaw()-self.getYRot()))<35) move=new AimModel.Movement(true,false,false,false);
 double y=Math.toRadians(self.getYRot());
 double forward=(move.forward()?1:0)-(move.back()?1:0), right=(move.right()?1:0)-(move.left()?1:0);
 double mx=(-Math.sin(y)*forward-Math.cos(y)*right)*.28,mz=(Math.cos(y)*forward-Math.sin(y)*right)*.28;

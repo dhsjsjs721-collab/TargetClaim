@@ -55,5 +55,26 @@ if(f.cooldown()<.91) return Action.WAIT_COOLDOWN;
 if(f.fallDistance()>0 && descendingTicks>=1) return Action.CRITICAL;
 return Action.WAIT_DESCENT;
 }
+public static double predictedCharge(double charge,double weaponDelay,int ticks) {
+if(!Double.isFinite(charge) || !Double.isFinite(weaponDelay) || weaponDelay<=0) return 0;
+return Math.max(0,Math.min(1,charge+Math.max(0,ticks)/weaponDelay));
+}
+public static Action adaptivePlan(Frame f,int descendingTicks,boolean hitThisFall,boolean canJump,boolean jumpPending,boolean attackReady,boolean jumpReady,boolean urgent,double weaponDelay,int readyWait) {
+if(!TargetFilter.accepts(f.target()) || !f.inRange()) return Action.WAIT_TARGET;
+if(!Double.isFinite(f.cooldown())) return Action.WAIT_COOLDOWN;
+boolean charged=attackReady && f.crosshairOnTarget() && f.cooldown()>.90;
+if(hitThisFall && !f.grounded()) return Action.WAIT_LANDING;
+if(f.grounded()) {
+if(charged && (urgent || !canJump || readyWait>=4)) return Action.NORMAL;
+if(jumpPending) return Action.WAIT_JUMP;
+if(canJump && !urgent && jumpReady && f.cooldown()>=.40 && predictedCharge(f.cooldown(),weaponDelay,5)>=.94) return Action.JUMP;
+return Action.WAIT_COOLDOWN;
+}
+if(!f.crosshairOnTarget()) return Action.WAIT_TARGET;
+if(charged && !f.restricted() && !f.sprinting() && f.fallDistance()>0 && descendingTicks>=1) return Action.CRITICAL;
+if(charged && (urgent || f.restricted() || readyWait>=5)) return Action.NORMAL;
+if(!f.restricted() && f.sprinting()) return Action.STOP_SPRINT;
+return charged?Action.WAIT_DESCENT:Action.WAIT_COOLDOWN;
+}
 private CombatEngine() {}
 }

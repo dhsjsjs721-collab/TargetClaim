@@ -47,11 +47,11 @@ public record Turn(double yaw,double pitch) {}
 public static Turn smoothTurn(Angles current,Angles target,Turn previous,CombatSettings settings,double motion) {
 if(!settings.aimEnabled() || error(current,target)>settings.fov()/2) return new Turn(0,0);
 double dy=wrap(target.yaw()-current.yaw()),dp=target.pitch()-current.pitch();
-double boost=clamp(motion/7,0,1);
-double capY=7+3*boost,capP=4+2*boost;
-double wantY=clamp(dy*(.34+.17*boost),-capY,capY);
-double wantP=clamp(dp*(.29+.16*boost),-capP,capP);
-return new Turn(slew(dy,wantY,previous.yaw(),2.5+boost),slew(dp,wantP,previous.pitch(),1.5+.7*boost));
+double boost=clamp(motion/8,0,1);
+double capY=7+2*boost,capP=4+1.5*boost;
+double wantY=clamp(dy*(.18+.29*settings.horizontalSpeed()+.12*boost),-capY,capY);
+double wantP=clamp(dp*(.15+.30*settings.verticalSpeed()+.12*boost),-capP,capP);
+return new Turn(slew(dy,wantY,previous.yaw(),2.0+boost),slew(dp,wantP,previous.pitch(),1.2+.6*boost));
 }
 private static double slew(double error,double desired,double previous,double acceleration) {
 if(Math.abs(error)<.12) return 0;
@@ -61,6 +61,16 @@ return Math.copySign(Math.min(Math.abs(error),Math.abs(next)),error);
 }
 public static boolean shouldApproach(double horizontalDistanceSquared,double yawError) {
 return horizontalDistanceSquared>6.25 && horizontalDistanceSquared<=36 && Math.abs(yawError)<25;
+}
+public static double boxDistance(Vec eye,Box box) {
+double dx=eye.x()-clamp(eye.x(),box.min().x(),box.max().x());
+double dy=eye.y()-clamp(eye.y(),box.min().y(),box.max().y());
+double dz=eye.z()-clamp(eye.z(),box.min().z(),box.max().z());
+return Math.sqrt(dx*dx+dy*dy+dz*dz);
+}
+public static double futureBoxDistance(Vec eye,Box box,Vec relativeMotion,int ticks) {
+double x=clamp(relativeMotion.x(),-.45,.45)*ticks,y=clamp(relativeMotion.y(),-.45,.45)*ticks,z=clamp(relativeMotion.z(),-.45,.45)*ticks;
+return boxDistance(new Vec(eye.x()-x,eye.y()-y,eye.z()-z),box);
 }
 public record Movement(boolean forward,boolean back,boolean left,boolean right) {}
 public static Movement flank(double dx,double dz,double targetYaw,double viewYaw) {
