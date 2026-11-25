@@ -1,21 +1,22 @@
 package pvp;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.network.chat.Component;
 public final class PracticeScreen extends Screen {
 public PracticeScreen() { super(Component.literal("PvP Practice")); }
 private static Component status(String name, boolean value) { return Component.literal(name+": "+(value?"ON":"OFF")); }
 @Override protected void init() {
-int x=width/2-110, y=height/2-96;
-addRenderableWidget(Button.builder(status("Aim practice",PracticeClient.settings.aimEnabled()),button -> {
+int x=width/2-110, y=height/2-108;
+addRenderableWidget(Button.builder(status("AimAssist (local)",PracticeClient.settings.aimEnabled()),button -> {
 var s=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(!s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
-button.setMessage(status("Aim practice",PracticeClient.settings.aimEnabled()));
+button.setMessage(status("AimAssist (local)",PracticeClient.settings.aimEnabled()));
 }).bounds(x,y,220,20).build());
-addRenderableWidget(Button.builder(status("Timing practice",PracticeClient.settings.triggerEnabled()),button -> {
+addRenderableWidget(Button.builder(status("TriggerBot (local)",PracticeClient.settings.triggerEnabled()),button -> {
 var s=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(s.aimEnabled(),!s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
-button.setMessage(status("Timing practice",PracticeClient.settings.triggerEnabled()));
+button.setMessage(status("TriggerBot (local)",PracticeClient.settings.triggerEnabled()));
 }).bounds(x,y+24,220,20).build());
 addRenderableWidget(Button.builder(Component.literal("Mode: "+PracticeClient.mode),button -> {
 var values=CombatEngine.Mode.values();
@@ -28,18 +29,19 @@ double fov=s.fov()>=65?15:s.fov()+10;
 PracticeClient.settings=new CombatSettings(s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),fov);
 button.setMessage(Component.literal("FOV: "+(int)fov));
 }).bounds(x,y+72,220,20).build());
+addRenderableWidget(Checkbox.builder(Component.literal("Iron Golem Test"),font).pos(x,y+96).selected(PracticeCombat.golemTest).onValueChange((checkbox,value)->PracticeCombat.golemTest=value).build());
 addRenderableWidget(Button.builder(Component.literal("Lock GUI (until restart)"),button -> {
 PracticeClient.guiLocked=true;
 onClose();
-}).bounds(x,y+96,220,20).build());
-var result=Button.builder(Component.literal("Ready ticks: "+PracticeCombat.readyTicks()),button -> {}).bounds(x,y+120,220,20).build();
+}).bounds(x,y+120,220,20).build());
+var result=Button.builder(Component.literal("Auto hits: "+PracticeCombat.readyTicks()),button -> {}).bounds(x,y+144,220,20).build();
 result.active=false;
 addRenderableWidget(result);
 double error=PracticeCombat.angularError();
-var aim=Button.builder(Component.literal(Double.isFinite(error)?String.format(java.util.Locale.ROOT,"Aim error: %.1f deg",error):"Aim error: no sample"),button -> {}).bounds(x,y+144,220,20).build();
+var aim=Button.builder(Component.literal(Double.isFinite(error)?String.format(java.util.Locale.ROOT,"Aim error: %.1f deg",error):"Aim error: no sample"),button -> {}).bounds(x,y+168,220,20).build();
 aim.active=false;
 addRenderableWidget(aim);
-addRenderableWidget(Button.builder(Component.literal("Close"),button -> onClose()).bounds(x,y+168,220,20).build());
+addRenderableWidget(Button.builder(Component.literal("Close"),button -> onClose()).bounds(x,y+192,220,20).build());
 }
 @Override public boolean isPauseScreen() { return false; }
 }
