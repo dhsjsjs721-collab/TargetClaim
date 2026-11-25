@@ -30,5 +30,9 @@ case COUNTER_CRITICAL -> critical && (f.opponentFalling() || f.opponentRecentlyA
 case NORMAL -> critical ? Decision.CRITICAL_WINDOW : f.sprinting() ? Decision.COMBO_WINDOW : Decision.NORMAL_WINDOW;
 };
 }
+public static Decision autoCritical(Frame frame,int descendingTicks,boolean hitThisFall) {
+if(hitThisFall || descendingTicks < ((frame.opponentFalling() || frame.opponentRecentlyAttacked())?1:2)) return Decision.WAIT;
+return evaluate(Mode.CRITICAL,frame);
+}
 private CombatEngine() {}
 }
