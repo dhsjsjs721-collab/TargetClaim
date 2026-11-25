@@ -214,14 +214,14 @@ trace.clear();
 check(trace.report().contains("Samples aligned: 0/0"));
 try {
 var folder=java.nio.file.Files.createTempDirectory("lol-test");
-var path=folder.resolve("prefs.properties");
-check(ClientPreferences.read(path).equals(ClientPreferences.defaults()));
-new ClientPreferences(270,true).write(path);
-check(ClientPreferences.read(path).equals(new ClientPreferences(270,true)));
-java.nio.file.Files.writeString(path,"fov=NaN\ngolemTest=false\nnetworkTest=true\naimEnabled=true\n");
-check(ClientPreferences.read(path).equals(ClientPreferences.defaults()));
+var prefsPath=folder.resolve("prefs.properties");
+check(ClientPreferences.read(prefsPath).equals(ClientPreferences.defaults()));
+new ClientPreferences(270,true).write(prefsPath);
+check(ClientPreferences.read(prefsPath).equals(new ClientPreferences(270,true)));
+java.nio.file.Files.writeString(prefsPath,"fov=NaN\ngolemTest=false\nnetworkTest=true\naimEnabled=true\n");
+check(ClientPreferences.read(prefsPath).equals(ClientPreferences.defaults()));
 check(new ClientPreferences(999,false).fov()==150);
-java.nio.file.Files.delete(path);
+java.nio.file.Files.delete(prefsPath);
 java.nio.file.Files.delete(folder);
 } catch(java.io.IOException ex) { throw new AssertionError(ex); }
 System.out.println("Combat tests passed");
