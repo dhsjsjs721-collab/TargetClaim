@@ -184,7 +184,14 @@ org.bukkit.scoreboard.Team team=a.getScoreboard().getEntryTeam(a.getName());
 return team!=null&&team.equals(b.getScoreboard().getEntryTeam(b.getName()));
 }
 private boolean prepare(Player caster,Player victim){
-Location feet=victim.getLocation();
+Location feet=victim.getLocation().clone();
+// Put both PvP participants inside the arena when they are close enough.
+if(caster.getLocation().getWorld()==feet.getWorld()
+&&caster.getLocation().distanceSquared(feet)<=5.5*5.5
+&&Math.abs(caster.getLocation().getY()-feet.getY())<=2){
+feet.setX((caster.getLocation().getBlockX()+feet.getBlockX())/2.0);
+feet.setZ((caster.getLocation().getBlockZ()+feet.getBlockZ())/2.0);
+}
 World w=feet.getWorld();
 if(w==null||!w.equals(caster.getWorld()))return false;
 int x=feet.getBlockX(),y=feet.getBlockY(),z=feet.getBlockZ();
