@@ -14,10 +14,10 @@ static double angularError() { return angularError; }
 static int readyTicks() { return readyTicks; }
 static CombatEngine.Decision decision() { return decision; }
 static void tick(Minecraft mc, CombatSettings settings, CombatEngine.Mode mode) {
-angularError=Double.NaN;
-decision=CombatEngine.Decision.WAIT;
 if(!mc.hasSingleplayerServer() || mc.player==null || mc.level==null) {
 lastPlayer=null;
+angularError=Double.NaN;
+decision=CombatEngine.Decision.WAIT;
 readyTicks=0;
 responseWindow=0;
 return;
@@ -27,7 +27,10 @@ if(lastPlayer!=self) { lastPlayer=self; lastHealth=self.getHealth(); responseWin
 if(self.getHealth()<lastHealth) responseWindow=12;
 else if(responseWindow>0) responseWindow--;
 lastHealth=self.getHealth();
-if(!self.isAlive() || self.isSpectator() || mc.gui.screen()!=null) return;
+if(mc.gui.screen()!=null) return;
+angularError=Double.NaN;
+decision=CombatEngine.Decision.WAIT;
+if(!self.isAlive() || self.isSpectator()) return;
 if(!(mc.hitResult instanceof EntityHitResult hit) || !(hit.getEntity() instanceof Player target) || target==self || !target.isAlive() || target.isSpectator() || target.isInvisible() || !self.hasLineOfSight(target)) return;
 if(settings.aimEnabled()) {
 var eye=self.getEyePosition();
