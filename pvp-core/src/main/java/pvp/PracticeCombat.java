@@ -3,11 +3,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.phys.EntityHitResult;
 final class PracticeCombat {
 static boolean golemTest;
+static boolean networkTest;
 private static LocalPlayer lastPlayer;
 private static float lastHealth;
 private static int responseWindow;
@@ -18,10 +18,10 @@ static double angularError() { return angularError; }
 static int readyTicks() { return readyTicks; }
 static CombatEngine.Decision decision() { return decision; }
 private static boolean valid(LocalPlayer self,LivingEntity target) {
-return target!=self && (target instanceof Player || (golemTest && target.getType()==EntityType.IRON_GOLEM)) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && self.distanceToSqr(target)<=9;
+return target!=self && (target instanceof Player || (golemTest && "entity.minecraft.iron_golem".equals(target.getType().getDescriptionId()))) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && self.distanceToSqr(target)<=9;
 }
 static void tick(Minecraft mc, CombatSettings settings, CombatEngine.Mode mode) {
-if(!mc.hasSingleplayerServer() || mc.player==null || mc.level==null || mc.gameMode==null) {
+if(mc.player==null || mc.level==null || mc.gameMode==null || (!mc.hasSingleplayerServer() && (!networkTest || mc.level.getScoreboard().getObjective("pvp_practice") == null))) {
 lastPlayer=null;
 angularError=Double.NaN;
 decision=CombatEngine.Decision.WAIT;
