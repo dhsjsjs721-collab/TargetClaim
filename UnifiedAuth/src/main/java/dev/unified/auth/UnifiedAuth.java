@@ -507,34 +507,8 @@ Boolean first=verifiedJoins.remove(player.getUniqueId());
 if(first==null || !getConfig().getBoolean("welcome.enabled",true))return;
 Bukkit.getScheduler().runTaskLater(this,()->{
 if(!player.isOnline() || Bukkit.getPlayer(player.getUniqueId())!=player)return;
-String edition=getConfig().getString("branding.edition","Vanilla+");
-String greeting=first?"Аккаунт создан":"С возвращением";
-if(getConfig().getBoolean("welcome.animation",true)){
-player.showTitle(Title.title(accent("✧  Врата открыты  ✧",GOLD),Component.text("Личность подтверждена",MINT),
-Title.Times.times(Duration.ofMillis(250),Duration.ofMillis(650),Duration.ofMillis(250))));
-if(getConfig().getBoolean("welcome.sound",true))
-player.playSound(Sound.sound(Key.key("minecraft:block.amethyst_block.chime"),Sound.Source.MASTER,0.65f,0.85f));
-Bukkit.getScheduler().runTaskLater(this,()->{
-if(!player.isOnline() || Bukkit.getPlayer(player.getUniqueId())!=player)return;
-player.showTitle(Title.title(brand(),Component.text(greeting+", ",ROSE).append(accent(player.getName(),GOLD)),
-Title.Times.times(Duration.ofMillis(500),Duration.ofSeconds(3),Duration.ofMillis(900))));
-if(getConfig().getBoolean("welcome.sound",true))
-player.playSound(Sound.sound(Key.key("minecraft:block.amethyst_block.chime"),Sound.Source.MASTER,0.55f,1.35f));
-},24L);
-}else player.showTitle(Title.title(brand(),Component.text(greeting+", ",ROSE).append(accent(player.getName(),GOLD)),
-Title.Times.times(Duration.ofMillis(500),Duration.ofSeconds(3),Duration.ofMillis(900))));
-player.sendActionBar(branded("✓ Авторизация успешна",MINT));
-player.sendMessage(Component.text("━━━━━━━━━━━━━━━━━━━━━━━━━━━━",MUTED));
-player.sendMessage(Component.text("  ").append(brand()).append(Component.text("  ·  "+edition,GOLD)));
-player.sendMessage(Component.text("  "+greeting+", ",MUTED).append(accent(player.getName(),ROSE)));
-player.sendMessage(Component.text("  Твой мир. Твоя история. Твои правила.",MUTED));
-player.sendMessage(Component.text("  ✦  Новая глава начинается здесь.",GOLD));
-player.sendMessage(Component.text("━━━━━━━━━━━━━━━━━━━━━━━━━━━━",MUTED));
-if(getConfig().getBoolean("branding.tab-header-enabled",true)){
-player.sendPlayerListHeaderAndFooter(brand().append(Component.text(" · "+edition,GOLD)),
-Component.text("Твой мир. Твоя история.",MUTED));
-}
-
+player.showTitle(Title.title(accent(getConfig().getString("welcome.text","Ты лузер. Всё, пока."),ROSE),Component.empty(),
+Title.Times.times(Duration.ofMillis(350),Duration.ofSeconds(3),Duration.ofMillis(700))));
 },10L);
 }
 
@@ -575,7 +549,7 @@ Bukkit.getScheduler().runTask(this,()->player.sendMessage("Could not save this p
 return true;
 }
 if(sender.hasPermission("unifiedauth.admin")){
-sender.sendMessage("UnifiedAuth 1.6.0: v2Accounts="+(accounts==null?0:accounts.count())+" legacy="+(legacy==null?0:legacy.count())+" pending="+sessions.size()+" successes="+successes+" created="+registered+" migrated="+migrations+" trustedLogins="+trustedLogins+" rateDenied="+rateDenied+" rememberEnabled="+rememberEnabled+" passwordSkip=false");
+sender.sendMessage("UnifiedAuth 1.6.1: v2Accounts="+(accounts==null?0:accounts.count())+" legacy="+(legacy==null?0:legacy.count())+" pending="+sessions.size()+" successes="+successes+" created="+registered+" migrated="+migrations+" trustedLogins="+trustedLogins+" rateDenied="+rateDenied+" rememberEnabled="+rememberEnabled+" passwordSkip=false");
 }else sender.sendMessage("Usage: /ua remember [on|off|status]");
 return true;
 }

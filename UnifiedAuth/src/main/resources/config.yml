@@ -1,4 +1,4 @@
-# UnifiedAuth 1.6.0 — Paper 26.3 / Java 25
+# UnifiedAuth 1.6.1 — Paper 26.3 / Java 25
 authentication:
   enabled: true
   pin-length: 4
@@ -19,12 +19,11 @@ remember-ip:
   expire-after-days: 7
 welcome:
   enabled: true
-  sound: true
-  animation: true
+  text: "Ты лузер. Всё, пока."
 branding:
   name: "Land of Losers"
   edition: "Vanilla+"
   auth-subtitle: "Твой мир. Твоя история."
   tab-header-enabled: true
   # Enable only after the auth-only bitmap font is installed and loaded.
-  auth-art-enabled: false
+  auth-art-enabled: true
