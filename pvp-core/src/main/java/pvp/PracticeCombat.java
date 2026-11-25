@@ -23,6 +23,8 @@ private static float startStrength=Float.NaN;
 private static Object startItem;
 private static double startWeaponDelay;
 private static long manualTick=-1;
+private static Object lastWeapon;
+private static double lastWeaponDelay=Double.NaN;
 static String diagnostics() { return (sessionActive?trace.report():previousReport.isEmpty()?trace.report():previousReport); }
 private static void setStatus(String value) { status=value; trace.state(trackingTick,value); }
 private static void expirePending() { while(!pending.isEmpty() && trackingTick-pending.peekFirst().tick()>40) { pending.removeFirst(); expiredHits++; trace.expire(trackingTick); } }
@@ -95,7 +97,7 @@ responseWindow=readyTicks=attackDelay=jumpDelay=descendingTicks=confirmedHits=ex
 waitingTarget=null;
 jumpTiming.reset(); consecutiveNoRay=0;
 trackingTick=0; hitThisFall=false; angularError=Double.NaN; decision=CombatEngine.Decision.WAIT; pending.clear(); trace.clear();
-startStrength=Float.NaN; startItem=null; startWeaponDelay=0; manualTick=-1;
+startStrength=Float.NaN; startItem=null; startWeaponDelay=0; manualTick=-1; lastWeapon=null; lastWeaponDelay=Double.NaN;
 }
 static void tick(Minecraft mc,CombatSettings settings) {
 if(!enabled(mc)) { if(sessionActive) resetWorld(mc); status="Not in enabled world"; return; }
@@ -103,7 +105,7 @@ var self=mc.player;
 if(lastPlayer!=self || lastLevel!=mc.level) resetWorld(mc);
 sessionActive=true;
 expirePending();
-if(!available(mc,self)) { clearJump(); descendingTicks=0; readyWait=0; waitingTarget=null; startStrength=Float.NaN; return; }
+if(!available(mc,self)) { clearJump(); descendingTicks=0; readyWait=0; waitingTarget=null; startStrength=Float.NaN; lastHealth=self.getHealth(); return; }
 if(self.getHealth()<lastHealth) responseWindow=12;
 else if(responseWindow>0) responseWindow--;
 lastHealth=self.getHealth();
@@ -239,6 +241,11 @@ trackingTick++;
 startStrength=self.getAttackStrengthScale(.5f);
 startItem=self.getMainHandItem().getItem();
 startWeaponDelay=self.getCurrentItemAttackStrengthDelay();
+if(lastWeapon!=null && (lastWeapon!=startItem || Math.abs(lastWeaponDelay-startWeaponDelay)>.001)) {
+clearJump(); readyWait=0; waitingTarget=null; jumpDelay=0;
+trace.event(trackingTick,"WEAPON_CHANGED");
+}
+lastWeapon=startItem; lastWeaponDelay=startWeaponDelay;
 if(!available(mc,self)) { clearJump(); aimTarget=null; resetTracking(); return; }
 updateAim(mc,self,settings);
 if(!settings.triggerEnabled() || mc.options.keyAttack.isDown()) { clearJump(); return; }
@@ -254,7 +261,7 @@ if(!mc.options.keyJump.isDown()) { mc.options.keyJump.setDown(true); forcedJump=
 jumpPressTicks--;
 } else { blockedJumpTicks=12; clearJump(); setStatus("Jump blocked"); }
 } else if(jumpRequested && self.onGround() && (!critActive || (!valid(self,jumpTarget) && !rayOn(mc,self,jumpTarget)))) clearJump();
-if(autoMove && !jumpRequested && self.onGround() && settings.aimEnabled() && aimTarget!=null && aimValid(self,aimTarget) && !self.isShiftKeyDown() && !mc.options.keyDown.isDown() && !mc.options.keyLeft.isDown() && !mc.options.keyRight.isDown() && !mc.options.keyUp.isDown()) {
+if(autoMove && !mc.options.keyJump.isDown() && !jumpRequested && self.onGround() && settings.aimEnabled() && aimTarget!=null && aimValid(self,aimTarget) && !self.isShiftKeyDown() && !mc.options.keyDown.isDown() && !mc.options.keyLeft.isDown() && !mc.options.keyRight.isDown() && !mc.options.keyUp.isDown()) {
 double dx=aimTarget.getX()-self.getX(),dz=aimTarget.getZ()-self.getZ();
 if(Math.abs(aimTarget.getY()-self.getY())<1.5 && !self.isInWater() && !self.isPassenger()) {
 var velocity=self.getDeltaMovement();
@@ -279,7 +286,17 @@ if(move.right()) { mc.options.keyRight.setDown(true); forcedRight=true; }
 }
 }
 static void releaseInput(Minecraft mc) {
-if(forcedJump || forcedForward || forcedBack || forcedLeft || forcedRight || forcedSprint) KeyMapping.setAll();
+if(forcedJump || forcedForward || forcedBack || forcedLeft || forcedRight || forcedSprint) {
+if(mc.gui.screen()==null) KeyMapping.setAll();
+else {
+if(forcedJump) mc.options.keyJump.setDown(false);
+if(forcedForward) mc.options.keyUp.setDown(false);
+if(forcedBack) mc.options.keyDown.setDown(false);
+if(forcedLeft) mc.options.keyLeft.setDown(false);
+if(forcedRight) mc.options.keyRight.setDown(false);
+if(forcedSprint) mc.options.keySprint.setDown(false);
+}
+}
 forcedJump=forcedForward=forcedSprint=forcedBack=forcedLeft=forcedRight=false;
 }
 private static boolean rayOn(Minecraft mc,LocalPlayer self,LivingEntity target) { var hit=pickTarget(mc,self); return hit!=null && hit.getEntity()==target; }
