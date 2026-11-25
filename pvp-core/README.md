@@ -11,7 +11,7 @@ A compact Minecraft PvP practice client for solo practice and explicitly permitt
 
 ## Installation
 
-Minecraft 26.3, Fabric Loader 0.20.1 or later, Fabric API, Java 25 or later. Place the Fabric JAR in the mods directory. Down Arrow opens the menu. Remove older builds first.
+Minecraft 26.3, Fabric Loader 0.20.1 or later, Fabric API, Java 25 or later. Place the Fabric JAR in the mods directory. Down Arrow opens the menu. Save diagnostics writes a local report to `logs/land-of-losers-diagnostics.txt` (overwrites the previous report). Remove older builds first.
 
 ## Build
 
