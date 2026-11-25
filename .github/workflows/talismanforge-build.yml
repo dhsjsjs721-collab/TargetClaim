@@ -33,6 +33,17 @@ jobs:
         run: |
           python -m zipfile -t resourcepacks/TalismanForge-2.0.0-ResourcePack.zip
           test "$(sha1sum resourcepacks/TalismanForge-2.0.0-ResourcePack.zip | cut -d ' ' -f 1)" = "$(cat resourcepacks/TalismanForge-2.0.0-ResourcePack.sha1)"
+      - name: Assemble complete TalismanForge server package
+        run: |
+          mkdir -p dist/plugins dist/resourcepacks
+          cp TalismanForge/build/libs/*.jar build/libs/*.jar dist/plugins/
+          cp resourcepacks/TalismanForge-2.0.0-ResourcePack.zip resourcepacks/TalismanForge-2.0.0-ResourcePack.sha1 dist/resourcepacks/
+          cp TalismanForge/MYTHIC-REVIEW.md dist/README.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TalismanForge-Full
+          path: dist/
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: TalismanForge-JAR

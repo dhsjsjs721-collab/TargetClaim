@@ -202,7 +202,7 @@ final class MythicTalismans implements Listener {
         s.awakened=true;
         if(!save()){s.awakened=false;give(p,new ItemStack(Material.DRAGON_EGG));return true;}
         if(k==Kind.KOSCHEI&&s.egg!=null&&s.egg.getWorld()!=null&&s.egg.getWorld().isChunkLoaded(s.egg.getBlockX()>>4,s.egg.getBlockZ()>>4)&&eggBlock(s.egg.getBlock()))renderEgg(s);
-        refreshItem(p,k);p.showTitle(net.kyori.adventure.title.Title.title(title(k,s.awakening),Component.text("Реликвия пробуждена")));
+        refreshItem(p,k);p.showTitle(net.kyori.adventure.title.Title.title(title(k,k.awakening),Component.text("Реликвия пробуждена")));
         burst(p.getLocation(),k,64);p.playSound(p.getLocation(),Sound.BLOCK_END_PORTAL_SPAWN,0.8f,1.2f);return true;
     }
     private boolean take(Player p,Material type,int count){
