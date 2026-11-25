@@ -1519,30 +1519,39 @@ w.playSound(loc,Sound.ENTITY_PLAYER_LEVELUP,1,1.3f);
 }
 private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
-if(args.length==0||!args[0].equalsIgnoreCase("give")){
-sender.sendMessage("§dTalismanForge: ровно пять талисманов, награды только из реликвария.");
-sender.sendMessage("§7Цербер / Кракен / Горгона / Феникс / Гидра");
-sender.sendMessage("§7Крафт кейса: 7 аметистов + обычный тотем + обсидиан.");
-sender.sendMessage("§7Админ-тест: /tf give <ник> <cerberus|kraken|gorgon|phoenix|hydra|reliquary|hook>");
+if(args.length==0||args[0].equalsIgnoreCase("help")||args[0].equalsIgnoreCase("list")){
+sender.sendMessage("§d§lTalismanForge §7— только пять новых мифических талисманов:");
+sender.sendMessage("§4Цербер §7/ §3Кракен §7/ §2Горгона §7/ §6Феникс §7/ §aГидра");
+sender.sendMessage("§7Выдача всех: §e/u talisman give <ник> all");
+sender.sendMessage("§7Выдача одного: §e/u talisman give <ник> <cerberus|kraken|gorgon|phoenix|hydra>");
+sender.sendMessage("§7Реликварий: §e/u talisman give <ник> reliquary");
+sender.sendMessage("§7Проверка модуля: §e"+five.status());
 return true;
 }
-if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
-if(args.length<3){sender.sendMessage("§cИспользуй: /tf give <ник> <тип>");return true;}
+if(!args[0].equalsIgnoreCase("give")){sender.sendMessage("§cНеизвестная подкоманда. /u talisman list");return true;}
+if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав. Нужен OP или talismanforge.admin.");return true;}
+if(args.length<3){sender.sendMessage("§cИспользуй: /u talisman give <ник> <all|cerberus|kraken|gorgon|phoenix|hydra|reliquary>");return true;}
 Player p=Bukkit.getPlayerExact(args[1]);
-if(p==null){sender.sendMessage("§cИгрок не найден.");return true;}
+if(p==null){sender.sendMessage("§cИгрок "+args[1]+" не в сети.");return true;}
+if(args[2].equalsIgnoreCase("all")){
+for(FiveTalismanService.Kind kind:FiveTalismanService.Kind.values())give(p,five.create(kind));
+sender.sendMessage("§aВыданы все 5 НОВЫХ талисманов игроку "+p.getName()+": Цербер, Кракен, Горгона, Феникс, Гидра.");
+p.sendMessage("§aТебе выдали пять мифических талисманов. Каждый подписан своим названием.");
+return true;
+}
 FiveTalismanService.Kind type=FiveTalismanService.Kind.parse(args[2]);
 ItemStack item=(args[2].equalsIgnoreCase("chest")||args[2].equalsIgnoreCase("reliquary"))?chestItem():
 args[2].equalsIgnoreCase("hook")?hookListener.createHookItem():
 type==null?null:five.create(type);
-if(item==null){sender.sendMessage("§cНеизвестный тип. Доступны только пять новых талисманов.");return true;}
+if(item==null){sender.sendMessage("§cНеизвестный тип. /u talisman list");return true;}
 give(p,item);
-sender.sendMessage("§aВыдано игроку "+p.getName());
+sender.sendMessage("§aВыдан предмет "+item.getItemMeta().getDisplayName()+" §aигроку "+p.getName());
 return true;
 }
 @Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] args){
-if(args.length==1)return List.of("give");
-if(args.length==2)return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
-if(args.length==3)return List.of("cerberus","kraken","gorgon","phoenix","hydra","reliquary","hook");
+if(args.length==1)return List.of("list","give","help");
+if(args.length==2&&args[0].equalsIgnoreCase("give"))return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
+if(args.length==3&&args[0].equalsIgnoreCase("give"))return List.of("all","cerberus","kraken","gorgon","phoenix","hydra","reliquary","hook");
 return List.of();
 }
 @EventHandler public void quit(PlayerQuitEvent e){
