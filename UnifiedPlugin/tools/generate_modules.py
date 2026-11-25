@@ -37,6 +37,8 @@ def swap(code,old,new,label,required=True):
 
 def convert(code,namespace,name,path):
     plugin_class=name+"Plugin"
+    if name=="WanderingTraderFeature":
+        code=swap(code,"for (Offer offer:selected) recipes.add(recipe(offer));","for (Offer offer:selected) recipes.add(recipe(offer));\nif(random.nextDouble()<.05)recipes.add(dev.unified.Verity.offer(random));","rare Verity trade")
     if name in ("GrapplingHookListener","WanderingTraderFeature"):
         if name=="GrapplingHookListener":
             code=code.replace("import org.bukkit.plugin.java.JavaPlugin;","import org.bukkit.plugin.Plugin;")

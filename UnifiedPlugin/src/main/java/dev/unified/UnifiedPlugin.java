@@ -34,6 +34,7 @@ private MiningGear mining;
 private MediaItems media;
 private MirrorArmor mirrorArmor;
 private Goblins goblins;
+private Verity verity;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("claims","p"),Map.entry("p","p"),Map.entry("private","p"),
 Map.entry("team","team"),Map.entry("teams","team"),Map.entry("clan","team"),Map.entry("clans","team"),
@@ -47,7 +48,7 @@ private static final Map<String,String> OWNERS=Map.of(
 "enchantmentforge","EnchantmentForge","swampsky","SwampSky","imagemap","ImageMaps");
 @Override public void onEnable(){
 getDataFolder().mkdirs();
-getConfig().addDefault("peace.world","world");getConfig().addDefault("peace.radius",250);getConfig().addDefault("peace.containers-per-chunk",16);getConfig().addDefault("mining.dynamic-light",true);getConfig().addDefault("goblins.world-cap",48);getConfig().options().copyDefaults(true);saveConfig();
+getConfig().addDefault("peace.world","world");getConfig().addDefault("peace.radius",250);getConfig().addDefault("peace.containers-per-chunk",16);getConfig().addDefault("mining.dynamic-light",true);getConfig().addDefault("goblins.world-cap",48);getConfig().addDefault("verity.speech",true);getConfig().options().copyDefaults(true);saveConfig();
 peace=new PeaceZone(this);peace.enable();
 Bukkit.getPluginManager().registerEvents(this,this);
 PluginCommand entry=getCommand("unified");
@@ -96,6 +97,7 @@ mining=new MiningGear(this);mining.enable();
 media=new MediaItems(this);media.enable();
 mirrorArmor=new MirrorArmor(this);mirrorArmor.enable();
 goblins=new Goblins(this);goblins.enable();
+verity=new Verity(this);verity.enable();
 for(String name:List.of("skin","disc")){PluginCommand c=getCommand(name);if(c!=null)c.setExecutor((sender,command,label,args)->name.equals("skin")?media.skin(sender,args):media.disc(sender,args));}
 try{
 deepslateCrafts=new DeepslateCrafts(this);
@@ -109,7 +111,7 @@ deepslateCrafts=null;
 if(Bukkit.getPluginManager().getPlugin("TalismanForge")!=null){
 getLogger().severe("WARNING: standalone TalismanForge detected. Remove its old JAR from plugins to prevent duplicate abilities or command conflicts.");
 }
-getLogger().info("MinecraftUnified 1.1.18 started modules "+enabledModules.size()+"/"+modules.size()+
+getLogger().info("MinecraftUnified 1.1.19 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
 @EventHandler public void unifiedCommandList(PlayerCommandSendEvent event){
@@ -130,7 +132,7 @@ for(ModuleBridge m:enabledModules)if(m.getName().equals(module))return true;
 return false;
 }
 private void status(CommandSender sender){
-sender.sendMessage("§aMinecraftUnified 1.1.18 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
+sender.sendMessage("§aMinecraftUnified 1.1.19 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
 sender.sendMessage(trapItems!=null?"§a✓ PvP-трапки §7активны":"§c✗ PvP-трапки §7не активны");
 sender.sendMessage(deepslateCrafts!=null?"§a✓ Крафт сланца §7активен":"§c✗ Крафт сланца §7не запущен");
 for(String name:List.of("TargetClaim","TalismanForge","EnchantmentForge","SwampSky","ImageMaps")){
@@ -165,7 +167,7 @@ sender.sendMessage("§e/skin §7— смена скина; §e/disc §7— за�
 sender.sendMessage("§e/u guide §7— краткое руководство игрока");
 }
 
-private static final List<String> GIVE_ITEMS=List.of("claim","independent","key","thor","anubis","koschei","kitsune","medusa","all","reliquary","hook","helmet","mirror","trap","frog_hide","frog_boots","frog_leggings","frog_wings","soulbound","triple_shot","charm");
+private static final List<String> GIVE_ITEMS=List.of("claim","independent","key","thor","anubis","koschei","kitsune","medusa","all","reliquary","hook","helmet","mirror","verity","trap","frog_hide","frog_boots","frog_leggings","frog_wings","soulbound","triple_shot","charm");
 private boolean runModule(CommandSender sender,String name,String... args){
 PluginCommand command=getCommand(name);
 if(command==null){sender.sendMessage("§cМодуль недоступен.");return true;}
@@ -183,6 +185,7 @@ case "independent" -> {if(!sender.hasPermission("targetclaim.admin")){sender.sen
 for(var rest:player.getInventory().addItem(claim.independentTarget()).values())player.getWorld().dropItemNaturally(player.getLocation(),rest);
 sender.sendMessage("§aНезависимая мишень выдана игроку "+player.getName());return true;}
 case "thor","anubis","koschei","kitsune","medusa","all","reliquary","hook" -> {for(ModuleBridge m:enabledModules)if(m instanceof TalismanForgePlugin t)return t.onCommand(sender,getCommand("talismanforge"),"tf",new String[]{"give",player.getName(),type});return unavailable(sender);}
+case "verity" -> {return verity==null?unavailable(sender):verity.give(sender,player);}
 case "mirror" -> {return mirrorArmor==null?unavailable(sender):mirrorArmor.give(sender,player);}
 case "helmet" -> {return mining==null?unavailable(sender):mining.command(sender,new String[]{"give",player.getName(),"helmet"});}
 case "trap" -> {return trapItems==null?unavailable(sender):trapItems.handleCommand(sender,new String[]{"give",player.getName()});}
@@ -198,6 +201,7 @@ sender.sendMessage("§eПриват: §f3 бумаги в верхнем ряд�
 sender.sendMessage("§eРеликварий: §f7 аметистов вокруг тотема в центре, обсидиан снизу по центру. Поставь вне мирной зоны, жди 3 минуты.");
 sender.sendMessage("§eШахтёрская шапка: §fжелезо сверху по центру; фонарь, кожаный шлем, фонарь в среднем ряду; редстоун снизу по центру.");
 sender.sendMessage("§eТрапка: §fобсидиан в углах, железо по сторонам, алмаз в центре.");
+sender.sendMessage("§eВерити: §fредкий обмен у странствующего торговца; /u give verity (админ)");
 sender.sendMessage("§eЗеркальный нагрудник: §f8 затемнённых стёкол, форма обычного нагрудника. /u give mirror");
 sender.sendMessage("§eФакел: §fShift + ПКМ в основной руке — бросок.");
 }
@@ -298,6 +302,7 @@ return sub.tabComplete(sender,target,rest);
 }catch(Exception ex){return List.of();}
 }
 @Override public void onDisable(){
+if(verity!=null){verity.disable();verity=null;}
 if(mirrorArmor!=null){mirrorArmor.disable();mirrorArmor=null;}
 if(mining!=null){mining.disable();mining=null;}
 if(deepslateCrafts!=null){try{deepslateCrafts.disable();}catch(Throwable ex){getLogger().warning("Recipe cleanup failed: "+ex);}deepslateCrafts=null;}

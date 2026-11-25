@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.19 — Verity
+
+Rare smiling block with a 5% chance to appear in each newly configured wandering trader's stable offers. One purchase, random survival-obtainable item and quantity from 1 to its stack limit (maximum 64). Custom blackstone cube, persistent chunk marker, normal mining, no piston/explosion displacement. Repels loaded mobs within 16 blocks using navigation and horizontal push; prevents attacks by frightened mobs, no player knockback. Riding mobs are excluded. Four per chunk, speech throttled, optional via verity.speech. Local chat and sound, not recorded voice. /u give verity [player].
+
 # MinecraftUnified 1.1.18 — goblins
 
 Custom small fast zombies, 14 HP, scale 0.68, movement 0.32, iron swords, zero base armor, no sunlight burning, no reinforcements, no equipment pickup, two resource-pack costumes. Surface packs of 2–4 in dark forest areas and 4–7 in mushroom fields even by day; near-player caps 8/18 and world loaded cap 48, no forced chunk generation, no spawn in claims or peaceful zone. Respects mob-spawn rules and Peaceful difficulty. `/u goblin [1–12] [forest|mushroom]` is admin-only. Goblins have normal zombie AI, not a new client entity. Custom costume does not drop; natural drops capped. Visual and live combat tests required.
