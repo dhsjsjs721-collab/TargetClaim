@@ -1,0 +1,28 @@
+name: Fabric Practice Build
+on:
+  push:
+    branches: [pvp-core]
+    paths:
+      - 'pvp-core/**'
+      - '.github/workflows/fabric-practice-build.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.8.2'
+      - run: gradle -p pvp-core build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fabric-practice
+          path: pvp-core/build/libs/*.jar
+          if-no-files-found: error
