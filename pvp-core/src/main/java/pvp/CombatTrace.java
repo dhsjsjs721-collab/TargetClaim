@@ -33,5 +33,5 @@ lastCharge=charge; lastDistance=distance; lastReach=reach; lastAngle=angle; samp
 public void movement(String value) { movement.merge(value,1L,Long::sum); }
 private static String fmt(double value) { return Double.isFinite(value)?String.format(java.util.Locale.ROOT,"%.2f",value):"n/a"; }
 public String summary() { return confirmed+"/"+attempts+" hits | "+expired+" timeout"; }
-public String report() { return "PvP Practice diagnostics\n"+summary()+" | observed feedback delay: "+String.format(java.util.Locale.ROOT,"%.1f",latency)+" ticks\nSamples aligned: "+onTarget+"/"+samples+"\nLast sample: charge="+fmt(lastCharge)+" distance="+fmt(lastDistance)+" reach="+fmt(lastReach)+" angle="+fmt(lastAngle)+"\nMovement: "+movement+"\nStates: "+counts+"\nRecent transitions:\n"+String.join("\n",events); }
+public String report() { return "Land of Losers diagnostics\n"+summary()+" | observed feedback delay: "+String.format(java.util.Locale.ROOT,"%.1f",latency)+" ticks\nSamples aligned: "+onTarget+"/"+samples+"\nLast sample: charge="+fmt(lastCharge)+" distance="+fmt(lastDistance)+" reach="+fmt(lastReach)+" angle="+fmt(lastAngle)+"\nMovement: "+movement+"\nStates: "+counts+"\nRecent transitions:\n"+String.join("\n",events); }
 }

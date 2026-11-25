@@ -1,7 +1,20 @@
-# PvP Core 0.2
-Standalone Java 21+ offline combat model. Not a Fabric mod. No Minecraft input, concealment, or network integration. Original code.
-Build and test: run `bash build.sh` from this directory.
-The resulting library is build/pvp-core-0.2.jar; it is not a playable mod.
-Counter-critical is a simplified heuristic; cooldown threshold .95 is a modeling choice.
+# Land of Losers
 
-Fabric practice UI: CI builds the client library using the Fabric workflow. Install only a successfully built Fabric artifact, not the standalone core JAR.
+**Precision. Control. Adaptation.**
+
+A compact Minecraft PvP practice client for solo practice and explicitly permitted servers.
+
+- Adaptive aim assistance
+- Weapon-aware attack scheduling
+- Predictive movement
+- Local combat diagnostics
+
+## Installation
+
+Minecraft 26.3, Fabric Loader 0.20.1 or later, Fabric API, Java 25 or later. Place the Fabric JAR in the mods directory. Down Arrow opens the menu. Remove older builds first.
+
+## Build
+
+The Fabric workflow builds the playable mod with Gradle. The separate standalone Java 21+ model is built using `bash build.sh`; its JAR is not a playable Minecraft mod.
+
+Automated tests cover the mathematical model. Actual in-game performance has not been independently verified.

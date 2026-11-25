@@ -4,4 +4,4 @@ maven { url = 'https://maven.fabricmc.net/' }
 gradlePluginPortal()
 }
 }
-rootProject.name = 'pvp-practice'
+rootProject.name = 'land-of-losers'
