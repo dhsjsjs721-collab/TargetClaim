@@ -109,6 +109,7 @@ cleanse(p.getEnderChest());
 }
 @EventHandler public void join(PlayerJoinEvent event){
 migratePlayer(event.getPlayer());
+if(event.getPlayer().getPersistentDataContainer().has(ghostTag,PersistentDataType.STRING))ghostRestore(event.getPlayer());
 }
 @EventHandler(priority=EventPriority.MONITOR)
 public void inventoryOpen(InventoryOpenEvent event){
@@ -127,6 +128,152 @@ if(offensiveCooldown.size()>20000)offensiveCooldown.clear();
 if(defensiveCooldown.size()>20000)defensiveCooldown.clear();
 offensiveCooldown.entrySet().removeIf(e->now-e.getValue()>180000);
 defensiveCooldown.entrySet().removeIf(e->now-e.getValue()>180000);
+}
+
+private ItemStack item(Player p){
+ItemStack off=p.getInventory().getItemInOffHand();
+return kind(off)!=null?off:p.getInventory().getItemInMainHand();
+}
+private int count(ItemStack i,NamespacedKey k,int fallback){
+Integer number=i.getItemMeta().getPersistentDataContainer().get(k,PersistentDataType.INTEGER);
+return number==null?fallback:number;
+}
+private void count(ItemStack i,NamespacedKey k,int v){
+ItemMeta m=i.getItemMeta();m.getPersistentDataContainer().set(k,PersistentDataType.INTEGER,v);i.setItemMeta(m);
+}
+private List<Long> scheduledHeads(ItemStack i){
+List<Long> times=new ArrayList<>();
+String s=i.getItemMeta().getPersistentDataContainer().get(regens,PersistentDataType.STRING);
+if(s!=null)for(String part:s.split(","))try{times.add(Long.parseLong(part));}catch(NumberFormatException ignored){}
+return times;
+}
+private void scheduledHeads(ItemStack i,List<Long> times){
+ItemMeta m=i.getItemMeta();
+m.getPersistentDataContainer().set(regens,PersistentDataType.STRING,String.join(",",times.stream().map(String::valueOf).toList()));
+i.setItemMeta(m);
+}
+private void regrow(Player p,ItemStack i,long now){
+List<Long> times=scheduledHeads(i);Collections.sort(times);
+int h=count(i,heads,3),before=h;
+while(!times.isEmpty()&&times.get(0)<=now&&h<3){times.remove(0);h++;}
+if(h!=before){count(i,heads,h);scheduledHeads(i,times);p.sendActionBar("§aГидра: отросла голова, "+h+"/3");}
+}
+private void health(Player p,double amount){
+var a=p.getAttribute(Attribute.MAX_HEALTH);
+if(a==null)return;
+AttributeModifier old=null;
+for(AttributeModifier mod:a.getModifiers())if(mod.getKey().equals(health)){old=mod;break;}
+if(old!=null&&Math.abs(old.getAmount()-amount)<.001)return;
+if(old!=null)a.removeModifier(old);
+if(amount!=0)a.addModifier(new AttributeModifier(health,amount,AttributeModifier.Operation.ADD_NUMBER));
+if(p.getHealth()>a.getValue())p.setHealth(a.getValue());
+}
+private void heal(Player p,double hearts){
+var a=p.getAttribute(Attribute.MAX_HEALTH);
+double max=a==null?20:a.getValue();
+p.setHealth(Math.min(max,Math.max(1,hearts*2)));
+}
+private boolean ghost(Player p){return ghostEnds.getOrDefault(p.getUniqueId(),0L)>System.currentTimeMillis();}
+private void ghostStart(Player p){
+UUID id=p.getUniqueId();GameMode old=p.getGameMode();double y=p.getLocation().getY();
+ghostModes.put(id,old);ghostFloors.put(id,y);ghostEnds.put(id,System.currentTimeMillis()+3000L);
+p.getPersistentDataContainer().set(ghostTag,PersistentDataType.STRING,old.name());
+p.getPersistentDataContainer().set(ghostY,PersistentDataType.DOUBLE,y);
+p.setGameMode(GameMode.SPECTATOR);
+p.sendMessage("§4Цербер: призрак на 3 секунды; под землю спускаться нельзя.");
+Bukkit.getScheduler().runTaskLater(plugin,()->{if(p.isOnline())ghostRestore(p);},60L);
+}
+private void ghostRestore(Player p){
+String saved=p.getPersistentDataContainer().get(ghostTag,PersistentDataType.STRING);
+if(saved==null)return;
+GameMode old=ghostModes.get(p.getUniqueId());
+if(old==null)try{old=GameMode.valueOf(saved);}catch(IllegalArgumentException error){old=GameMode.SURVIVAL;}
+if(old==GameMode.SPECTATOR)old=GameMode.SURVIVAL;
+Double floor=ghostFloors.getOrDefault(p.getUniqueId(),p.getPersistentDataContainer().get(ghostY,PersistentDataType.DOUBLE));
+p.setGameMode(old);
+if(floor!=null&&p.getLocation().getY()<floor){
+Location l=p.getLocation();l.setY(floor);
+if(l.getBlock().isPassable()&&l.clone().add(0,1,0).getBlock().isPassable())p.teleport(l);
+else p.teleport(p.getWorld().getSpawnLocation());
+}
+p.getPersistentDataContainer().remove(ghostTag);p.getPersistentDataContainer().remove(ghostY);
+ghostEnds.remove(p.getUniqueId());ghostFloors.remove(p.getUniqueId());ghostModes.remove(p.getUniqueId());
+p.setNoDamageTicks(50);
+}
+@EventHandler public void ghostWalk(PlayerMoveEvent e){
+if(!ghost(e.getPlayer())||e.getTo()==null)return;
+double floor=ghostFloors.getOrDefault(e.getPlayer().getUniqueId(),e.getFrom().getY());
+if(e.getTo().getY()<floor){Location l=e.getFrom().clone();l.setY(Math.max(floor,l.getY()));e.setTo(l);}
+}
+@EventHandler public void ghostQuit(PlayerQuitEvent e){ghostRestore(e.getPlayer());}
+@EventHandler public void ghostInteract(PlayerInteractEvent e){if(ghost(e.getPlayer()))e.setCancelled(true);}
+@EventHandler public void ghostHit(EntityDamageByEntityEvent e){if(e.getDamager() instanceof Player p&&ghost(p))e.setCancelled(true);}
+@EventHandler public void neutralNether(EntityTargetLivingEntityEvent e){
+if(!(e.getTarget() instanceof Player p)||carried(p)!=Kind.CERBERUS)return;
+if(e.getEntity() instanceof Ghast||e.getEntity() instanceof Piglin||e.getEntity() instanceof ZombifiedPiglin||e.getEntity() instanceof Blaze){
+if(!angryMobs.contains(e.getEntity().getUniqueId()))e.setCancelled(true);
+}
+}
+@EventHandler public void angryNether(EntityDamageByEntityEvent e){
+if(e.getDamager() instanceof Player p&&carried(p)==Kind.CERBERUS
+&&(e.getEntity() instanceof Ghast||e.getEntity() instanceof Piglin||e.getEntity() instanceof ZombifiedPiglin||e.getEntity() instanceof Blaze))angryMobs.add(e.getEntity().getUniqueId());
+}
+private void stone(Player p,int ticks){
+UUID id=p.getUniqueId(),nowId=id;
+if(stoneImmunity.getOrDefault(id,0L)>System.currentTimeMillis())return;
+stoneImmunity.put(id,System.currentTimeMillis()+10000L);
+p.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,ticks,9));
+p.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST,ticks,128));
+p.getWorld().spawnParticle(Particle.BLOCK,p.getLocation().add(0,1,0),35,.35,.7,.35,Material.STONE.createBlockData());
+p.sendActionBar("§7Окаменение!");
+}
+@EventHandler public void blockStone(org.bukkit.event.entity.EntityDamageByEntityEvent e){
+if(!(e.getEntity() instanceof Player p)||carried(p)!=Kind.GORGON||!p.isBlocking())return;
+if(e.getDamager() instanceof Player attacker&&mayAttack(p,attacker)&&e.getFinalDamage()<=0)stone(attacker,40);
+}
+@EventHandler public void stoneWalk(PlayerMoveEvent e){
+Player p=e.getPlayer();PotionEffect slow=p.getPotionEffect(PotionEffectType.SLOWNESS);
+if(slow!=null&&slow.getAmplifier()>=9&&slow.getDuration()>0&&e.getTo()!=null
+&&e.getFrom().distanceSquared(e.getTo())>.0001)e.setTo(e.getFrom());
+}
+private void fireWave(Player caster,double stored){
+final double each=Math.min(stored,20)/4;
+for(int j=0;j<4;j++){
+final int delay=j*20;
+Bukkit.getScheduler().runTaskLater(plugin,()->{
+if(!caster.isOnline())return;
+Location at=caster.getLocation().add(0,1,0);
+caster.getWorld().spawnParticle(Particle.FLAME,at,80,2,.8,2,.04);
+for(Entity ent:caster.getNearbyEntities(5,3,5))
+if(ent instanceof Player victim&&mayAttack(caster,victim)){
+if(chained.add(caster.getUniqueId()))try{victim.damage(each,caster);}finally{chained.remove(caster.getUniqueId());}
+}
+},delay);
+}
+}
+private void krakenControl(Player p,long now){
+for(Entity ent:p.getNearbyEntities(24,8,24)){
+if(!(ent instanceof Player target)||!mayAttack(p,target))continue;
+UUID id=target.getUniqueId();
+if(!p.getUniqueId().equals(markedBy.get(id))||markedEnds.getOrDefault(id,0L)<now)continue;
+double d=p.getLocation().distance(target.getLocation());
+if(d>20){
+Vector direction=p.getLocation().toVector().subtract(target.getLocation().toVector()).setY(0);
+if(direction.lengthSquared()>.01)target.setVelocity(direction.normalize().multiply(1.25).setY(.18));
+}else if(d>15){add(target,PotionEffectType.SLOWNESS,45,2);add(target,PotionEffectType.DARKNESS,45,0);add(target,PotionEffectType.MINING_FATIGUE,45,0);}
+else if(d>10){add(target,PotionEffectType.SLOWNESS,45,1);add(target,PotionEffectType.DARKNESS,45,0);}
+else if(d>5)add(target,PotionEffectType.SLOWNESS,45,0);
+}
+}
+private void gorgonStare(Player owner,Player target,long now){
+UUID id=target.getUniqueId();
+if(!mayAttack(owner,target)||owner.getLocation().distanceSquared(target.getLocation())>36||!target.hasLineOfSight(owner)){gazeStart.remove(id);return;}
+Vector to=owner.getEyeLocation().toVector().subtract(target.getEyeLocation().toVector());
+if(to.lengthSquared()<.001||target.getEyeLocation().getDirection().dot(to.normalize())<.97){gazeStart.remove(id);return;}
+long seconds=now-gazeStart.computeIfAbsent(id,k->now);
+if(seconds>=2000)add(target,PotionEffectType.NAUSEA,50,0);
+if(seconds>=3000)add(target,PotionEffectType.DARKNESS,50,0);
+if(seconds>=4000){stone(target,40);gazeStart.remove(id);}
 }
 private static void add(Player p,PotionEffectType effect,int ticks,int amplifier){
 PotionEffect existing=p.getPotionEffect(effect);
