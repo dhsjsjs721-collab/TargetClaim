@@ -79,6 +79,13 @@ check(AimModel.shouldApproach(12,10));
 check(!AimModel.shouldApproach(4,0));
 check(!AimModel.shouldApproach(12,40));
 check(!AimModel.shouldApproach(40,0));
+var approach=AimModel.flank(0,5,0,0);
+check(approach.forward());
+var rearMove=AimModel.flank(0,2.25,0,0);
+check(!rearMove.forward() && !rearMove.back() && !rearMove.left() && !rearMove.right());
+var frontMove=AimModel.flank(0,-2.25,0,180);
+check(frontMove.left() || frontMove.right());
+check(!AimModel.flank(0,7,0,0).forward());
 System.out.println("Combat tests passed");
 }
 }
