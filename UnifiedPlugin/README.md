@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.17
+
+Mirror chestplate: craft 8 tinted glass in chestplate shape. 7 armor, 1 toughness, 400 durability, 1/3 independent chance to cancel incoming damage and reflect final damage to the eligible attacker. Environmental damage is absorbed on proc, no recipient. Administrative kill excluded. Reflected hits cannot reflect again; claims and allied PvP rules remain effective. The item retains normal armor enchantments and ordinary durability. /u give mirror [player]. Live player combat verification required.
+
 # MinecraftUnified 1.1.16
 
 Peaceful spawn blocks hostile combat, not passive relics or death saves. Relics work in either hand (offhand priority). Anubis gets souls from all player-killed mobs including spawners, except summoned/visual entities. Awakening automatically detects nearby manual drops and works on suitable floors, including spawn. Koschei placement gives a specific denial reason; unclaimed spawn is allowed. Thor can fly throughout rain and receives one landing grace after flight ends. New claim cores reserve maximum horizontal footprints (210/105 blocks in normal/spawn zones); old existing sizes preserved; new spawn cores have half-size in all dimensions. No destructive claim migration. Existing overlap may prevent upgrades.
