@@ -134,6 +134,10 @@ for(PotionEffectType effect:List.of(PotionEffectType.POISON,PotionEffectType.WIT
 PotionEffectType.SLOWNESS,PotionEffectType.BLINDNESS,PotionEffectType.NAUSEA,PotionEffectType.MINING_FATIGUE))p.removePotionEffect(effect);
 }else health(p,0);
 if(k==Kind.PHOENIX){
+double charge=Math.min(1,fireStored.getOrDefault(p.getUniqueId(),0.0)/10);
+Color color=Color.fromRGB(255,(int)(140+charge*100),30);
+p.getWorld().spawnParticle(Particle.DUST,p.getLocation().clone().add(0,1.25,0),
+(int)(2+charge*9),.35,.65,.35,new Particle.DustOptions(color,.8f));
 UUID id=p.getUniqueId();
 if(now-phoenixRecharge.getOrDefault(id,0L)>=2000){
 p.setAbsorptionAmount(Math.min(10,p.getAbsorptionAmount()+2));
@@ -228,11 +232,24 @@ p.setNoDamageTicks(50);
 @EventHandler public void ghostWalk(PlayerMoveEvent e){
 if(!ghost(e.getPlayer())||e.getTo()==null)return;
 double floor=ghostFloors.getOrDefault(e.getPlayer().getUniqueId(),e.getFrom().getY());
-if(e.getTo().getY()<floor){Location l=e.getFrom().clone();l.setY(Math.max(floor,l.getY()));e.setTo(l);}
+if(e.getTo().getY()<floor||!e.getTo().getBlock().isPassable()||!e.getTo().clone().add(0,1,0).getBlock().isPassable()){
+Location l=e.getFrom().clone();l.setY(Math.max(floor,l.getY()));e.setTo(l);
+}
 }
 @EventHandler public void ghostQuit(PlayerQuitEvent e){ghostRestore(e.getPlayer());}
 @EventHandler public void ghostInteract(PlayerInteractEvent e){if(ghost(e.getPlayer()))e.setCancelled(true);}
 @EventHandler public void ghostHit(EntityDamageByEntityEvent e){if(e.getDamager() instanceof Player p&&ghost(p))e.setCancelled(true);}
+@EventHandler(ignoreCancelled=true)public void hydraPotion(EntityPotionEffectEvent e){
+if(!(e.getEntity() instanceof Player p)||carried(p)!=Kind.HYDRA||e.getNewEffect()==null)return;
+PotionEffectType t=e.getNewEffect().getType();
+if(List.of(PotionEffectType.POISON,PotionEffectType.WITHER,PotionEffectType.WEAKNESS,
+PotionEffectType.SLOWNESS,PotionEffectType.MINING_FATIGUE,PotionEffectType.BLINDNESS,PotionEffectType.NAUSEA).contains(t))e.setCancelled(true);
+}
+@EventHandler(ignoreCancelled=true)public void gorgonStoneMobAttack(EntityDamageByEntityEvent e){
+if(!(e.getDamager() instanceof Monster monster))return;
+PotionEffect slow=monster.getPotionEffect(PotionEffectType.SLOWNESS);
+if(slow!=null&&slow.getAmplifier()>=9)e.setCancelled(true);
+}
 @EventHandler public void neutralNether(EntityTargetLivingEntityEvent e){
 if(!(e.getTarget() instanceof Player p)||carried(p)!=Kind.CERBERUS)return;
 if(e.getEntity() instanceof Ghast||e.getEntity() instanceof Piglin||e.getEntity() instanceof PigZombie||e.getEntity() instanceof Blaze){
@@ -341,7 +358,7 @@ targets.sort(Comparator.comparingDouble(p->p.getLocation().distanceSquared(victi
 if(targets.isEmpty())return;
 Player from=victim;
 for(int i=0;i<3;i++){
-Player next=i==2&&targets.size()==1?victim:targets.get(i%targets.size());
+Player next=targets.size()==1?(i%2==0?targets.get(0):victim):(i==2?victim:targets.get(i));
 if(!mayAttack(attacker,next)||from.getLocation().distanceSquared(next.getLocation())>25)break;
 if(!chained.add(id))break;
 try{next.damage(e.getDamage()*.5,attacker);}finally{chained.remove(id);}
@@ -432,7 +449,8 @@ int left=count(carried,heads,3)-1;
 if(left<=0){consume(p);p.sendMessage("§cПоследняя голова Гидры уничтожена.");}
 else{
 List<Long> times=scheduledHeads(carried);
-times.add(System.currentTimeMillis()+120000L);
+long last=times.stream().mapToLong(Long::longValue).max().orElse(0L);
+times.add(Math.max(System.currentTimeMillis(),last)+120000L);
 setCount(carried,heads,left);scheduledHeads(carried,times);
 p.sendMessage("§aГидра спасла тебя! Осталось "+left+" головы; восстановление через 2 минуты.");
 }
