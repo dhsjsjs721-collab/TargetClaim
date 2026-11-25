@@ -28,11 +28,11 @@ private TrapItems trapItems;
 private CombatShields combatShields;
 private DeepslateCrafts deepslateCrafts;
 private static final Map<String,String> ROUTES=Map.ofEntries(
-Map.entry("claim","p"),Map.entry("p","p"),Map.entry("private","p"),
-Map.entry("team","team"),
+Map.entry("claim","p"),Map.entry("claims","p"),Map.entry("p","p"),Map.entry("private","p"),
+Map.entry("team","team"),Map.entry("teams","team"),
 Map.entry("tf","talismanforge"),Map.entry("talisman","talismanforge"),Map.entry("talismans","talismanforge"),
 Map.entry("ce","enchantmentforge"),Map.entry("enchant","enchantmentforge"),Map.entry("enchantments","enchantmentforge"),
-Map.entry("ss","swampsky"),Map.entry("swamp","swampsky"),Map.entry("swampsky","swampsky"),
+Map.entry("ss","swampsky"),Map.entry("wildlife","swampsky"),Map.entry("swamp","swampsky"),Map.entry("swampsky","swampsky"),
 Map.entry("map","imagemap"),Map.entry("image","imagemap"),Map.entry("imagemap","imagemap")
 );
 private static final Map<String,String> OWNERS=Map.of(
@@ -98,7 +98,7 @@ getLogger().severe("Deepslate recipe failed to register: "+ex.getMessage());
 if(deepslateCrafts!=null)deepslateCrafts.disable();
 deepslateCrafts=null;
 }
-getLogger().info("MinecraftUnified 1.1.6 started modules "+enabledModules.size()+"/"+modules.size()+
+getLogger().info("MinecraftUnified 1.1.7 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
 private boolean enabled(String module){
@@ -106,7 +106,7 @@ for(ModuleBridge m:enabledModules)if(m.getName().equals(module))return true;
 return false;
 }
 private void status(CommandSender sender){
-sender.sendMessage("§aMinecraftUnified 1.1.6 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
+sender.sendMessage("§aMinecraftUnified 1.1.7 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
 sender.sendMessage(trapItems!=null?"§a✓ PvP-трапки §7активны":"§c✗ PvP-трапки §7не активны");
 sender.sendMessage(combatShields!=null?"§a✓ 3 особых щита §7активны":"§c✗ Особые щиты §7не запущены");
 sender.sendMessage(deepslateCrafts!=null?"§a✓ Крафт сланца §7активен":"§c✗ Крафт сланца §7не запущен");
@@ -116,22 +116,23 @@ else sender.sendMessage("§c✗ "+name+" §7ошибка запуска: "+faile
 }
 }
 private void help(CommandSender sender){
-sender.sendMessage("§aMinecraftUnified §7— одна команда для всех модулей:");
-sender.sendMessage("§e/u status §7— проверка всех 5 модулей");
-sender.sendMessage("§e/u frog §7— гигантская жаба; летающие свиньи удалены");
-sender.sendMessage("§7Обычные свиньи и верховая езда сохранены.");
-sender.sendMessage("§e/u trader §7— странствующий торговец");
-sender.sendMessage("§e/u tf give <ник> <тип> §7— талисман");
-sender.sendMessage("§e/u ss give <ник> <hide|boots|leggings|wings> §7— вещи");
-sender.sendMessage("§e/u map §7— окно картинки на карте");
-sender.sendMessage("§e/u trap §7— крафт и использование трапки");
-sender.sendMessage("§e/u shield §7— особые щиты и рецепты");
-sender.sendMessage("§eКрафт: 4 базальта + 4 чернокамня + обсидиан → 8 глубинного сланца");
-sender.sendMessage("§e/u trap give <ник> [количество] §7— выдача для администратора");
-sender.sendMessage("§e/u p list §7— два привата, §e/u p 1/2 §7— переключение");
-sender.sendMessage("§e/u p §7и §e/u team §7— приват и команда");
-sender.sendMessage("§7Поддерживаются также /u ce, /u ss, /u tf с исходными аргументами.");
+sender.sendMessage("§6§lMinecraftUnified §8» §7Все функции через §e/u");
+sender.sendMessage("§e/u status §7— состояние модулей");
+sender.sendMessage("§e/u claim §7— приваты; §e/u claim list §7— список");
+sender.sendMessage("§e/u team §7— меню команды");
+sender.sendMessage("§e/u team create <название> <цвет> §7— создать цветную команду");
+sender.sendMessage("§e/u team color <цвет> §7— сменить цвет (лидер)");
+sender.sendMessage("§e/u team colors §7— доступные цвета");
+sender.sendMessage("§e/u team invite <ник> §7— пригласить");
+sender.sendMessage("§e/u team accept §7— принять приглашение");
+sender.sendMessage("§e/u talisman §7— реликварий и мифические талисманы");
+sender.sendMessage("§e/u talisman give <ник> <cerberus|kraken|gorgon|phoenix|hydra|reliquary> §7— админ");
+sender.sendMessage("§e/u enchant §7— зачарования; §e/u trader §7— торговец");
+sender.sendMessage("§e/u wildlife §7— лягушки и экипировка; §e/u frog §7— гигантская лягушка");
+sender.sendMessage("§e/u map §7— карты; §e/u shield §7— щиты; §e/u trap §7— обсидиановая ловушка");
+sender.sendMessage("§7Летающие свиньи удалены; обычные свиньи сохранены.");
 }
+
 private String route(String input){
 return switch(input){
 case "frog","repair","trader" -> input.equals("trader")?"enchantmentforge":"swampsky";
@@ -178,7 +179,7 @@ return true;
 @Override public List<String> onTabComplete(CommandSender sender,Command command,String alias,String[] args){
 if(args.length<=1){
 String prefix=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-return List.of("help","status","frog","repair","trader","p","team","tf","ce","ss","map","trap","shield")
+return List.of("help","status","claim","team","talisman","enchant","wildlife","frog","trader","map","trap","shield")
 .stream().filter(x->x.startsWith(prefix)).toList();
 }
 String action=args[0].toLowerCase(Locale.ROOT);
