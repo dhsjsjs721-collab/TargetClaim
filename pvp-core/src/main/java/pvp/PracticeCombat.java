@@ -39,6 +39,8 @@ private static LivingEntity sampledTarget;
 private static AimModel.Vec previousRelative;
 private static AimModel.Vec relativeMotion=new AimModel.Vec(0,0,0);
 private static double motionAngle;
+private static final CombatAI.Tracker tracker=new CombatAI.Tracker();
+private static AimModel.Movement lastMovement=new AimModel.Movement(false,false,false,false);
 private static AimModel.Turn turn=new AimModel.Turn(0,0);
 private static float lastHealth;
 private static int responseWindow;
@@ -113,6 +115,7 @@ var origin=new AimModel.Vec(eye.x,eye.y,eye.z);
 var motion=target==sampledTarget?relativeMotion:new AimModel.Vec(0,0,0);
 double reach=self.getAttackRangeWith(self.getMainHandItem()).effectiveMaxRange(self);
 double now=AimModel.boxDistance(origin,box),future=AimModel.futureBoxDistance(origin,box,motion,4);
+if(target==sampledTarget && tracker.uncertainty()>.35) future=Math.max(now,future);
 boolean urgent=crosshair==target && (future>reach-.18 && future>now+.04 || now>reach-.20 || blockedJumpTicks>0);
 var frame=new CombatEngine.Frame(cooldown,self.onGround(),falling?self.fallDistance:0,self.isSprinting(),restricted,crosshair==target || inRange(self,target),crosshair==target,!target.onGround() && target.getDeltaMovement().y<0,responseWindow>0,new TargetFilter.Candidate(true,false,true,true,false,false));
 var action=CombatEngine.adaptivePlan(frame,descendingTicks,hitThisFall,canJump,jumpRequested,attackDelay==0 && itemReady,jumpDelay==0,urgent,self.getCurrentItemAttackStrengthDelay(),readyWait);
@@ -166,11 +169,10 @@ var origin=new AimModel.Vec(eye.x,eye.y,eye.z);
 var center=AimModel.point(box,.65);
 var relative=new AimModel.Vec(center.x()-eye.x,center.y()-eye.y,center.z()-eye.z);
 if(sampledTarget==selected && previousRelative!=null) {
-var delta=new AimModel.Vec(relative.x()-previousRelative.x(),relative.y()-previousRelative.y(),relative.z()-previousRelative.z());
-relativeMotion=new AimModel.Vec(relativeMotion.x()*.35+delta.x()*.65,relativeMotion.y()*.35+delta.y()*.65,relativeMotion.z()*.35+delta.z()*.65);
+relativeMotion=tracker.update(relative);
 var zero=new AimModel.Vec(0,0,0);
 motionAngle=AimModel.error(AimModel.direction(zero,previousRelative),AimModel.direction(zero,relative));
-} else resetTracking();
+} else { resetTracking(); tracker.update(relative); }
 sampledTarget=selected;
 previousRelative=relative;
 best=AimModel.direction(origin,AimModel.movingPoint(AimModel.trackingPoint(origin,current,box,trackingTick),box,relativeMotion));
@@ -185,7 +187,7 @@ angularError=AimModel.error(new AimModel.Angles(self.getYRot(),self.getXRot()),b
 } else resetTracking();
 }
 }
-private static void resetTracking() { sampledTarget=null; previousRelative=null; relativeMotion=new AimModel.Vec(0,0,0); motionAngle=0; turn=new AimModel.Turn(0,0); angularError=Double.NaN; }
+private static void resetTracking() { tracker.reset(); lastMovement=new AimModel.Movement(false,false,false,false); sampledTarget=null; previousRelative=null; relativeMotion=new AimModel.Vec(0,0,0); motionAngle=0; turn=new AimModel.Turn(0,0); angularError=Double.NaN; }
 static void startTick(Minecraft mc,CombatSettings settings) {
 if(!enabled(mc)) { resetWorld(mc); return; }
 var self=mc.player;
@@ -208,13 +210,18 @@ jumpPressTicks--;
 if(autoMove && !jumpRequested && self.onGround() && settings.aimEnabled() && aimTarget!=null && aimValid(self,aimTarget) && !self.isShiftKeyDown() && !mc.options.keyDown.isDown() && !mc.options.keyLeft.isDown() && !mc.options.keyRight.isDown() && !mc.options.keyUp.isDown()) {
 double dx=aimTarget.getX()-self.getX(),dz=aimTarget.getZ()-self.getZ();
 if(Math.abs(aimTarget.getY()-self.getY())<1.5 && !self.isInWater() && !self.isPassenger()) {
-var move=AimModel.flank(dx,dz,aimTarget.getYRot(),self.getYRot());
-if(!inRange(self,aimTarget) && Math.abs(AimModel.wrap(AimModel.direction(new AimModel.Vec(0,0,0),new AimModel.Vec(dx,0,dz)).yaw()-self.getYRot()))<35) move=new AimModel.Movement(true,false,false,false);
-double y=Math.toRadians(self.getYRot());
-double forward=(move.forward()?1:0)-(move.back()?1:0), right=(move.right()?1:0)-(move.left()?1:0);
-double mx=(-Math.sin(y)*forward-Math.cos(y)*right)*.28,mz=(Math.cos(y)*forward-Math.sin(y)*right)*.28;
+var velocity=self.getDeltaMovement();
+var other=aimTarget.getDeltaMovement();
+double targetX=aimTarget==sampledTarget?relativeMotion.x()+velocity.x:other.x;
+double targetZ=aimTarget==sampledTarget?relativeMotion.z()+velocity.z:other.z;
+double reach=self.getAttackRangeWith(self.getMainHandItem()).effectiveMaxRange(self);
+var choice=CombatAI.chooseMovement(dx,dz,aimTarget.getYRot(),self.getYRot(),velocity.x,velocity.z,targetX,targetZ,reach-.65,lastMovement,(mx,mz)->{
 var next=self.getBoundingBox().move(mx,0,mz);
-if(mc.level.noCollision(self,next) && (!self.onGround() || !mc.level.noCollision(self,next.move(0,-.7,0)))) {
+return mc.level.noCollision(self,next) && !mc.level.noCollision(self,next.move(0,-.7,0));
+});
+var move=choice.movement();
+lastMovement=move;
+if(Double.isFinite(choice.cost())) {
 if(move.forward()) { mc.options.keyUp.setDown(true); forcedForward=true; }
 if(move.back()) { mc.options.keyDown.setDown(true); forcedBack=true; }
 if(move.left()) { mc.options.keyLeft.setDown(true); forcedLeft=true; }

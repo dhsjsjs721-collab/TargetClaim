@@ -134,6 +134,22 @@ var state=new CombatEngine.Frame(charge,false,.2,false,false,true,true,false,fal
 var action=CombatEngine.adaptivePlan(state,1,false,true,false,true,true,false,12,0);
 check((action==CombatEngine.Action.CRITICAL)==(charge>.90));
 }
+var tracker=new CombatAI.Tracker();
+for(int i=0;i<60;i++) tracker.update(new AimModel.Vec(i*.2,0,2));
+check(Math.abs(tracker.velocity().x()-.2)<.04);
+check(Math.abs(tracker.forecast(3).x()-12.4)<.2);
+tracker.update(new AimModel.Vec(40,0,2));
+check(tracker.velocity().x()==0);
+tracker.reset();
+check(tracker.forecast(2).equals(new AimModel.Vec(0,0,0)));
+var go=CombatAI.chooseMovement(0,5,0,0,0,0,0,0,2.3,null,(x,z)->true);
+check(go.movement().forward());
+var stop=CombatAI.chooseMovement(0,5,0,0,0,0,0,0,2.3,null,(x,z)->Math.abs(x)<.00001 && Math.abs(z)<.00001);
+check(!stop.movement().forward() && !stop.movement().back() && !stop.movement().left() && !stop.movement().right());
+var blockedMove=CombatAI.chooseMovement(0,5,0,0,0,0,0,0,2.3,null,(x,z)->false);
+check(!Double.isFinite(blockedMove.cost()));
+var retreat=CombatAI.chooseMovement(0,1,0,0,0,0,0,0,2.3,null,(x,z)->true);
+check(retreat.movement().back());
 System.out.println("Combat tests passed");
 }
 }
