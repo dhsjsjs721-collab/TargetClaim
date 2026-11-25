@@ -16,8 +16,17 @@ commands:
     description: Protected claims and team menu
     usage: /u claim
   team:
-    description: Claim team commands
-    usage: /u team
+    description: Clan menu and commands
+    usage: /clan
+    aliases: [clan, clans]
+  unifiedmsg:
+    description: Private message
+    usage: /msg <player> <message>
+    aliases: [msg, tell, w, pm]
+  unifiedreply:
+    description: Reply to private message
+    usage: /r <message>
+    aliases: [r, reply]
   talismanforge:
     description: Talismans and reliquaries
     usage: /u talisman give <player> <type>

@@ -33,7 +33,7 @@ private PeaceZone peace;
 private MiningGear mining;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("claims","p"),Map.entry("p","p"),Map.entry("private","p"),
-Map.entry("team","team"),Map.entry("teams","team"),
+Map.entry("team","team"),Map.entry("teams","team"),Map.entry("clan","team"),Map.entry("clans","team"),
 Map.entry("tf","talismanforge"),Map.entry("talisman","talismanforge"),Map.entry("talismans","talismanforge"),
 Map.entry("ce","enchantmentforge"),Map.entry("enchant","enchantmentforge"),Map.entry("enchantments","enchantmentforge"),
 Map.entry("ss","swampsky"),Map.entry("wildlife","swampsky"),Map.entry("swamp","swampsky"),Map.entry("swampsky","swampsky"),
@@ -49,6 +49,7 @@ peace=new PeaceZone(this);peace.enable();
 Bukkit.getPluginManager().registerEvents(this,this);
 PluginCommand entry=getCommand("unified");
 if(entry!=null){entry.setExecutor(this);entry.setTabCompleter(this);}
+for(String name:List.of("unifiedmsg","unifiedreply")){PluginCommand cmd=getCommand(name);if(cmd!=null){cmd.setExecutor(this);cmd.setTabCompleter(this);}}
 List<ModuleBridge> modules=List.of(
 new TargetClaimPlugin(this),
 new TalismanForgePlugin(this),
@@ -136,7 +137,8 @@ sender.sendMessage("§e/u claim §7— меню; §e/u claim list §7— спи�
 sender.sendMessage("§e/u claim create §7— как установить приват");
 if(sender.hasPermission("targetclaim.admin"))sender.sendMessage("§e/u give claim §7— мишень привата себе; §e/u give independent §7— независимая");
 sender.sendMessage("§e/u give <предмет> [ник] §7— быстрая выдача (с правами администратора)");
-sender.sendMessage("§e/u team §7— меню команды");
+sender.sendMessage("§e/clan §7— меню клана · ! глобальный чат · . клановый · обычный 100 блоков");
+sender.sendMessage("§e/msg <ник> <текст> §7— личное сообщение; §e/r <текст> §7— ответ");
 sender.sendMessage("§e/u team create <название> <цвет> §7— создать цветную команду");
 sender.sendMessage("§e/u team color <цвет> §7— сменить цвет (лидер)");
 sender.sendMessage("§e/u team colors §7— доступные цвета");
@@ -213,6 +215,7 @@ yield command==null?null:command+(args.length==1?"":" "+String.join(" ",Arrays.c
 };
 }
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
+if(command.getName().equals("unifiedmsg")||command.getName().equals("unifiedreply")){var claims=claimModule();return claims==null?unavailable(sender):claims.privateChat(sender,args,command.getName().equals("unifiedreply"));}
 if(args.length==0||args[0].equalsIgnoreCase("help")){help(sender);return true;}
 String action=args[0].toLowerCase(Locale.ROOT);
 if(action.equals("give"))return giveShortcut(sender,args);
@@ -249,9 +252,11 @@ sender.sendMessage("§cОшибка модуля "+owner+". Подробност
 return true;
 }
 @Override public List<String> onTabComplete(CommandSender sender,Command command,String alias,String[] args){
+if(command.getName().equals("unifiedmsg")){var claims=claimModule();return claims==null?List.of():claims.privateTabs(args);}
+if(command.getName().equals("unifiedreply"))return List.of();
 if(args.length<=1){
 String prefix=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-return List.of("help","guide","recipes","give","vfx","status","claim","team","talisman","enchant","wildlife","frog","trader","map","trap","mining")
+return List.of("help","guide","recipes","give","vfx","status","claim","team","clan","talisman","enchant","wildlife","frog","trader","map","trap","mining")
 .stream().filter(x->x.startsWith(prefix)).toList();
 }
 String action=args[0].toLowerCase(Locale.ROOT);
