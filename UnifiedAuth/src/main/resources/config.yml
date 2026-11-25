@@ -1,4 +1,4 @@
-# UnifiedAuth 1.4 — Paper 26.3 / Java 25
+# UnifiedAuth 1.5 — Paper 26.3 / Java 25
 authentication:
   enabled: true
   pin-length: 4
@@ -13,14 +13,18 @@ antibot:
   max-new-connections-per-ip-per-minute: 24
   maximum-tracked-addresses: 4000
 
-# OFF by default: user needs to opt in via checkbox on successful
-# PIN + password login or /ua remember on after password authentication.
-# Trust never bypasses the PIN, only the password.
-# Shared/public IPs are not a device ID! Real HWID is unavailable.
+# The checkbox is opt-in per player. Offline accounts remember a network only,
+# unless the administrator has verified secure proxy forwarding.
+# An IP address is not a device ID.
 remember-ip:
-  enabled: false
+  enabled: true
   expire-after-days: 7
+  allow-password-skip: true
   allow-verified-proxy-offline-mode: false
+welcome:
+  enabled: true
+  server-name: "UNIFIED"
+  sound: true
 messages:
   title: "UnifiedAuth"
-  subtitle: "PIN и пароль в одном окне"
+  subtitle: "Безопасность вашего аккаунта"
