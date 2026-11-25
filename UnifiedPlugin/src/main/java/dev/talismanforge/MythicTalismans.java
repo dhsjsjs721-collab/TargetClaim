@@ -464,7 +464,9 @@ final class MythicTalismans implements Listener {
         if(!save()){s.charges=old;return;}
         if(p!=null){refreshItem(p,k);message(p,k,"Заряд восстановлен · "+chargeText(k,s));burst(p.getLocation(),k,10);}
     }
+    private boolean mirrorReflection(EntityDamageEvent e){return ((dev.unified.UnifiedPlugin)plugin.host()).isMirrorReflection(e);}
     @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void attacks(EntityDamageByEntityEvent e){
+        if(mirrorReflection(e))return;
         if(e.getDamager() instanceof LivingEntity l&&isStone(l)){e.setCancelled(true);return;}
         if(clones.containsKey(e.getDamager().getUniqueId())){e.setCancelled(true);return;}
         Minion m=minions.get(e.getDamager().getUniqueId());
@@ -476,6 +478,9 @@ final class MythicTalismans implements Listener {
             if(!e.isCritical())e.setDamage(e.getDamage()*1.13);
         }
         if(k==Kind.KITSUNE&&!peace(p.getLocation())&&!peace(target.getLocation())&&hidden.contains(p.getUniqueId())&&activeState(p).awakened)e.setDamage(e.getDamage()*1.20);
+    }
+    @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void incomingPenalty(EntityDamageEvent e){
+        if(!mirrorReflection(e)&&e.getEntity() instanceof Player p&&active(p)==Kind.KITSUNE&&!hidden.contains(p.getUniqueId())&&e.getFinalDamage()>0)e.setDamage(e.getDamage()*1.10);
     }
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void damage(EntityDamageEvent e){
         if(e.getEntity() instanceof Item i&&kind(i.getItemStack())!=null){e.setCancelled(true);return;}
@@ -494,7 +499,6 @@ final class MythicTalismans implements Listener {
             e.setCancelled(true);if(activeState(p).awakened)heal(p,4);return;
         }
         if(k==Kind.KITSUNE){
-            if(!hidden.contains(p.getUniqueId()))e.setDamage(e.getDamage()*1.10);
             reveal(p);
         }else combat.put(p.getUniqueId(),now());
         if(k==null||e.getFinalDamage()+1e-6<p.getHealth())return;
@@ -550,7 +554,7 @@ final class MythicTalismans implements Listener {
         if(k==Kind.ANUBIS&&e.getEntity() instanceof LivingEntity l&&!(l instanceof Player))soulHits.put(l.getUniqueId(),new Credit(p.getUniqueId(),activeState(p),now()+15000));
         else soulHits.remove(e.getEntity().getUniqueId());
         if(k==Kind.KITSUNE)reveal(p);
-        if(k==Kind.THOR&&!peace(p.getLocation())&&!peace(e.getEntity().getLocation())&&e.getDamager()==p&&!internalDamage.contains(p.getUniqueId())){e.getEntity().getWorld().strikeLightningEffect(e.getEntity().getLocation());burst(e.getEntity().getLocation(),k,6);}
+        if(k==Kind.THOR&&!mirrorReflection(e)&&!peace(p.getLocation())&&!peace(e.getEntity().getLocation())&&e.getDamager()==p&&!internalDamage.contains(p.getUniqueId())){e.getEntity().getWorld().strikeLightningEffect(e.getEntity().getLocation());burst(e.getEntity().getLocation(),k,6);}
     }
     private double maxHealth(LivingEntity l){var a=l.getAttribute(Attribute.MAX_HEALTH);return a==null?20:a.getValue();}
     private void heal(Player p,double amount){p.setHealth(Math.min(maxHealth(p),p.getHealth()+amount));}

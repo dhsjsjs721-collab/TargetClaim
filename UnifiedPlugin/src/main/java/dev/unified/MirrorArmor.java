@@ -71,11 +71,12 @@ return !host.isPeace(p.getLocation())&&!host.isPeace(owner.getLocation())&&claim
 }
 var claims=host.claimModule();return claims!=null&&claims.allowsTemporaryStructure(owner,attacker.getLocation())&&!host.isPeace(attacker.getLocation());
 }
+boolean isReflection(EntityDamageEvent e){Reflected r=reflected;return r!=null&&e.getEntity().getUniqueId().equals(r.target())&&e.getDamageSource().getDamageType()==DamageType.THORNS&&e.getDamageSource().getCausingEntity() instanceof Player p&&p.getUniqueId().equals(r.owner());}
 @SuppressWarnings("deprecation")
 @EventHandler(priority=EventPriority.LOW,ignoreCancelled=true)
 public void exactDamage(EntityDamageEvent e){
 Reflected r=reflected;
-if(r==null||!e.getEntity().getUniqueId().equals(r.target())||!(e.getDamageSource().getCausingEntity() instanceof Player p)||!p.getUniqueId().equals(r.owner()))return;
+if(!isReflection(e))return;
 for(EntityDamageEvent.DamageModifier mod:EntityDamageEvent.DamageModifier.values())if(e.isApplicable(mod))e.setDamage(mod,mod==EntityDamageEvent.DamageModifier.BASE?r.damage():0);
 }
 @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true)

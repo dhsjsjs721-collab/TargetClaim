@@ -119,6 +119,7 @@ event.getCommands().remove(name);
 event.getCommands().remove("minecraftunified:"+name);
 }
 }
+public boolean isMirrorReflection(org.bukkit.event.entity.EntityDamageEvent e){return mirrorArmor!=null&&mirrorArmor.isReflection(e);}
 public boolean isPeace(org.bukkit.Location l){return peace!=null&&peace.contains(l);}
 public TargetClaimPlugin claimModule(){for(ModuleBridge m:enabledModules)if(m instanceof TargetClaimPlugin c)return c;return null;}
 public List<org.bukkit.Location> getKoscheiEggLocations(){for(ModuleBridge m:enabledModules)if(m instanceof TalismanForgePlugin t)return t.getKoscheiEggLocations();return List.of();}
