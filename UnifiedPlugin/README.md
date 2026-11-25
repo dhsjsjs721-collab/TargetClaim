@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.15 — relic and interface overhaul
+
+Unlimited independent relics; automatic migration with backup. One bound Koschei egg per player. Eight repaired talisman textures. Distinct VFX shapes/sounds, safe obstacle-aware Kitsune decoy motion and teleport checks, per-instance combat attribution, Medusa 30-second gaze cooldown. `/u give <item> [player]`, `/u guide`, `/u recipes`, `/u claim create`, `/u vfx <kind>` (admin, visual only). Existing permission checks remain in force. Game-client multiplayer and crash testing is still necessary.
+
 # MinecraftUnified 1.1.15
 
 Unlimited independently registered relics. Old singleton registry migrates preserving serials. One bound Koschei egg per player. Each instance has its own charges, storage and awakening. Live multiplayer testing required.

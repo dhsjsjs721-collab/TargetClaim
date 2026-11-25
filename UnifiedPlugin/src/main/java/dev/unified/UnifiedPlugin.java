@@ -132,7 +132,10 @@ else sender.sendMessage("§c✗ "+name+" §7ошибка запуска: "+faile
 private void help(CommandSender sender){
 sender.sendMessage("§6§lMinecraftUnified §8» §7Все функции через §e/u");
 sender.sendMessage("§e/u status §7— состояние модулей");
-sender.sendMessage("§e/u claim §7— приваты; §e/u claim list §7— список");
+sender.sendMessage("§e/u claim §7— меню; §e/u claim list §7— список; §e/u recipes §7— рецепты");
+sender.sendMessage("§e/u claim create §7— как установить приват");
+if(sender.hasPermission("targetclaim.admin"))sender.sendMessage("§e/u give claim §7— мишень привата себе; §e/u give independent §7— независимая");
+sender.sendMessage("§e/u give <предмет> [ник] §7— быстрая выдача (с правами администратора)");
 sender.sendMessage("§e/u team §7— меню команды");
 sender.sendMessage("§e/u team create <название> <цвет> §7— создать цветную команду");
 sender.sendMessage("§e/u team color <цвет> §7— сменить цвет (лидер)");
@@ -140,15 +143,58 @@ sender.sendMessage("§e/u team colors §7— доступные цвета");
 sender.sendMessage("§e/u team invite <ник> §7— пригласить");
 sender.sendMessage("§e/u team accept §7— принять приглашение");
 sender.sendMessage("§e/u talisman §7— реликварий и мифические талисманы");
-sender.sendMessage("§e/u talisman list §7— список пяти новых талисманов");
+sender.sendMessage("§e/u talisman list §7— способности пяти талисманов");
+sender.sendMessage("§e/u talisman status §7— состояние активной реликвии; §e/u vfx <тип> §7— предпросмотр (админ)");
 sender.sendMessage("§e/u talisman give <ник> all §7— выдать все пять сразу");
 sender.sendMessage("§e/u enchant §7— зачарования; §e/u trader §7— торговец");
 sender.sendMessage("§e/u wildlife §7— лягушки и экипировка; §e/u frog §7— гигантская лягушка");
 sender.sendMessage("§e/u map §7— карты; §e/u trap §7— обсидиановая ловушка");
 sender.sendMessage("§e/u mining §7— шахтёрская экипировка и метательные факелы");
-sender.sendMessage("§7Летающие свиньи удалены; обычные свиньи сохранены.");
+sender.sendMessage("§e/u guide §7— краткое руководство игрока");
 }
 
+private static final List<String> GIVE_ITEMS=List.of("claim","independent","key","thor","anubis","koschei","kitsune","medusa","all","reliquary","hook","helmet","trap","frog_hide","frog_boots","frog_leggings","frog_wings","soulbound","triple_shot","charm");
+private boolean runModule(CommandSender sender,String name,String... args){
+PluginCommand command=getCommand(name);
+if(command==null){sender.sendMessage("§cМодуль недоступен.");return true;}
+return command.execute(sender,name,args);
+}
+private boolean giveShortcut(CommandSender sender,String[] args){
+if(args.length<2||args.length>3){sender.sendMessage("§e/u give <предмет> [ник]");sender.sendMessage("§7"+String.join(", ",GIVE_ITEMS));return true;}
+String type=args[1].toLowerCase(Locale.ROOT);
+String recipient=args.length==3?args[2]:sender instanceof org.bukkit.entity.Player p?p.getName():null;
+if(recipient==null){sender.sendMessage("§cУкажи ник получателя.");return true;}
+org.bukkit.entity.Player player=Bukkit.getPlayerExact(recipient);if(player==null){sender.sendMessage("§cИгрок не в сети.");return true;}
+switch(type){
+case "claim","key" -> {if(!enabled("TargetClaim"))return unavailable(sender);return runModule(sender,"p",type.equals("claim")?"give":"givekey",player.getName());}
+case "independent" -> {if(!sender.hasPermission("targetclaim.admin")){sender.sendMessage("§cНет прав.");return true;}var claim=claimModule();if(claim==null)return unavailable(sender);
+for(var rest:player.getInventory().addItem(claim.independentTarget()).values())player.getWorld().dropItemNaturally(player.getLocation(),rest);
+sender.sendMessage("§aНезависимая мишень выдана игроку "+player.getName());return true;}
+case "thor","anubis","koschei","kitsune","medusa","all","reliquary","hook" -> {for(ModuleBridge m:enabledModules)if(m instanceof TalismanForgePlugin t)return t.onCommand(sender,getCommand("talismanforge"),"tf",new String[]{"give",player.getName(),type});return unavailable(sender);}
+case "helmet" -> {return mining==null?unavailable(sender):mining.command(sender,new String[]{"give",player.getName(),"helmet"});}
+case "trap" -> {return trapItems==null?unavailable(sender):trapItems.handleCommand(sender,new String[]{"give",player.getName()});}
+case "frog_hide","frog_boots","frog_leggings","frog_wings" -> {return enabled("SwampSky")?runModule(sender,"swampsky","give",player.getName(),type.substring(5)):unavailable(sender);}
+case "soulbound","triple_shot","charm" -> {return enabled("EnchantmentForge")?runModule(sender,"enchantmentforge","give",player.getName(),type):unavailable(sender);}
+default -> {sender.sendMessage("§cНеизвестный предмет. /u give");return true;}
+}
+}
+private boolean unavailable(CommandSender sender){sender.sendMessage("§cМодуль недоступен. /u status");return true;}
+private void recipes(CommandSender sender){
+sender.sendMessage("§6§lРецепты MinecraftUnified");
+sender.sendMessage("§eПриват: §f3 бумаги в верхнем ряду, 6 осколков аметиста в двух нижних рядах. Установи особую мишень.");
+sender.sendMessage("§eРеликварий: §f7 аметистов вокруг тотема в центре, обсидиан снизу по центру. Поставь вне мирной зоны, жди 3 минуты.");
+sender.sendMessage("§eШахтёрская шапка: §fжелезо сверху по центру; фонарь, кожаный шлем, фонарь в среднем ряду; редстоун снизу по центру.");
+sender.sendMessage("§eТрапка: §fобсидиан в углах, железо по сторонам, алмаз в центре.");
+sender.sendMessage("§eФакел: §fShift + ПКМ в основной руке — бросок.");
+}
+private void claimGuide(CommandSender sender){
+sender.sendMessage("§6§lКак создать приват");
+sender.sendMessage("§71. Скрафти особую мишень: 3 бумаги сверху и 6 аметистов снизу.");
+if(sender.hasPermission("targetclaim.admin"))sender.sendMessage("§7Или получи её командой §e/u give claim§7.");
+sender.sendMessage("§72. Поставь мишень в выбранном месте. Приват создаётся автоматически, если территория свободна.");
+sender.sendMessage("§73. §e/u claim §7— управление; §e/u claim border on §7— границы; §e/u claim upgrade §7— улучшение.");
+sender.sendMessage("§74. §e/u claim list §7— список, §e/u claim <номер> §7— выбрать.");
+}
 private String route(String input){
 return switch(input){
 case "frog","repair","trader" -> input.equals("trader")?"enchantmentforge":"swampsky";
@@ -169,6 +215,11 @@ yield command==null?null:command+(args.length==1?"":" "+String.join(" ",Arrays.c
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||args[0].equalsIgnoreCase("help")){help(sender);return true;}
 String action=args[0].toLowerCase(Locale.ROOT);
+if(action.equals("give"))return giveShortcut(sender,args);
+if(action.equals("recipes")){recipes(sender);return true;}
+if(action.equals("guide")){claimGuide(sender);recipes(sender);return true;}
+if(action.equals("vfx")){for(ModuleBridge m:enabledModules)if(m instanceof TalismanForgePlugin t)return t.onCommand(sender,getCommand("talismanforge"),"tf",new String[]{"vfx",args.length>=2?args[1]:""});return unavailable(sender);}
+if("p".equals(ROUTES.get(action))&&args.length>=2){if(args[1].equalsIgnoreCase("create")||args[1].equalsIgnoreCase("help")||args[1].equalsIgnoreCase("recipe")){claimGuide(sender);return true;}if(args[1].equalsIgnoreCase("give")&&args.length==2)return giveShortcut(sender,new String[]{"give","claim"});}
 if(action.equals("mining"))return mining.command(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("status")||action.equals("check")||action.equals("list")){status(sender);return true;}
 if(action.equals("trap")||action.equals("trapka")){
@@ -200,10 +251,14 @@ return true;
 @Override public List<String> onTabComplete(CommandSender sender,Command command,String alias,String[] args){
 if(args.length<=1){
 String prefix=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-return List.of("help","status","claim","team","talisman","enchant","wildlife","frog","trader","map","trap","mining")
+return List.of("help","guide","recipes","give","vfx","status","claim","team","talisman","enchant","wildlife","frog","trader","map","trap","mining")
 .stream().filter(x->x.startsWith(prefix)).toList();
 }
 String action=args[0].toLowerCase(Locale.ROOT);
+if(action.equals("give")){if(args.length==2)return GIVE_ITEMS.stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();if(args.length==3)return Bukkit.getOnlinePlayers().stream().map(org.bukkit.entity.Player::getName).filter(x->x.toLowerCase(Locale.ROOT).startsWith(args[2].toLowerCase(Locale.ROOT))).toList();return List.of();}
+if(action.equals("vfx")&&args.length==2)return List.of("thor","anubis","koschei","kitsune","medusa").stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
+if(action.equals("mining")){if(args.length==2)return List.of("give");if(args.length==3)return Bukkit.getOnlinePlayers().stream().map(org.bukkit.entity.Player::getName).toList();if(args.length==4)return List.of("helmet");return List.of();}
+if("p".equals(ROUTES.get(action))&&args.length==2)return List.of("create","help","list","info","border","upgrade","remove","cancel","give","givekey").stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
 if(action.equals("trap")||action.equals("trapka")){
 if(args.length==2)return List.of("give","help").stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
 if(args.length==3&&args[1].equalsIgnoreCase("give"))

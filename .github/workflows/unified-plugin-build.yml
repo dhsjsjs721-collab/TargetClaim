@@ -5,6 +5,7 @@ on:
     branches: [feature/unified-server-plugin]
     paths:
       - 'UnifiedPlugin/**'
+      - 'resourcepacks/**'
       - '.github/workflows/unified-plugin-build.yml'
 permissions:
   contents: read
@@ -47,6 +48,19 @@ jobs:
         with:
           name: MinecraftUnified-1.1.15-JAR
           path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.15.jar
+      - name: Export complete unified source
+        run: |
+          mkdir -p dist-source/UnifiedPlugin/src/main/java dist-source/UnifiedPlugin/src/main/resources
+          cp -a UnifiedPlugin/src/main/java/. dist-source/UnifiedPlugin/src/main/java/
+          cp -a UnifiedPlugin/build/generated-sources/. dist-source/UnifiedPlugin/src/main/java/
+          cp -a UnifiedPlugin/src/main/resources/. dist-source/UnifiedPlugin/src/main/resources/
+          cp -a UnifiedPlugin/build/generated-resources/. dist-source/UnifiedPlugin/src/main/resources/
+          cp UnifiedPlugin/build.gradle.kts UnifiedPlugin/settings.gradle.kts UnifiedPlugin/README.md dist-source/UnifiedPlugin/
+          cp -a dist/resourcepacks dist-source/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MinecraftUnified-1.1.15-Source
+          path: dist-source/
       - name: Start real Purpur 26.3 and verify all modules
         run: python3 UnifiedPlugin/tools/smoke_purpur.py
       - uses: actions/upload-artifact@v4
