@@ -31,7 +31,7 @@ final class MythicTalismans implements Listener {
     enum Kind {
         THOR("Тор · Громовержец","Гнев Асгарда",Material.NETHER_STAR,0x63C8FF,3),
         ANUBIS("Анубис · Судья мёртвых","Владыка Дуата",Material.ECHO_SHARD,0xE9B650,500),
-        KOSCHEI("Кощей · Смерть вне тела","Вечная жизнь",Material.DRAGON_EGG,0x8AD46B,3),
+        KOSCHEI("Кощей · Смерть вне тела","Вечная жизнь",Material.SNIFFER_EGG,0x8AD46B,3),
         KITSUNE("Кицунэ · Лисица иллюзий","Девять хвостов",Material.RABBIT_FOOT,0xFF9460,3),
         MEDUSA("Медуза · Каменный взгляд","Проклятие Горгоны",Material.PRISMARINE_SHARD,0xB8A4F0,3);
         final String title,awakening; final Material icon; final int color,initial;
@@ -62,6 +62,7 @@ final class MythicTalismans implements Listener {
     private final Set<UUID> hidden=new HashSet<>(),flightGranted=new HashSet<>(),internalDamage=new HashSet<>(),kitsuneEquipped=new HashSet<>();
     private final Random random=new Random();
     private long ticks;
+    private UUID eggDisplay;
     private static final long RECHARGE=30*60*1000L;
     private static final long MARK_LIFE=24*60*60*1000L;
     MythicTalismans(TalismanForgePlugin plugin){
@@ -111,7 +112,7 @@ final class MythicTalismans implements Listener {
     private void message(Player p,Kind k,String text){p.sendMessage(title(k,"✦ "+text));}
     private ItemStack item(Kind k){
         State s=states.get(k);ItemStack i=new ItemStack(k.icon);ItemMeta m=i.getItemMeta();
-        m.displayName(title(k,s.awakened?k.awakening:k.title));
+        m.displayName(title(k,k==Kind.KOSCHEI?(s.awakened?"Пробуждённое яйцо Кощея":"Яйцо Кощея"):s.awakened?k.awakening:k.title));
         m.setMaxStackSize(1);m.setEnchantmentGlintOverride(s.awakened);
         m.getPersistentDataContainer().set(typeKey,PersistentDataType.STRING,k.key());
         m.getPersistentDataContainer().set(serialKey,PersistentDataType.STRING,s.serial);
@@ -132,7 +133,7 @@ final class MythicTalismans implements Listener {
         if(i==null||!i.hasItemMeta())return null;
         var p=i.getItemMeta().getPersistentDataContainer();
         String v=p.get(typeKey,PersistentDataType.STRING);Kind k=v==null?null:Kind.parse(v);
-        if(k==null||i.getType()!=k.icon)return null;
+        if(k==null||(i.getType()!=k.icon&&!(k==Kind.KOSCHEI&&i.getType()==Material.DRAGON_EGG)))return null; // Accept previously issued tagged eggs.
         State s=states.get(k);String serial=p.get(serialKey,PersistentDataType.STRING);
         return s.serial!=null&&s.serial.equals(serial)?k:null;
     }
@@ -200,6 +201,7 @@ final class MythicTalismans implements Listener {
         if(!take(p,Material.DRAGON_EGG,1)){message(p,k,"Требуется обычное яйцо Дракона Края.");return true;}
         s.awakened=true;
         if(!save()){s.awakened=false;give(p,new ItemStack(Material.DRAGON_EGG));return true;}
+        if(k==Kind.KOSCHEI&&s.egg!=null&&s.egg.getWorld()!=null&&s.egg.getWorld().isChunkLoaded(s.egg.getBlockX()>>4,s.egg.getBlockZ()>>4)&&eggBlock(s.egg.getBlock()))renderEgg(s);
         refreshItem(p,k);p.showTitle(net.kyori.adventure.title.Title.title(title(k,s.awakening),Component.text("Реликвия пробуждена")));
         burst(p.getLocation(),k,64);p.playSound(p.getLocation(),Sound.BLOCK_END_PORTAL_SPAWN,0.8f,1.2f);return true;
     }
@@ -294,7 +296,7 @@ final class MythicTalismans implements Listener {
         if(k==Kind.KOSCHEI&&s.awakened)cost=0;
         if(s.charges<cost)return;
         Location destination=null;
-        if(k==Kind.KOSCHEI){if(s.egg==null||claimed(s.egg)||s.egg.getBlock().getType()!=Material.DRAGON_EGG)return;destination=safeEgg(s.egg);if(destination==null)return;}
+        if(k==Kind.KOSCHEI){if(s.egg==null||claimed(s.egg)||!eggBlock(s.egg.getBlock()))return;destination=safeEgg(s.egg);if(destination==null)return;}
         if(e.getCause()==EntityDamageEvent.DamageCause.VOID&&destination==null)destination=p.getWorld().getSpawnLocation();
         if(e.getCause().name().equals("KILL"))return;
         if(destination!=null&&!p.teleport(destination))return;
@@ -399,6 +401,7 @@ final class MythicTalismans implements Listener {
         catch(ReflectiveOperationException e){return true;}
     }
     Location eggLocation(){Location l=states.get(Kind.KOSCHEI).egg;return l==null?null:l.clone();}
+    private boolean eggBlock(Block b){return b.getType()==Material.SNIFFER_EGG||b.getType()==Material.DRAGON_EGG;}
     private boolean isEgg(Block b){Location l=states.get(Kind.KOSCHEI).egg;return l!=null&&same(l,b.getLocation());}
     private boolean same(Location a,Location b){return a!=null&&b!=null&&Objects.equals(a.getWorld(),b.getWorld())&&a.getBlockX()==b.getBlockX()&&a.getBlockY()==b.getBlockY()&&a.getBlockZ()==b.getBlockZ();}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void eggPlace(BlockPlaceEvent e){
@@ -409,6 +412,7 @@ final class MythicTalismans implements Listener {
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void eggPlaced(BlockPlaceEvent e){
         if(kind(e.getItemInHand())!=Kind.KOSCHEI)return;
         State s=states.get(Kind.KOSCHEI);s.egg=e.getBlockPlaced().getLocation();s.owner=e.getPlayer().getUniqueId();s.eggHp=3;s.lastEggHit=now();save();burst(s.egg,Kind.KOSCHEI,36);message(e.getPlayer(),Kind.KOSCHEI,"Душа привязана.");
+        Bukkit.getScheduler().runTask(plugin,()->{if(s.egg!=null&&eggBlock(s.egg.getBlock()))renderEgg(s);});
     }
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void eggBreak(BlockBreakEvent e){
         if(!isEgg(e.getBlock()))return;e.setCancelled(true);State s=states.get(Kind.KOSCHEI);s.eggHp--;s.lastEggHit=now();
@@ -416,9 +420,41 @@ final class MythicTalismans implements Listener {
         if(s.eggHp<=0)destroyEgg(s);else{save();message(e.getPlayer(),Kind.KOSCHEI,"Прочность яйца: "+s.eggHp+"/3");}
     }
     private void destroyEgg(State s){
-        Location l=s.egg;if(l!=null&&l.getBlock().getType()==Material.DRAGON_EGG){l.getBlock().setType(Material.AIR,false);burst(l,Kind.KOSCHEI,50);l.getWorld().playSound(l,Sound.BLOCK_GLASS_BREAK,1,.7f);}
+        removeEggDisplay();
+        Location l=s.egg;if(l!=null&&eggBlock(l.getBlock())){l.getBlock().setType(Material.AIR,false);burst(l,Kind.KOSCHEI,50);l.getWorld().playSound(l,Sound.BLOCK_GLASS_BREAK,1,.7f);}
         s.egg=null;s.broken=true;s.eggHp=0;save();Player p=s.owner==null?null:Bukkit.getPlayer(s.owner);
         if(p!=null)message(p,Kind.KOSCHEI,"Яйцо уничтожено. /tf restore — 16 мембран.");
+    }
+    private void removeEggDisplay(){
+        if(eggDisplay!=null){Entity entity=Bukkit.getEntity(eggDisplay);if(entity!=null)entity.remove();eggDisplay=null;}
+    }
+    private void renderEgg(State s){
+        Block block=s.egg.getBlock();
+        // Migrate only the registered old Koschei block; never change ordinary dragon eggs.
+        if(block.getType()==Material.DRAGON_EGG)block.setType(Material.SNIFFER_EGG,false);
+        if(!plugin.getConfig().getBoolean("mythic-custom-models",true)){removeEggDisplay();return;}
+        Location center=s.egg.clone().add(.5,.5,.5);
+        ItemStack model=new ItemStack(Material.SNIFFER_EGG);
+        ItemMeta meta=model.getItemMeta();
+        meta.setItemModel(new NamespacedKey("talismanforge","mythic_koschei_block"+(s.awakened?"_awakened":"")));
+        model.setItemMeta(meta);
+        Entity existing=eggDisplay==null?null:Bukkit.getEntity(eggDisplay);
+        ItemDisplay display;
+        if(existing instanceof ItemDisplay item&&item.isValid()&&item.getWorld()==center.getWorld()&&item.getLocation().distanceSquared(center)<.01)display=item;
+        else{
+            removeEggDisplay();
+            display=center.getWorld().spawn(center,ItemDisplay.class,d->{
+                d.setPersistent(false);d.setInvulnerable(true);d.setGravity(false);
+                d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
+                d.setDisplayWidth(1.1f);d.setDisplayHeight(1.1f);
+                // A slightly larger exact vanilla egg cuboid hides the underlying native egg
+                // without replacing vanilla assets or changing collision.
+                var transform=d.getTransformation();transform.getScale().set(1.025f);d.setTransformation(transform);
+                d.getPersistentDataContainer().set(key("koschei_display"),PersistentDataType.BYTE,(byte)1);
+                d.setItemStack(model);
+            });eggDisplay=display.getUniqueId();
+        }
+        if(!model.equals(display.getItemStack()))display.setItemStack(model);
     }
     private Location safeEgg(Location l){
         for(int y=0;y<=2;y++)for(int x=-2;x<=2;x++)for(int z=-2;z<=2;z++){
@@ -434,7 +470,10 @@ final class MythicTalismans implements Listener {
         if(!s.awakened&&s.charges<3&&p.getInventory().getItemInMainHand().getType()==Material.PHANTOM_MEMBRANE&&take(p,Material.PHANTOM_MEMBRANE,1))charge(Kind.KOSCHEI,1,p);
         else message(p,Kind.KOSCHEI,"Жизни: "+chargeText(Kind.KOSCHEI,s)+" · Прочность: "+s.eggHp+"/3");
     }
-    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void eggMove(BlockFromToEvent e){if(isEgg(e.getToBlock()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void eggMove(BlockFromToEvent e){if(isEgg(e.getToBlock())||isEgg(e.getBlock()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void eggGrow(BlockGrowEvent e){if(isEgg(e.getBlock()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void eggHatch(BlockFadeEvent e){if(isEgg(e.getBlock()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void eggBurn(BlockBurnEvent e){if(isEgg(e.getBlock()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void eggFall(BlockPhysicsEvent e){if(isEgg(e.getBlock()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void eggEntity(EntityChangeBlockEvent e){if(isEgg(e.getBlock()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void eggExplode(EntityExplodeEvent e){e.blockList().removeIf(this::isEgg);}
@@ -553,6 +592,7 @@ final class MythicTalismans implements Listener {
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void frozenInventory(InventoryClickEvent e){if(e.getWhoClicked() instanceof Player p&&isStone(p))e.setCancelled(true);}
     @EventHandler public void entitiesLoaded(EntitiesLoadEvent e){for(Entity entity:e.getEntities()){
         if(entity instanceof Item i)protect(i);
+        if(entity instanceof ItemDisplay&&entity.getPersistentDataContainer().has(key("koschei_display"),PersistentDataType.BYTE)&&!entity.getUniqueId().equals(eggDisplay)){entity.remove();continue;}
         if(entity.getPersistentDataContainer().has(summonKey,PersistentDataType.STRING)&&!minions.containsKey(entity.getUniqueId())&&!clones.containsKey(entity.getUniqueId()))entity.remove();
         else if(entity instanceof LivingEntity l&&isStone(l)&&!(l instanceof Player)){l.setAI(false);l.setGravity(false);l.setRemoveWhenFarAway(false);}
     }}
@@ -614,8 +654,8 @@ final class MythicTalismans implements Listener {
         validateStorage();
         State egg=states.get(Kind.KOSCHEI);
         if(egg.egg!=null&&egg.egg.getWorld()!=null&&egg.egg.getWorld().isChunkLoaded(egg.egg.getBlockX()>>4,egg.egg.getBlockZ()>>4)){
-            if(egg.egg.getBlock().getType()!=Material.DRAGON_EGG)destroyEgg(egg);
-            else if(egg.eggHp<3&&time-egg.lastEggHit>=30000){egg.eggHp++;egg.lastEggHit=time;save();}
+            if(!eggBlock(egg.egg.getBlock()))destroyEgg(egg);
+            else {renderEgg(egg);if(egg.eggHp<3&&time-egg.lastEggHit>=30000){egg.eggHp++;egg.lastEggHit=time;save();}}
         }
         for(var entry:new ArrayList<>(minions.entrySet())){
             Entity entity=Bukkit.getEntity(entry.getKey());Minion m=entry.getValue();Player owner=Bukkit.getPlayer(m.owner());
@@ -638,6 +678,7 @@ final class MythicTalismans implements Listener {
         Player p=e.getPlayer();show(p);effects(p,null);UUID id=p.getUniqueId();combat.remove(id);sneak.remove(id);kitsuneEquipped.remove(id);gazes.remove(id);stonePlayers.remove(id);storm.remove(id);
     }
     void close(){
+        removeEggDisplay();
         for(Player p:Bukkit.getOnlinePlayers()){show(p);effects(p,null);}
         for(UUID uid:minions.keySet()){Entity e=Bukkit.getEntity(uid);if(e!=null)e.remove();}
         for(UUID uid:clones.keySet()){Entity e=Bukkit.getEntity(uid);if(e!=null)e.remove();}

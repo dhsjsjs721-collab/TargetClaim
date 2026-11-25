@@ -23,3 +23,6 @@ Paper 26.3 / Java 25. Five new world-unique artifacts, distributed via the exist
 - Existing legacy items are retained for migration; they are not issued from the altar or loot by default. The new artifact registry is in plugins/TalismanForge/mythic-artifacts.yml. Back up before testing.
 
 This is a review build, not a production release. No local Paper 26.3 runtime or Gradle toolchain is available in the editing environment.
+
+## Koschei egg art
+The dedicated egg now uses SNIFFER_EGG and recolored vanilla 16×16 sniffer egg pixels (item and block faces). Registered legacy dragon-egg relics migrate without changing ordinary dragon eggs. Paper grow and fade events prevent hatching; a custom 3D item display overlays the native sniffer block. The native sniffer model and texture namespace remain untouched. Test both hatching and visual alignment in-game. Source texture reference: Minecraft 1.21.4 assets (InventivetalentDev/minecraft-assets).
