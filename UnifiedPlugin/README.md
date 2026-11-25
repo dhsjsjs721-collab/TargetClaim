@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.16
+
+Peaceful spawn blocks hostile combat, not passive relics or death saves. Relics work in either hand (offhand priority). Anubis gets souls from all player-killed mobs including spawners, except summoned/visual entities. Awakening automatically detects nearby manual drops and works on suitable floors, including spawn. Koschei placement gives a specific denial reason; unclaimed spawn is allowed. Thor can fly throughout rain and receives one landing grace after flight ends. New claim cores reserve maximum horizontal footprints (210/105 blocks in normal/spawn zones); old existing sizes preserved; new spawn cores have half-size in all dimensions. No destructive claim migration. Existing overlap may prevent upgrades.
+
 # MinecraftUnified 1.1.15 — relic and interface overhaul
 
 Unlimited independent relics; automatic migration with backup. One bound Koschei egg per player. Eight repaired talisman textures. Distinct VFX shapes/sounds, safe obstacle-aware Kitsune decoy motion and teleport checks, per-instance combat attribution, Medusa 30-second gaze cooldown. `/u give <item> [player]`, `/u guide`, `/u recipes`, `/u claim create`, `/u vfx <kind>` (admin, visual only). Existing permission checks remain in force. Game-client multiplayer and crash testing is still necessary.

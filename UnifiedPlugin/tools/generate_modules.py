@@ -72,6 +72,38 @@ def convert(code,namespace,name,path):
         code=re.sub(r'org\.bukkit\.plugin\.Plugin tf=Bukkit\.getPluginManager\(\)\.getPlugin\("TalismanForge"\);\nif\(tf!=null.*?catch\(ReflectiveOperationException ignored\)\{\}', 'for(Location egg:((dev.unified.UnifiedPlugin)host()).getKoscheiEggLocations())if(egg!=null&&egg.getWorld()!=null&&egg.getWorld().getUID().equals(c.world)&&egg.getBlockX()>=left&&egg.getBlockX()<=right&&egg.getBlockY()>=bottom&&egg.getBlockY()<=top&&egg.getBlockZ()>=front&&egg.getBlockZ()<=back)return true;', code, count=1)
         if 'getKoscheiEggLocations()' not in code:raise ValueError("Missing hosted egg/claim integration")
 
+        # Persist claim size policy per core. Old claims retain their existing protected area.
+        code=swap(code,"boolean teamBuild=false,independent=false;","boolean teamBuild=false,independent=false,spawnSized=false;","claim spawn flag")
+        code=swap(code,"int minX(){return x-SIZE[level]/2;}","int width(int l){return spawnSized?SIZE[l]/2:SIZE[l];}\nint height(int l){return spawnSized?HEIGHT[l]/2:HEIGHT[l];}\nint minX(){return x-width(level)/2;}","claim dimensions")
+        for old,new in [
+            ("return minX()+SIZE[level]-1;","return minX()+width(level)-1;"),
+            ("return z-SIZE[level]/2;","return z-width(level)/2;"),
+            ("return minZ()+SIZE[level]-1;","return minZ()+width(level)-1;"),
+            ("return y-HEIGHT[level]/2;","return y-height(level)/2;"),
+            ("return minY()+HEIGHT[level]-1;","return minY()+height(level)-1;"),
+            ("return c.x-SIZE[level]/2;","return c.x-c.width(level)/2;"),
+            ("return c.z-SIZE[level]/2;","return c.z-c.width(level)/2;"),
+            ("return c.y-HEIGHT[level]/2;","return c.y-c.height(level)/2;"),
+            ("return minX(c,level)+SIZE[level]-1;","return minX(c,level)+c.width(level)-1;"),
+            ("return minZ(c,level)+SIZE[level]-1;","return minZ(c,level)+c.width(level)-1;"),
+            ("return minY(c,level)+HEIGHT[level]-1;","return minY(c,level)+c.height(level)-1;"),
+            ('c.teamBuild=y.getBoolean(root+"teamBuild",false);','c.teamBuild=y.getBoolean(root+"teamBuild",false);c.spawnSized=y.getBoolean(root+"spawn-sized",false);'),
+            ('y.set(r+"independent",c.independent);','y.set(r+"independent",c.independent);y.set(r+"spawn-sized",c.spawnSized);'),
+            ("c.independent=special;","c.independent=special;c.spawnSized=((dev.unified.UnifiedPlugin)host()).isPeace(b.getLocation());"),
+            ("private boolean overlap(Claim c){return wouldOverlap(c,c.level);}","private boolean overlap(Claim c){return wouldOverlap(c,4);}"),
+            ("int left=minX(c,level),right=maxX(c,level),front=minZ(c,level),back=maxZ(c,level);","int left=minX(c,4),right=maxX(c,4),front=minZ(c,4),back=maxZ(c,4);"),
+            ("int bottom=minY(c,level),top=maxY(c,level);","int bottom=minY(c,4),top=maxY(c,4);"),
+            ("for(Claim other:regionClaims(c.world,left,right,front,back)){\nif(other.owner.equals(c.owner))continue;\nif(left<=other.maxX()&&right>=other.minX()&&bottom<=other.maxY()&&top>=other.minY()&&front<=other.maxZ()&&back>=other.minZ())return true;\n}","for(Claim other:claims.values()){\nif(other.id.equals(c.id)||!other.world.equals(c.world))continue;\nlong dx=Math.abs((long)c.x-other.x),dz=Math.abs((long)c.z-other.z);\nint distance=(c.width(4)+other.width(4)+1)/2;\nif(dx<distance&&dz<distance)return true;\n}"),
+            ("Приват пересекается с другой территорией.","Слишком близко к другому приватному ядру или яйцу Кощея. Нужен запас на максимальный размер."),
+            ('private String dimension(int level){return SIZE[level]+" × "+HEIGHT[level]+" × "+SIZE[level];}','private String dimension(Claim c,int level){return c.width(level)+" × "+c.height(level)+" × "+c.width(level);}')
+        ]:
+            code=swap(code,old,new,"claim policy")
+        code=code.replace("dimension(claim.level)","dimension(claim,claim.level)").replace("dimension(own.level)","dimension(own,own.level)").replace("dimension(c.level)","dimension(c,c.level)").replace("dimension(4)","dimension(claim,4)").replace("dimension(claim.level+1)","dimension(claim,claim.level+1)")
+        code=code.replace('SIZE[c.level]+"×"+HEIGHT[c.level]+"×"+SIZE[c.level]','c.width(c.level)+"×"+c.height(c.level)+"×"+c.width(c.level)')
+        code=code.replace("SIZE[c.level]/2.","c.width(c.level)/2.").replace("HEIGHT[c.level]/2.","c.height(c.level)/2.")
+        # Old overlapping cores may not expand; existing areas remain untouched.
+
+
     # TalismanForge's previous shield and item state keys already use the
     # original namespace, via the explicit Keys above. No data migration.
     return code

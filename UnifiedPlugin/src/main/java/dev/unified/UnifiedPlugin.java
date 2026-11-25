@@ -191,7 +191,7 @@ private void claimGuide(CommandSender sender){
 sender.sendMessage("§6§lКак создать приват");
 sender.sendMessage("§71. Скрафти особую мишень: 3 бумаги сверху и 6 аметистов снизу.");
 if(sender.hasPermission("targetclaim.admin"))sender.sendMessage("§7Или получи её командой §e/u give claim§7.");
-sender.sendMessage("§72. Поставь мишень в выбранном месте. Приват создаётся автоматически, если территория свободна.");
+sender.sendMessage("§72. Поставь мишень в выбранном месте. Между ядрами нужно 210 блоков вне спавна, 105 на спавне; смешанные — 158.");
 sender.sendMessage("§73. §e/u claim §7— управление; §e/u claim border on §7— границы; §e/u claim upgrade §7— улучшение.");
 sender.sendMessage("§74. §e/u claim list §7— список, §e/u claim <номер> §7— выбрать.");
 }
