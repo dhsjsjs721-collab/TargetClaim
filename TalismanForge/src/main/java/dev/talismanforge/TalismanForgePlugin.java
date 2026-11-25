@@ -1,11 +1,8 @@
 package dev.talismanforge;
 
-import io.papermc.paper.event.player.PlayerShieldDisableEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.Block;
 import org.bukkit.command.*;
 import org.bukkit.configuration.ConfigurationSection;
@@ -18,34 +15,23 @@ import org.bukkit.event.player.*;
 import org.bukkit.event.world.*;
 import org.bukkit.inventory.*;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.loot.LootTable;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.*;
-import org.bukkit.util.Vector;
 import java.io.*;
 import java.util.*;
 
 public final class TalismanForgePlugin extends org.bukkit.plugin.java.JavaPlugin implements Listener, CommandExecutor, TabCompleter {
-private enum Talisman {
-MAIMING("maiming","§5Талисман Увечья",Material.NETHER_STAR),
-WRATH("wrath","§cТалисман Кары",Material.BLAZE_POWDER),
-DEFIANCE("defiance","§bТалисман Противостояния",Material.SHIELD),
-DARKNESS("darkness","§5Талисман Тьмы",Material.ENDER_EYE),
-LIFE("life","§aТалисман Жизни",Material.GHAST_TEAR);
-final String key,name;
-final Material icon;
-Talisman(String k,String n,Material icon){key=k;name=n;this.icon=icon;}
-static Talisman parse(String text){for(Talisman t:values())if(t.key.equalsIgnoreCase(text))return t;return null;}
-}
 private static final long OPEN_DELAY=180000L;
-private NamespacedKey typeKey,usesKey,chestKey,displayKey;
+private NamespacedKey typeKey,chestKey,displayKey;
+private static final Set<String> LEGACY=Set.of("maiming","wrath","defiance","darkness","life","ages","end","hades","joker","poseidon");
 private File saveFile;
 private final Map<String,Altar> altars=new HashMap<>();
 private final Map<UUID,UUID> holograms=new HashMap<>();
-private final Map<UUID,Long> cleansed=new HashMap<>();
-private final Map<UUID,Talisman> active=new HashMap<>();
+
 private final Random random=new Random();
 private int pulse=0;
+private MythicTalismans myths;
+public Location getKoscheiEggLocation(){return myths==null?null:myths.eggLocation();}
 private static final class Altar {
 UUID id=UUID.randomUUID(),owner,world;
 int x,y,z;
@@ -57,9 +43,12 @@ Location location(){World w=Bukkit.getWorld(world);return w==null?null:new Locat
 @Override public void onEnable(){
 getDataFolder().mkdirs();saveDefaultConfig();
 saveFile=new File(getDataFolder(),"altars.yml");
-typeKey=new NamespacedKey(this,"talisman_type");usesKey=new NamespacedKey(this,"uses_left");
+typeKey=new NamespacedKey(this,"talisman_type");
+getConfig().set("legacy-loot",null);getConfig().set("wither-chance",null);getConfig().set("nether-loot-multiplier",null);saveConfig();
 chestKey=new NamespacedKey(this,"talisman_chest");displayKey=new NamespacedKey(this,"altar_display");
 loadAltars();
+myths=new MythicTalismans(this);
+for(Player p:Bukkit.getOnlinePlayers()){purge(p.getInventory());purge(p.getEnderChest());}
 ShapedRecipe recipe=new ShapedRecipe(new NamespacedKey(this,"talisman_chest_recipe"),chestItem());
 recipe.shape("AAA","ATA","AOA");
 recipe.setIngredient('A',Material.AMETHYST_SHARD);
@@ -73,45 +62,7 @@ getLogger().info("Ready: "+altars.size()+" talisman chests loaded");
 }
 @Override public void onDisable(){
 for(UUID id:holograms.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}
-holograms.clear();saveAltars();
-}
-private ItemStack talisman(Talisman t,int uses){
-ItemStack item=new ItemStack(Material.TOTEM_OF_UNDYING);
-ItemMeta m=item.getItemMeta();
-m.setDisplayName(t.name);
-m.getPersistentDataContainer().set(typeKey,PersistentDataType.STRING,t.key);
-m.getPersistentDataContainer().set(usesKey,PersistentDataType.INTEGER,uses);
-m.setItemModel(new NamespacedKey("talismanforge",t.key));
-List<String> lore=new ArrayList<>();
-lore.add("§8Магический артефакт");
-lore.add("§7Работает только во второй руке");
-lore.add("§7Спасений от смерти: §e"+uses+"/2");
-switch(t){
-case MAIMING->{lore.add("§c−0.5 сердца, Голод I");lore.add("§5Удар: Иссушение I на 5 сек.");}
-case WRATH->{lore.add("§c−2 сердца");lore.add("§6Сила I, +20% скорости атаки");}
-case DEFIANCE->{lore.add("§c−2 сердца");lore.add("§bПоглощение I и несбиваемый щит");}
-case DARKNESS->{lore.add("§5Ночное зрение в темноте, +15% урона");lore.add("§cПод прямым солнцем: Слабость I");}
-case LIFE->{lore.add("§a+1 сердце");lore.add("§aСнятие негативных эффектов раз в 30 сек.");}
-}
-m.setLore(lore);
-// Equipment-slot modifiers ensure health and speed revert without overwriting other plugins.
-if(t==Talisman.MAIMING)m.addAttributeModifier(Attribute.MAX_HEALTH,new AttributeModifier(new NamespacedKey(this,"maiming_health"),-1.0,AttributeModifier.Operation.ADD_NUMBER,EquipmentSlotGroup.OFFHAND));
-if(t==Talisman.WRATH){
-m.addAttributeModifier(Attribute.MAX_HEALTH,new AttributeModifier(new NamespacedKey(this,"wrath_health"),-4.0,AttributeModifier.Operation.ADD_NUMBER,EquipmentSlotGroup.OFFHAND));
-m.addAttributeModifier(Attribute.ATTACK_SPEED,new AttributeModifier(new NamespacedKey(this,"wrath_attack_speed"),0.20,AttributeModifier.Operation.ADD_SCALAR,EquipmentSlotGroup.OFFHAND));
-}
-if(t==Talisman.DEFIANCE)m.addAttributeModifier(Attribute.MAX_HEALTH,new AttributeModifier(new NamespacedKey(this,"defiance_health"),-4.0,AttributeModifier.Operation.ADD_NUMBER,EquipmentSlotGroup.OFFHAND));
-if(t==Talisman.LIFE)m.addAttributeModifier(Attribute.MAX_HEALTH,new AttributeModifier(new NamespacedKey(this,"life_health"),2.0,AttributeModifier.Operation.ADD_NUMBER,EquipmentSlotGroup.OFFHAND));
-item.setItemMeta(m);return item;
-}
-private Talisman getType(ItemStack item){
-if(item==null||item.getType()!=Material.TOTEM_OF_UNDYING||!item.hasItemMeta())return null;
-String k=item.getItemMeta().getPersistentDataContainer().get(typeKey,PersistentDataType.STRING);
-return k==null?null:Talisman.parse(k);
-}
-private int getUses(ItemStack item){
-if(item==null||!item.hasItemMeta())return 0;
-return Optional.ofNullable(item.getItemMeta().getPersistentDataContainer().get(usesKey,PersistentDataType.INTEGER)).orElse(0);
+holograms.clear();saveAltars();if(myths!=null)myths.close();
 }
 private ItemStack chestItem(){
 ItemStack i=new ItemStack(Material.CHEST);ItemMeta m=i.getItemMeta();
@@ -186,114 +137,9 @@ if((s!=null&&altars.containsKey(key(s)))||(d!=null&&altars.containsKey(key(d))))
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void burn(BlockBurnEvent e){if(altar(e.getBlock())!=null)e.setCancelled(true);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void flow(BlockFromToEvent e){if(altar(e.getToBlock())!=null)e.setCancelled(true);}
-@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void witherDeath(EntityDeathEvent e){
-if(e.getEntityType()!=EntityType.WITHER||e.getEntity().getKiller()==null)return;
-if(random.nextDouble()>=getConfig().getDouble("wither-chance",0.50))return;
-int count=1;if(random.nextDouble()<.25)count++;if(random.nextDouble()<.08)count++;
-for(int i=0;i<count;i++)e.getDrops().add(talisman(Talisman.MAIMING,2));
-e.getEntity().getWorld().spawnParticle(Particle.DRAGON_BREATH,e.getEntity().getLocation(),85,1.6,1.2,1.6,.04);
-e.getEntity().getKiller().sendMessage("§5С Визера выпало талисманов Увечья: §f"+count);
-}
-@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void netherLoot(LootGenerateEvent e){
-if(e.getWorld().getEnvironment()!=World.Environment.NETHER)return;
-LootTable table=e.getLootTable();if(table==null)return;
-String id=table.getKey().toString();
-Talisman chosen=null;double chance=0;
-if(id.contains("bastion_treasure")){chosen=Talisman.WRATH;chance=.065;}
-else if(id.contains("bastion_bridge")){chosen=Talisman.WRATH;chance=.035;}
-else if(id.contains("bastion_other")||id.contains("bastion_hoglin_stable")){chosen=Talisman.DEFIANCE;chance=.025;}
-else if(id.contains("nether_bridge")||id.contains("fortress")){chosen=Talisman.DARKNESS;chance=.04;}
-else if(id.contains("ruined_portal")){chosen=Talisman.DARKNESS;chance=.025;}
-if(chosen!=null&&random.nextDouble()<chance*getConfig().getDouble("nether-loot-multiplier",1.0))e.getLoot().add(talisman(chosen,2));
-}
-@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void resurrect(EntityResurrectEvent e){
-if(!(e.getEntity() instanceof Player p)||e.getHand()!=EquipmentSlot.OFF_HAND)return;
-ItemStack off=p.getInventory().getItemInOffHand();Talisman type=getType(off);
-if(type==null)return;
-int uses=getUses(off);if(uses<1)return;
-if(uses>1){
-ItemStack next=talisman(type,uses-1);
-Bukkit.getScheduler().runTask(this,()->{
-if(!p.isOnline())return;
-ItemStack current=p.getInventory().getItemInOffHand();
-if(current.getType()==Material.AIR||current.getAmount()==0)p.getInventory().setItemInOffHand(next);
-else give(p,next);
-});
-}
-Bukkit.getScheduler().runTask(this,()->{
-if(!p.isOnline())return;
-p.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING,p.getLocation().add(0,1,0),70,.6,1,.6,.1);
-p.sendMessage("§dТалисман спас тебя! §7Осталось зарядов: §e"+(uses-1));
-if(type==Talisman.LIFE)cleanse(p);
-});
-}
-@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void defendShield(PlayerShieldDisableEvent e){
-if(getType(e.getPlayer().getInventory().getItemInOffHand())==Talisman.DEFIANCE)e.setCancelled(true);
-}
-@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void hit(EntityDamageByEntityEvent e){
-if(!(e.getDamager() instanceof Player attacker))return;
-Talisman t=getType(attacker.getInventory().getItemInOffHand());if(t==null)return;
-if(e.getEntity() instanceof LivingEntity victim){
-if(t==Talisman.MAIMING)victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER,100,0));
-if(t==Talisman.DARKNESS&&isDark(attacker)){
-// MONITOR is observational; damage amount is altered at HIGHEST in darkDamage handler below.
-victim.getWorld().spawnParticle(Particle.PORTAL,victim.getLocation().add(0,1,0),6,.25,.3,.25,.02);
-}
-}
-}
-@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void darkDamage(EntityDamageByEntityEvent e){
-if(!(e.getDamager() instanceof Player p))return;
-if(getType(p.getInventory().getItemInOffHand())==Talisman.DARKNESS&&isDark(p))e.setDamage(e.getDamage()*1.15);
-}
-private boolean isDark(Player p){return p.getLocation().getBlock().getLightFromSky()<8;}
-private boolean sunlight(Player p){
-World w=p.getWorld();return w.getEnvironment()==World.Environment.NORMAL&&w.getTime()<12000&&w.getBlockAt(p.getLocation()).getLightFromSky()>=14&&!w.hasStorm();
-}
-private void cleanse(Player p){
-for(PotionEffect cur:new ArrayList<>(p.getActivePotionEffects())){
-PotionEffectType k=cur.getType();
-if(k==PotionEffectType.POISON||k==PotionEffectType.WITHER||k==PotionEffectType.WEAKNESS||k==PotionEffectType.SLOWNESS||k==PotionEffectType.MINING_FATIGUE||k==PotionEffectType.HUNGER||k==PotionEffectType.BLINDNESS||k==PotionEffectType.NAUSEA||k==PotionEffectType.DARKNESS||k==PotionEffectType.LEVITATION)p.removePotionEffect(k);
-}
-p.getWorld().spawnParticle(Particle.HAPPY_VILLAGER,p.getLocation().add(0,1,0),16,.4,.5,.4,.03);
-}
-private void refreshEffects(){
-long now=System.currentTimeMillis();
-for(Player p:Bukkit.getOnlinePlayers()){
-Talisman t=getType(p.getInventory().getItemInOffHand());
-Talisman previous=active.put(p.getUniqueId(),t);
-if(t==null){
-active.remove(p.getUniqueId());
-if(previous==Talisman.WRATH)p.removePotionEffect(PotionEffectType.STRENGTH);
-if(previous==Talisman.DEFIANCE)p.removePotionEffect(PotionEffectType.ABSORPTION);
-if(previous==Talisman.MAIMING)p.removePotionEffect(PotionEffectType.HUNGER);
-if(previous==Talisman.DARKNESS){p.removePotionEffect(PotionEffectType.NIGHT_VISION);p.removePotionEffect(PotionEffectType.WEAKNESS);}
-continue;
-}
-if(previous!=t){
-if(previous==Talisman.DEFIANCE)p.removePotionEffect(PotionEffectType.ABSORPTION);
-if(previous==Talisman.WRATH)p.removePotionEffect(PotionEffectType.STRENGTH);
-if(previous==Talisman.MAIMING)p.removePotionEffect(PotionEffectType.HUNGER);
-if(previous==Talisman.DARKNESS){p.removePotionEffect(PotionEffectType.NIGHT_VISION);p.removePotionEffect(PotionEffectType.WEAKNESS);}
-}
-switch(t){
-case MAIMING -> p.addPotionEffect(new PotionEffect(PotionEffectType.HUNGER,100,0,true,false,true));
-case WRATH -> p.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH,100,0,true,false,true));
-case DEFIANCE -> {
-if(previous!=Talisman.DEFIANCE&&!p.hasPotionEffect(PotionEffectType.ABSORPTION))p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION,100,0,true,false,true));
-}
-case DARKNESS -> {
-if(isDark(p))p.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION,220,0,true,false,false));
-if(sunlight(p))p.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,90,0,true,false,true));
-}
-case LIFE -> {
-Long last=cleansed.get(p.getUniqueId());if(last==null||now-last>=30000){cleansed.put(p.getUniqueId(),now);cleanse(p);}
-}
-}
-}
-}
 private void tick(){
 pulse++;
-if(pulse%3==0)refreshEffects();
+for(Player p:Bukkit.getOnlinePlayers()){purge(p.getInventory());if(pulse%10==0)purge(p.getEnderChest());}
 List<Altar> copy=new ArrayList<>(altars.values());
 for(Altar a:copy){
 Location loc=a.location();if(loc==null)continue;
@@ -309,16 +155,16 @@ double dd=p.getLocation().distanceSquared(loc);
 if(dd<distance&&dd<=25*25){nearest=p;distance=dd;}
 }
 if(nearest!=null){
-Talisman result=roll();give(nearest,talisman(result,2));
+String result=myths.issueRandom(nearest);
+if(result==null){give(nearest,new ItemStack(Material.TOTEM_OF_UNDYING));give(nearest,new ItemStack(Material.AMETHYST_SHARD,7));give(nearest,new ItemStack(Material.OBSIDIAN));result="Все мифические реликвии уже выданы — ингредиенты возвращены";}
 nearest.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,1200,1));
-nearest.sendMessage("§d✦ Сундук открылся! §fПолучен: "+result.name+" §7| §bСкорость II на 60 сек.");
+nearest.sendMessage("§d✦ Сундук открылся! §fПолучен: "+result+" §7| §bСкорость II на 60 сек.");
 nearbyExplosion(loc);removeAltar(a,true);b.setType(Material.AIR,false);
 }
 }
 if(pulse%2==0)particles(a);
 }
 }
-private Talisman roll(){double n=random.nextDouble();if(n<.30)return Talisman.LIFE;if(n<.60)return Talisman.DARKNESS;if(n<.85)return Talisman.DEFIANCE;return Talisman.WRATH;}
 private void showHologram(Altar a){
 Location loc=a.location();if(loc==null)return;
 UUID id=holograms.get(a.id);Entity entity=id==null?null:Bukkit.getEntity(id);
@@ -360,27 +206,76 @@ Map<Integer,ItemStack> rest=p.getInventory().addItem(item);
 for(ItemStack i:rest.values())p.getWorld().dropItemNaturally(p.getLocation(),i);
 }
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
+if(myths!=null&&myths.command(sender,args))return true;
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
-sender.sendMessage("§dTalismanForge §7| /tf give <ник> <maiming|wrath|defiance|darkness|life|chest>");
+sender.sendMessage("§dTalismanForge §7| /tf give <ник> <thor|anubis|koschei|kitsune|medusa|chest>");
+sender.sendMessage("§7/tf awaken · /tf status · /tf restore");
 sender.sendMessage("§7Рецепт сундука: 7 аметистов + тотем по центру + обсидиан снизу.");return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
 if(args.length<3){sender.sendMessage("§cИспользуй: /tf give <ник> <тип>");return true;}
 Player p=Bukkit.getPlayerExact(args[1]);if(p==null){sender.sendMessage("§cИгрок не в сети.");return true;}
-ItemStack item;Talisman type=Talisman.parse(args[2]);
+ItemStack item;
 if(args[2].equalsIgnoreCase("chest"))item=chestItem();
-else if(type!=null)item=talisman(type,2);
 else{sender.sendMessage("§cНеизвестный талисман.");return true;}
 give(p,item);sender.sendMessage("§aВыдано игроку "+p.getName());return true;
 }
 @Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] args){
-if(args.length==1)return List.of("give");
+if(args.length==1)return List.of("give","awaken","restore","status");
 if(args.length==2)return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
-if(args.length==3)return List.of("maiming","wrath","defiance","darkness","life","chest");
+if(args.length==3)return List.of("thor","anubis","koschei","kitsune","medusa","chest");
 return List.of();
 }
-@EventHandler public void quit(PlayerQuitEvent e){active.remove(e.getPlayer().getUniqueId());cleansed.remove(e.getPlayer().getUniqueId());}
+// Delete only retired, explicitly tagged relics. Vanilla totems, new mythic items and other custom equipment are untouched.
+private boolean retired(ItemStack i){
+if(i==null||!i.hasItemMeta())return false;
+ItemMeta m=i.getItemMeta();String old=m.getPersistentDataContainer().get(typeKey,PersistentDataType.STRING);
+if(old!=null&&LEGACY.contains(old.toLowerCase(Locale.ROOT)))return true;
+if(m.hasItemModel()){NamespacedKey model=m.getItemModel();return model!=null&&model.getNamespace().equals("talismanforge")&&LEGACY.contains(model.getKey());}
+return false;
+}
+private boolean cleanNested(ItemStack i,int depth){
+if(i==null||depth>8||!i.hasItemMeta())return false;
+ItemMeta m=i.getItemMeta();boolean changed=false;
+if(m instanceof org.bukkit.inventory.meta.BlockStateMeta sm&&sm.getBlockState() instanceof org.bukkit.block.ShulkerBox box){
+changed=purge(box.getInventory(),depth+1);if(changed){sm.setBlockState(box);i.setItemMeta(sm);}
+}else if(m instanceof org.bukkit.inventory.meta.BundleMeta bundle){
+List<ItemStack> keep=new ArrayList<>();for(ItemStack item:bundle.getItems()){
+if(retired(item)){changed=true;continue;}changed|=cleanNested(item,depth+1);keep.add(item);
+}
+if(changed){bundle.setItems(keep);i.setItemMeta(bundle);}
+}
+return changed;
+}
+private void purge(Inventory inv){purge(inv,0);}
+private boolean purge(Inventory inv,int depth){
+boolean changed=false;for(int slot=0;slot<inv.getSize();slot++){
+ItemStack i=inv.getItem(slot);if(retired(i)){inv.setItem(slot,null);changed=true;}
+else if(cleanNested(i,depth)){inv.setItem(slot,i);changed=true;}
+}return changed;
+}
+@EventHandler public void join(PlayerJoinEvent e){purge(e.getPlayer().getInventory());purge(e.getPlayer().getEnderChest());}
+@EventHandler(priority=EventPriority.LOWEST) public void openLegacyInventory(org.bukkit.event.inventory.InventoryOpenEvent e){purge(e.getInventory());}
+@EventHandler(priority=EventPriority.LOWEST) public void legacyPickup(EntityPickupItemEvent e){if(retired(e.getItem().getItemStack())){e.setCancelled(true);e.getItem().remove();}}
+@EventHandler(priority=EventPriority.LOWEST) public void legacyDrop(ItemSpawnEvent e){if(retired(e.getEntity().getItemStack()))e.setCancelled(true);}
+@EventHandler(priority=EventPriority.LOWEST) public void legacyResurrect(EntityResurrectEvent e){
+if(!(e.getEntity() instanceof Player p)||e.getHand()==null)return;
+if(retired(p.getInventory().getItem(e.getHand()))){e.setCancelled(true);p.getInventory().setItem(e.getHand(),new ItemStack(Material.AIR));}
+}
+@EventHandler(priority=EventPriority.LOWEST) public void legacyHopper(org.bukkit.event.inventory.InventoryMoveItemEvent e){
+if(retired(e.getItem())){e.setCancelled(true);Bukkit.getScheduler().runTask(this,()->purge(e.getSource()));}
+}
 @EventHandler public void worldLoad(ChunkLoadEvent e){
-// Holograms are recreated by the next scheduled tick; unloaded chunks are never force-loaded.
+for(org.bukkit.block.BlockState state:e.getChunk().getTileEntities())if(state instanceof org.bukkit.block.Container c)purge(c.getInventory());
+}
+@EventHandler public void oldEntities(EntitiesLoadEvent e){
+for(Entity entity:e.getEntities()){
+if(entity instanceof Item i&&retired(i.getItemStack()))i.remove();
+else if(entity instanceof org.bukkit.inventory.InventoryHolder holder)purge(holder.getInventory());
+else if(entity instanceof LivingEntity l&&l.getEquipment()!=null){
+EntityEquipment eq=l.getEquipment();
+for(EquipmentSlot slot:List.of(EquipmentSlot.HAND,EquipmentSlot.OFF_HAND,EquipmentSlot.HEAD,EquipmentSlot.CHEST,EquipmentSlot.LEGS,EquipmentSlot.FEET))if(retired(eq.getItem(slot)))eq.setItem(slot,new ItemStack(Material.AIR));
+}
+}
 }
 }

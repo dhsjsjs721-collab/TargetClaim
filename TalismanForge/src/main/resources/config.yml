@@ -1,2 +1,2 @@
-wither-chance: 0.50
-nether-loot-multiplier: 1.0
+# Five world-unique mythic artifacts.
+mythic-custom-models: true

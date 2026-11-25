@@ -1,5 +1,5 @@
 name: TalismanForge
-version: 1.0.0
+version: 3.0.0
 main: dev.talismanforge.TalismanForgePlugin
 api-version: '26.3'
 author: TalismanForge
@@ -12,3 +12,5 @@ permissions:
   talismanforge.admin:
     default: op
     description: Gives magic talismans and altar chests
+
+softdepend: [TargetClaim]

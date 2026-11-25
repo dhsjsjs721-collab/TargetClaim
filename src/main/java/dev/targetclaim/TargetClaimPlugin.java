@@ -239,6 +239,8 @@ return c!=null&&c.isCore(block)?c:null;
 private boolean wouldOverlap(Claim c,int level){
 int left=minX(c,level),right=maxX(c,level),front=minZ(c,level),back=maxZ(c,level);
 int bottom=minY(c,level),top=maxY(c,level);
+org.bukkit.plugin.Plugin tf=Bukkit.getPluginManager().getPlugin("TalismanForge");
+if(tf!=null&&tf.isEnabled())try{Object value=tf.getClass().getMethod("getKoscheiEggLocation").invoke(tf);if(value instanceof Location egg&&egg.getWorld()!=null&&egg.getWorld().getUID().equals(c.world)&&egg.getBlockX()>=left&&egg.getBlockX()<=right&&egg.getBlockY()>=bottom&&egg.getBlockY()<=top&&egg.getBlockZ()>=front&&egg.getBlockZ()<=back)return true;}catch(ReflectiveOperationException ignored){}
 for(Claim other:regionClaims(c.world,left,right,front,back)){
 if(other.owner.equals(c.owner))continue;
 if(left<=other.maxX()&&right>=other.minX()&&bottom<=other.maxY()&&top>=other.minY()&&front<=other.maxZ()&&back>=other.minZ())return true;
@@ -288,6 +290,8 @@ private boolean canUse(Player player,Claim c){return canBuild(player,c);}
 private boolean canBuild(Player player,Claim c){return owner(player,c)||(c.teamBuild&&allies(player.getUniqueId(),c.owner));}
 // Safe integration point for short-lived PvP structures in MinecraftUnified.
 // The public query never changes claim state or grants bypass permissions.
+public boolean isClaimed(Location place){return claimAt(place)!=null;}
+public boolean allowsTalismanDamage(Player attacker,Player victim){return !friendlyDamageBlocked(attacker,victim);}
 public boolean allowsTemporaryStructure(Player player,Location place){
 Claim claim=claimAt(place);
 return claim==null||canBuild(player,claim);
