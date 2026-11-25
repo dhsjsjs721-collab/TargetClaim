@@ -86,6 +86,18 @@ check(!rearMove.forward() && !rearMove.back() && !rearMove.left() && !rearMove.r
 var frontMove=AimModel.flank(0,-2.25,0,180);
 check(frontMove.left() || frontMove.right());
 check(!AimModel.flank(0,7,0,0).forward());
+check(CombatEngine.plan(normal,0,false,true,false,true,true)==CombatEngine.Action.JUMP);
+check(CombatEngine.plan(normal,0,false,true,true,true,true)==CombatEngine.Action.WAIT_JUMP);
+check(CombatEngine.plan(normal,0,false,false,false,true,true)==CombatEngine.Action.NORMAL);
+check(CombatEngine.plan(crit,1,false,true,false,true,true)==CombatEngine.Action.CRITICAL);
+check(CombatEngine.plan(crit,2,true,true,false,true,true)==CombatEngine.Action.WAIT_LANDING);
+check(CombatEngine.plan(sprintFall,2,false,true,false,true,true)==CombatEngine.Action.STOP_SPRINT);
+check(CombatEngine.plan(weak,2,false,true,false,true,true)==CombatEngine.Action.WAIT_COOLDOWN);
+check(CombatEngine.plan(crit,1,false,true,false,false,true)==CombatEngine.Action.WAIT_COOLDOWN);
+var lostCrosshair=new CombatEngine.Frame(1,false,.2,false,false,true,false,false,false,t);
+check(CombatEngine.plan(lostCrosshair,2,false,true,false,true,true)==CombatEngine.Action.WAIT_TARGET);
+var farApproach=AimModel.flank(0,5,180,0);
+check(farApproach.forward() && !farApproach.left() && !farApproach.right());
 System.out.println("Combat tests passed");
 }
 }

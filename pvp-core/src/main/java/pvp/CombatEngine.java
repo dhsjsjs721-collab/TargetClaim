@@ -34,5 +34,22 @@ public static Decision autoCritical(Frame frame,int descendingTicks,boolean hitT
 if(hitThisFall || descendingTicks < ((frame.opponentFalling() || frame.opponentRecentlyAttacked())?1:2)) return Decision.WAIT;
 return evaluate(Mode.CRITICAL,frame);
 }
+public enum Action { WAIT_TARGET, WAIT_COOLDOWN, WAIT_LANDING, WAIT_DESCENT, WAIT_JUMP, STOP_SPRINT, JUMP, CRITICAL, NORMAL }
+public static Action plan(Frame f,int descendingTicks,boolean hitThisFall,boolean canJump,boolean jumpPending,boolean attackReady,boolean jumpReady) {
+if(!TargetFilter.accepts(f.target()) || !f.inRange()) return Action.WAIT_TARGET;
+if(hitThisFall && !f.grounded()) return Action.WAIT_LANDING;
+if(!attackReady || !Double.isFinite(f.cooldown())) return Action.WAIT_COOLDOWN;
+if(f.grounded()) {
+if(jumpPending) return Action.WAIT_JUMP;
+if(canJump && f.cooldown()>=.80 && jumpReady) return Action.JUMP;
+if(!canJump && f.crosshairOnTarget() && f.cooldown()>=.95 && !f.restricted()) return Action.NORMAL;
+return Action.WAIT_COOLDOWN;
+}
+if(f.restricted() || !f.crosshairOnTarget()) return Action.WAIT_TARGET;
+if(f.sprinting()) return Action.STOP_SPRINT;
+if(f.cooldown()<.95) return Action.WAIT_COOLDOWN;
+if(f.fallDistance()>0 && descendingTicks>=1) return Action.CRITICAL;
+return Action.WAIT_DESCENT;
+}
 private CombatEngine() {}
 }

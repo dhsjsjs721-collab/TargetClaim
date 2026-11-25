@@ -3,7 +3,8 @@
   "package": "pvp.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "MinecraftAttackInvoker"
+    "MinecraftAttackInvoker",
+    "DamageFeedbackMixin"
   ],
   "injectors": {
     "defaultRequire": 1

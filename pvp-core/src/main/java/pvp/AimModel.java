@@ -55,7 +55,7 @@ double yaw=Math.toRadians(targetYaw);
 double bx=Math.sin(yaw),bz=-Math.cos(yaw);
 double cross=rx*bz-rz*bx,dot=rx*bx+rz*bz;
 double radial=clamp((d-2.25)*.8,-1,1);
-double orbit=dot>.92?0:Math.copySign(.85,Math.abs(cross)<.001?1:cross);
+double orbit=dot>.92?0:Math.copySign(.85,Math.abs(cross)<.001?1:cross)*clamp((4.0-d)/1.4,0,1);
 double wx=-rx*radial-rz*orbit,wz=-rz*radial+rx*orbit;
 double view=Math.toRadians(viewYaw);
 double forward=wx*-Math.sin(view)+wz*Math.cos(view);

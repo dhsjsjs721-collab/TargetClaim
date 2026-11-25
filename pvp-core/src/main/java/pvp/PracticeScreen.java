@@ -31,10 +31,10 @@ addRenderableWidget(Button.builder(Component.literal("Lock GUI (until restart)")
 PracticeClient.guiLocked=true;
 onClose();
 }).bounds(x,y+120,220,20).build());
-var result=Button.builder(Component.literal("Attack attempts: "+PracticeCombat.readyTicks()),button -> {}).bounds(x,y+144,220,20).build();
+var result=Button.builder(Component.literal("Hits: "+PracticeCombat.confirmedHits()+"/"+PracticeCombat.readyTicks()+" | Jump: "+PracticeCombat.jumpCount()),button -> {}).bounds(x,y+144,220,20).build();
 result.active=false;
 addRenderableWidget(result);
-var aim=Button.builder(Component.literal(PracticeCombat.status()),button -> {}).bounds(x,y+168,220,20).build();
+var aim=Button.builder(Component.literal(PracticeCombat.status()+" | Timeout: "+PracticeCombat.expiredHits()),button -> {}).bounds(x,y+168,220,20).build();
 aim.active=false;
 addRenderableWidget(aim);
 addRenderableWidget(Button.builder(Component.literal("Close"),button -> onClose()).bounds(x,y+192,220,20).build());
