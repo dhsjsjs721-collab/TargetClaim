@@ -43,6 +43,9 @@ double boost=clamp(motion/5,0,1);
 double dy=wrap(target.yaw()-current.yaw()),dp=target.pitch()-current.pitch();
 return new Angles(wrap(current.yaw()+clamp(dy*(settings.horizontalSpeed()+(1-settings.horizontalSpeed())*.55*boost),-12-6*boost,12+6*boost)),clamp(current.pitch()+clamp(dp*(settings.verticalSpeed()+(1-settings.verticalSpeed())*.55*boost),-8-4*boost,8+4*boost),-90,90));
 }
+public static boolean shouldApproach(double horizontalDistanceSquared,double yawError) {
+return horizontalDistanceSquared>6.25 && horizontalDistanceSquared<=36 && Math.abs(yawError)<25;
+}
 public static double targetScore(double angle,double fov,double distanceSquared) {
 return .7*angle/(fov*.5)+.3*Math.min(1,Math.sqrt(Math.max(0,distanceSquared))/4);
 }
