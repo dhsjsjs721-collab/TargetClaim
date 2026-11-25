@@ -324,44 +324,56 @@ return true;
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void attack(EntityDamageByEntityEvent e){
 if(!(e.getDamager() instanceof Player attacker)||!(e.getEntity() instanceof Player victim))return;
-if(e.getFinalDamage()<=0 || !mayAttack(attacker,victim))return;
+if(e.getDamage()<=0||!mayAttack(attacker,victim))return;
+UUID id=attacker.getUniqueId();
+long now=System.currentTimeMillis();
+inCombat.put(id,now+12000);inCombat.put(victim.getUniqueId(),now+12000);
 Kind k=carried(attacker);
-if(k==null)return;
+if(k==null||chained.contains(id))return;
+boolean crit=attacker.canCriticalAttack(victim);
 switch(k){
-case ZEUS->{
-// Every valid vanilla-style critical PvP hit triggers lightning.
-// No talisman cooldown or random roll; non-critical hits do nothing.
-if(attacker.canCriticalAttack(victim)){
-e.setDamage(e.getDamage()+3.0);
-victim.getWorld().strikeLightningEffect(victim.getLocation());
-victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,45,0));
+case CERBERUS->{
+if(!crit)return;
+List<Player> targets=new ArrayList<>();
+for(Entity near:victim.getNearbyEntities(5,4,5))
+if(near instanceof Player player&&player!=attacker&&mayAttack(attacker,player))targets.add(player);
+targets.sort(Comparator.comparingDouble(p->p.getLocation().distanceSquared(victim.getLocation())));
+if(targets.isEmpty())return;
+Player from=victim;
+for(int i=0;i<3;i++){
+Player next=i==2&&targets.size()==1?victim:targets.get(i%targets.size());
+if(!mayAttack(attacker,next)||from.getLocation().distanceSquared(next.getLocation())>25)break;
+if(!chained.add(id))break;
+try{next.damage(e.getDamage()*.5,attacker);}finally{chained.remove(id);}
+next.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME,next.getEyeLocation(),12,.2,.3,.2,.01);
+from=next;
 }
 }
-case POSEIDON->{
-if(ready(offensiveCooldown,attacker.getUniqueId(),7*SEC))
-attacker.setHealth(Math.min(attacker.getMaxHealth(),attacker.getHealth()+3.0));
-attacker.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION,70,0));
-victim.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,50,0));
+case KRAKEN->{
+markedBy.put(victim.getUniqueId(),id);
+markedEnds.put(victim.getUniqueId(),now+10000);
+if(crit)add(victim,PotionEffectType.DARKNESS,45,0);
 }
-case ARES->{
-if(ready(offensiveCooldown,attacker.getUniqueId(),5*SEC)){
-victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER,65,0));
-attacker.setHealth(Math.min(attacker.getMaxHealth(),attacker.getHealth()+2.0));
+case GORGON->{
+if(crit)add(victim,PotionEffectType.SLOWNESS,60,1);
+}
+case PHOENIX->{}
+case HYDRA->{
+if(!crit)return;
+boolean successive=victim.getUniqueId().equals(critTarget.get(id))
+&&now-lastCrit.getOrDefault(id,0L)<5000;
+int n=successive?critCount.getOrDefault(id,0)+1:1;
+critTarget.put(id,victim.getUniqueId());lastCrit.put(id,now);
+critCount.put(id,n);
+if(n>=3){
+critCount.put(id,0);
+victim.addPotionEffect(new PotionEffect(PotionEffectType.POISON,80,1));
+victim.getWorld().spawnParticle(Particle.ITEM_SLIME,victim.getEyeLocation(),25,.3,.4,.3,.02);
 }
 }
-case ATHENA->{
-if(ready(offensiveCooldown,attacker.getUniqueId(),6*SEC))
-victim.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,70,0));
-}
-case HERMES->{
-if(ready(offensiveCooldown,attacker.getUniqueId(),5*SEC)){
-victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,55,0));
-victim.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS,35,0));
 }
 }
 
-}
-}
 private boolean pvpDamage(EntityDamageEvent event){
 if(!(event instanceof EntityDamageByEntityEvent hit))return false;
 Entity source=hit.getDamager();
