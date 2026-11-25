@@ -50,6 +50,23 @@ check(CombatEngine.autoCritical(nearFull,1,false)==CombatEngine.Decision.WAIT);
 check(CombatEngine.autoCritical(nearFull,2,false)==CombatEngine.Decision.CRITICAL_WINDOW);
 check(CombatEngine.autoCritical(normal,2,false)==CombatEngine.Decision.WAIT);
 check(CombatEngine.autoCritical(blocked,2,false)==CombatEngine.Decision.WAIT);
+check(AimModel.retainTarget(.81,1.0));
+check(!AimModel.retainTarget(.60,1.0));
+check(!AimModel.retainTarget(.60,Double.POSITIVE_INFINITY));
+check(AimModel.targetScore(10,150,4)<AimModel.targetScore(30,150,4));
+check(AimModel.targetScore(10,150,4)<AimModel.targetScore(10,150,9));
+var sprintFall=new CombatEngine.Frame(1,false,.4,true,false,true,true,false,false,t);
+check(CombatEngine.autoCritical(sprintFall,3,false)==CombatEngine.Decision.WAIT);
+var blockedFall=new CombatEngine.Frame(1,false,.4,false,true,true,true,false,false,t);
+check(CombatEngine.autoCritical(blockedFall,3,false)==CombatEngine.Decision.WAIT);
+int strikes=0;
+for(int jump=0;jump<10;jump++) {
+boolean spent=false;
+for(int fall=1;fall<=5;fall++) {
+if(CombatEngine.autoCritical(nearFull,fall,spent)!=CombatEngine.Decision.WAIT) { spent=true; strikes++; }
+}
+}
+check(strikes==10);
 System.out.println("Combat tests passed");
 }
 }
