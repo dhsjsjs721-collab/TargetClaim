@@ -170,7 +170,7 @@ final class MythicTalismans implements Listener {
         s=state(p.getInventory().getItemInMainHand());return s!=null&&s.kind!=Kind.KOSCHEI?s:null;
     }
     private State activeState(Player p){
-        if(!usable(p)||p.isDead())return null;
+        if(!usable(p))return null;
         State s=heldState(p);
         if(s!=null){for(Player other:Bukkit.getOnlinePlayers())if(other!=p&&usable(other)&&!other.isDead()&&other.getUniqueId().compareTo(p.getUniqueId())<0&&heldState(other)==s)return null;return s;}
         return boundEggs.get(p.getUniqueId());
@@ -497,7 +497,7 @@ final class MythicTalismans implements Listener {
             if(!hidden.contains(p.getUniqueId()))e.setDamage(e.getDamage()*1.10);
             reveal(p);
         }else combat.put(p.getUniqueId(),now());
-        if(k==null||e.getFinalDamage()<p.getHealth())return;
+        if(k==null||e.getFinalDamage()+1e-6<p.getHealth())return;
         State s=activeState(p);int cost=k==Kind.ANUBIS?200:1;
         if(k==Kind.KOSCHEI&&s.awakened)cost=0;
         if(s.charges<cost||k==Kind.KOSCHEI&&s.broken)return;
@@ -508,7 +508,28 @@ final class MythicTalismans implements Listener {
         int before=s.charges;s.charges-=cost;
         if(!save()){s.charges=before;return;}
         if(destination!=null&&!p.teleport(destination)){s.charges=before;save();return;}
-        e.setCancelled(true);p.setFireTicks(0);p.setFallDistance(0);p.setHealth(Math.min(maxHealth(p),8));p.setNoDamageTicks(40);
+        e.setCancelled(true);completeRescue(p,k,s,before);
+    }
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void rescueDeath(PlayerDeathEvent e){
+        Player p=e.getEntity();State s=activeState(p);if(s==null)return;Kind k=s.kind;
+        var last=p.getLastDamageCause();
+        if(last!=null&&last.getCause().name().equals("KILL"))return;
+        int cost=k==Kind.ANUBIS?200:k==Kind.KOSCHEI&&s.awakened?0:1;
+        if(s.charges<cost||k==Kind.KOSCHEI&&s.broken)return;
+        Location destination=null;
+        if(k==Kind.KOSCHEI){if(s.egg==null||claimed(s.egg)||!eggBlock(s.egg.getBlock()))return;destination=safeEgg(s.egg);if(destination==null)return;}
+        else if(last!=null&&last.getCause()==EntityDamageEvent.DamageCause.VOID)destination=p.getWorld().getSpawnLocation();
+        int before=s.charges;s.charges-=cost;if(!save()){s.charges=before;return;}
+        e.setReviveHealth(Math.min(maxHealth(p),8));e.setCancelled(true);
+        Location dest=destination;
+        Bukkit.getScheduler().runTask(plugin.host(),()->{
+            if(!p.isOnline()||p.isDead())return;
+            if(dest!=null&&!p.teleport(dest)){p.teleport(p.getWorld().getSpawnLocation());}
+            completeRescue(p,k,s,before);
+        });
+    }
+    private void completeRescue(Player p,Kind k,State s,int before){
+        p.setFireTicks(0);p.setFallDistance(0);p.setHealth(Math.min(maxHealth(p),8));p.setNoDamageTicks(40);
         p.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION,100,1));
         p.showTitle(net.kyori.adventure.title.Title.title(title(k,k.title),Component.text("Возвращение к жизни")));
         p.playSound(p.getLocation(),Sound.ITEM_TOTEM_USE,0.85f,0.9f);
@@ -517,7 +538,7 @@ final class MythicTalismans implements Listener {
             case THOR->{if(!peace(p.getLocation()))resurrectThor(p,s);}
             case ANUBIS->{if(!peace(p.getLocation()))summonArmy(p,before,s.awakened);}
             case KOSCHEI->{if(!s.awakened&&s.charges==0)destroyEgg(s);else ring(p.getLocation(),k,2);}
-            case KITSUNE->{conceal(p);makeClones(p,s.awakened?9:3);}
+            case KITSUNE->{if(!peace(p.getLocation())){conceal(p);makeClones(p,s.awakened?9:3);}}
             case MEDUSA->{double radius=s.awakened?20:8;for(Entity entity:p.getNearbyEntities(radius,radius,radius))if(entity instanceof LivingEntity l&&enemy(p,l)&&l.getLocation().distanceSquared(p.getLocation())<=radius*radius)freeze(l);}
         }
         refreshItem(p,k);message(p,k,"Спасение · "+chargeText(k,s));
@@ -567,7 +588,7 @@ final class MythicTalismans implements Listener {
         Minion m=minions.get(e.getEntity().getUniqueId());if(m==null)return;Player p=Bukkit.getPlayer(m.owner());
         if(p==null||!enemy(p,e.getTarget())||(!(e.getTarget() instanceof Player)&&!(e.getTarget() instanceof Monster)&&!(e.getTarget() instanceof Slime)))e.setCancelled(true);
     }
-    @EventHandler public void died(EntityDeathEvent e){
+    @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void died(EntityDeathEvent e){
         LivingEntity entity=e.getEntity();
         if(entity.getPersistentDataContainer().has(summonKey,PersistentDataType.STRING)||clones.containsKey(entity.getUniqueId())){e.getDrops().clear();e.setDroppedExp(0);minions.remove(entity.getUniqueId());clones.remove(entity.getUniqueId());return;}
         if(entity instanceof Player p){
@@ -580,7 +601,7 @@ final class MythicTalismans implements Listener {
         if(p==null&&soul!=null&&soul.until()>=now())p=Bukkit.getPlayer(soul.owner());
         if(p==null)return;
         Kind k=active(p);
-        if(k==Kind.ANUBIS&&(soul==null||soul.owner().equals(p.getUniqueId())&&soul.state()==activeState(p)&&soul.until()>=now())){
+        if(k==Kind.ANUBIS){
             if(!(entity instanceof ArmorStand)&&!(entity instanceof Mannequin)&&!entity.getPersistentDataContainer().has(summonKey,PersistentDataType.STRING)){
                 State st=activeState(p);int old=st.charges;st.charges=Math.min(500,st.charges+soulValue(entity));
                 if(st.charges!=old){
@@ -857,7 +878,7 @@ final class MythicTalismans implements Listener {
             if(usable(p)){if(p.isFlying()||!p.isOnGround())data.set(fallGrace,PersistentDataType.BYTE,(byte)1);p.setFlying(false);p.setAllowFlight(false);p.setFallDistance(0);}
             data.remove(flightFlag);
         }
-        if(!fly&&p.isOnGround()&&!p.isFlying())data.remove(fallGrace);
+        if(!fly&&p.isOnGround()&&!p.isFlying()&&p.getFallDistance()==0)data.remove(fallGrace);
         if(k!=null&&ticks%20==0){refreshItem(p,k);p.sendActionBar(title(k,"✦ "+k.title+"  ·  "+chargeText(k,activeState(p))+(k==Kind.ANUBIS&&raining?" · −15% скорости":k==Kind.KOSCHEI?" · −1 сердце":fly?" · Полёт":"")));}
     }
     private void removeMark(UUID id){marks.remove(id);UUID entity=markDisplays.remove(id);if(entity!=null){Entity e=Bukkit.getEntity(entity);if(e!=null)e.remove();}}
@@ -880,7 +901,7 @@ final class MythicTalismans implements Listener {
         for(Player p:Bukkit.getOnlinePlayers()){
             UUID id=p.getUniqueId();Kind k=active(p);
             if(stonePlayers.containsKey(id)&&(stonePlayers.get(id)<=time||peace(p.getLocation())))thaw(p);
-            if(k==Kind.KITSUNE){
+            if(k==Kind.KITSUNE&&!peace(p.getLocation())){
                 State storage=activeState(p);
                 if(storage.store!=null||storage.enderOwner!=null){storage.store=null;storage.enderOwner=null;storage.storedAt=0;save();}
                 if(kitsuneEquipped.put(id,storage)!=storage){show(p);combat.put(id,time);sneak.remove(id);}
