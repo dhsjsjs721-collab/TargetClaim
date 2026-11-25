@@ -1454,8 +1454,8 @@ if(nearest!=null){
 // Exactly one of five new talismans. No direct mob/fishing/egg drops.
 ItemStack reward=five.newFromCase();
 give(nearest,reward);
-nearest.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,1200,1));
-nearest.sendMessage("§b✦ Реликварий пробудился: "+reward.getItemMeta().getDisplayName()+" §b| Скорость II на 60 сек.");
+// No speed reward; the case grants only a mythic talisman.
+nearest.sendMessage("§b✦ Реликварий пробудился: "+reward.getItemMeta().getDisplayName());
 removeAltar(a);b.setType(Material.AIR,false);continue;}
 }
 if(pulses%2==0)ambient(a);
@@ -1521,9 +1521,9 @@ private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addI
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args){
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
 sender.sendMessage("§dTalismanForge: ровно пять талисманов, награды только из реликвария.");
-sender.sendMessage("§7Феникс / Гроза / Страж / Сумрак / Прилив");
+sender.sendMessage("§7Цербер / Кракен / Горгона / Феникс / Гидра");
 sender.sendMessage("§7Крафт кейса: 7 аметистов + обычный тотем + обсидиан.");
-sender.sendMessage("§7Админ-тест: /tf give <ник> <zeus|olympus_poseidon|ares|athena|hermes|reliquary|hook>");
+sender.sendMessage("§7Админ-тест: /tf give <ник> <cerberus|kraken|gorgon|phoenix|hydra|reliquary|hook>");
 return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
@@ -1542,7 +1542,7 @@ return true;
 @Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] args){
 if(args.length==1)return List.of("give");
 if(args.length==2)return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
-if(args.length==3)return List.of("zeus","olympus_poseidon","ares","athena","hermes","reliquary","hook");
+if(args.length==3)return List.of("cerberus","kraken","gorgon","phoenix","hydra","reliquary","hook");
 return List.of();
 }
 @EventHandler public void quit(PlayerQuitEvent e){
