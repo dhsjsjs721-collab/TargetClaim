@@ -18,6 +18,7 @@ ClientTickEvents.END_CLIENT_TICK.register(client -> {
 while(key.consumeClick()) {
 if(!guiLocked && client.player != null && client.gui.screen()==null) client.gui.setScreen(new PracticeScreen());
 }
+PracticeCombat.tick(client,settings,mode);
 });
 ScreenEvents.BEFORE_INIT.register((client,screen,w,h) -> {
 if(screen instanceof PracticeScreen) ScreenKeyboardEvents.beforeKeyPress(screen).register((s,event) -> {
