@@ -1,5 +1,6 @@
 package pvp;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.LivingEntity;
@@ -10,6 +11,7 @@ final class PracticeCombat {
 static boolean golemTest;
 static boolean networkTest;
 private static int jumpDelay;
+private static boolean jumpRequested,forcedJump,forcedForward,forcedSprint;
 private static int descendingTicks;
 private static boolean hitThisFall;
 private static long trackingTick;
@@ -36,7 +38,7 @@ static int readyTicks() { return readyTicks; }
 static CombatEngine.Decision decision() { return decision; }
 private static boolean valid(LocalPlayer self,LivingEntity target) { return aimValid(self,target) && inRange(self,target); }
 private static boolean aimValid(LocalPlayer self,LivingEntity target) {
-return target!=self && (target instanceof Player || (golemTest && "entity.minecraft.iron_golem".equals(target.getType().getDescriptionId()))) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && (!(target instanceof Player other) || self.canHarmPlayer(other)) && self.distanceToSqr(target)<=20.25;
+return target!=self && (target instanceof Player || (golemTest && "entity.minecraft.iron_golem".equals(target.getType().getDescriptionId()))) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && (!(target instanceof Player other) || self.canHarmPlayer(other)) && self.distanceToSqr(target)<=36;
 }
 private static boolean inRange(LocalPlayer self, LivingEntity target) {
 return self.getAttackRangeWith(self.getMainHandItem()).isInRange(self,target.getBoundingBox(),3.0);
@@ -68,6 +70,7 @@ if(jumpDelay>0) jumpDelay--;
 if(attackDelay>0) attackDelay--;
 trackingTick++;
 if(mc.gui.screen()!=null || mc.isPaused()) { aimTarget=null; resetTracking(); clearJump(); descendingTicks=0; return; }
+double previousAimError=angularError;
 angularError=Double.NaN;
 decision=CombatEngine.Decision.WAIT;
 if(!self.isAlive() || self.isSpectator() || self.isCreative() || self.isUsingItem() || self.isHandsBusy()) { aimTarget=null; resetTracking(); clearJump(); descendingTicks=0; status="Player busy"; return; }
@@ -76,14 +79,17 @@ if(self.onGround()) { hitThisFall=false; if(jumpAge>2) clearJump(); }
 if(!settings.triggerEnabled() || (jumpTarget!=null && (++jumpAge>24 || !aimValid(self,jumpTarget) || jumpItem!=self.getMainHandItem().getItem()))) clearJump();
 descendingTicks=falling?Math.min(descendingTicks+1,20):0;
 status=settings.triggerEnabled()?"No valid target":"AutoCritical off";
-if(settings.triggerEnabled() && mc.hitResult instanceof EntityHitResult hit && hit.getEntity() instanceof LivingEntity target && valid(self,target)) {
+LivingEntity crosshair=mc.hitResult instanceof EntityHitResult hit && hit.getEntity() instanceof LivingEntity living && valid(self,living)?living:null;
+LivingEntity candidateTarget=crosshair!=null?crosshair:settings.aimEnabled() && aimTarget!=null && valid(self,aimTarget) && Double.isFinite(previousAimError) && previousAimError<12?aimTarget:null;
+if(settings.triggerEnabled() && candidateTarget!=null) {
+var target=candidateTarget;
 var candidate=new TargetFilter.Candidate(true,false,true,true,false,false);
 boolean restricted=self.isInWater() || self.isInLava() || self.isPassenger() || self.onClimbable() || self.isMobilityRestricted() || self.hasEffect(MobEffects.BLINDNESS) || self.isFallFlying();
 boolean counter=responseWindow>0 || (!target.onGround() && target.getDeltaMovement().y<0);
-var frame=new CombatEngine.Frame(self.getAttackStrengthScale(0),self.onGround(),falling?self.fallDistance:0,self.isSprinting(),restricted,inRange(self,target),true,!target.onGround() && target.getDeltaMovement().y<0,responseWindow>0,candidate);
-if(!restricted && self.onGround() && attackDelay==0 && jumpDelay==0 && self.getAttackStrengthScale(0)>=.95f && mc.level.noCollision(self,self.getBoundingBox().move(0,1.1,0))) {
+var frame=new CombatEngine.Frame(self.getAttackStrengthScale(0),self.onGround(),falling?self.fallDistance:0,self.isSprinting(),restricted,inRange(self,target),crosshair==target,!target.onGround() && target.getDeltaMovement().y<0,responseWindow>0,candidate);
+if(!restricted && self.onGround() && attackDelay==0 && jumpDelay==0 && self.getAttackStrengthScale(0)>=.95f && mc.level.noCollision(self,self.getBoundingBox().move(0,.35,0))) {
 self.setSprinting(false);
-self.jumpFromGround();
+jumpRequested=true;
 jumpDelay=5;
 jumpTarget=target;
 jumpItem=self.getMainHandItem().getItem();
@@ -119,7 +125,7 @@ AimModel.Angles best=null;
 double bestError=Double.POSITIVE_INFINITY,bestScore=Double.POSITIVE_INFINITY,retainedScore=Double.POSITIVE_INFINITY,retainedError=0;
 AimModel.Angles retained=null;
 LivingEntity selected=null;
-for(var target:mc.level.getEntitiesOfClass(LivingEntity.class,self.getBoundingBox().inflate(4.5),target -> aimValid(self,target))) {
+for(var target:mc.level.getEntitiesOfClass(LivingEntity.class,self.getBoundingBox().inflate(6),target -> aimValid(self,target))) {
 var bb=target.getBoundingBox();
 var box=new AimModel.Box(new AimModel.Vec(bb.minX,bb.minY,bb.minZ),new AimModel.Vec(bb.maxX,bb.maxY,bb.maxZ));
 var desired=AimModel.direction(new AimModel.Vec(eye.x,eye.y,eye.z),AimModel.trackingPoint(new AimModel.Vec(eye.x,eye.y,eye.z),current,box,trackingTick));
@@ -158,6 +164,27 @@ self.setXRot((float)next.pitch());
 
 }
 private static void resetTracking() { sampledTarget=null; previousRelative=null; relativeMotion=new AimModel.Vec(0,0,0); motionAngle=0; }
-private static void clearJump() { jumpTarget=null; jumpItem=null; jumpAge=0; }
+static void startTick(Minecraft mc,CombatSettings settings) {
+if(mc.player==null || mc.level==null || mc.gui.screen()!=null || mc.isPaused() || (!mc.hasSingleplayerServer() && !networkTest) || !settings.triggerEnabled()) { jumpRequested=false; return; }
+var self=mc.player;
+if(!self.isAlive() || self.isSpectator() || self.isCreative() || self.isUsingItem() || self.isShiftKeyDown()) { jumpRequested=false; return; }
+if(jumpTarget!=null && aimValid(self,jumpTarget)) {
+if(mc.options.keySprint.isDown()) { mc.options.keySprint.setDown(false); forcedSprint=true; }
+self.setSprinting(false);
+}
+if(jumpRequested && jumpTarget!=null && self.onGround() && valid(self,jumpTarget)) {
+if(!mc.options.keyJump.isDown()) { mc.options.keyJump.setDown(true); forcedJump=true; }
+}
+jumpRequested=false;
+if(settings.aimEnabled() && aimTarget!=null && aimValid(self,aimTarget) && !mc.options.keyDown.isDown() && !mc.options.keyLeft.isDown() && !mc.options.keyRight.isDown() && !mc.options.keyUp.isDown()) {
+var direction=AimModel.direction(new AimModel.Vec(self.getX(),self.getY(),self.getZ()),new AimModel.Vec(aimTarget.getX(),aimTarget.getY(),aimTarget.getZ()));
+double dx=aimTarget.getX()-self.getX(),dz=aimTarget.getZ()-self.getZ();
+if(AimModel.shouldApproach(dx*dx+dz*dz,AimModel.wrap(direction.yaw()-self.getYRot()))) { mc.options.keyUp.setDown(true); forcedForward=true; }
+}
+}
+static void releaseInput(Minecraft mc) {
+if(forcedJump || forcedForward || forcedSprint) { KeyMapping.setAll(); forcedJump=false; forcedForward=false; forcedSprint=false; }
+}
+private static void clearJump() { jumpTarget=null; jumpItem=null; jumpAge=0; jumpRequested=false; }
 private PracticeCombat() {}
 }
