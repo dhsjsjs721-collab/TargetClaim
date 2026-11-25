@@ -184,8 +184,6 @@ if(e.getEntity() instanceof Pig p){
 ground.add(p.getUniqueId());
 // All newly spawned pigs remain ordinary grounded pigs.
 }
-else ground.add(p.getUniqueId());
-}
 if(e.getEntity() instanceof Frog f){
 Biome b=f.getLocation().getBlock().getBiome();
 if((b==Biome.SWAMP||b==Biome.MANGROVE_SWAMP)&&random.nextDouble()<getConfig().getDouble("giant-chance",.24))
