@@ -39,47 +39,84 @@ void enable(){
 for(World w:Bukkit.getWorlds())for(Chunk c:w.getLoadedChunks())recover(c);
 Bukkit.getPluginManager().registerEvents(this,host);
 Bukkit.removeRecipe(helmetRecipe);Bukkit.removeRecipe(toolRecipe);
-ShapedRecipe helmet=new ShapedRecipe(helmetRecipe,item("helmet"));helmet.shape(" I ","LHL"," R ");helmet.setIngredient('I',Material.IRON_INGOT);helmet.setIngredient('L',Material.LANTERN);helmet.setIngredient('H',Material.IRON_HELMET);helmet.setIngredient('R',Material.REDSTONE);Bukkit.addRecipe(helmet);
-ShapedRecipe tool=new ShapedRecipe(toolRecipe,item("multitool"));tool.shape("PAS"," I "," T ");tool.setIngredient('P',Material.IRON_PICKAXE);tool.setIngredient('A',Material.IRON_AXE);tool.setIngredient('S',Material.IRON_SHOVEL);tool.setIngredient('I',Material.IRON_INGOT);tool.setIngredient('T',Material.STICK);Bukkit.addRecipe(tool);
+ShapedRecipe helmet=new ShapedRecipe(helmetRecipe,item("helmet"));helmet.shape(" I ","LHL"," R ");helmet.setIngredient('I',Material.IRON_INGOT);helmet.setIngredient('L',Material.LANTERN);helmet.setIngredient('H',Material.LEATHER_HELMET);helmet.setIngredient('R',Material.REDSTONE);Bukkit.addRecipe(helmet);
 Bukkit.getScheduler().runTaskTimer(host,this::updateLights,10L,10L);
 Bukkit.getScheduler().runTaskTimer(host,this::throwTick,1L,1L);
 Bukkit.getScheduler().runTaskTimer(host,()->{for(Player p:Bukkit.getOnlinePlayers())upgradeInventory(p.getInventory());},20L,100L);
-host.getLogger().info("MiningGear enabled: dynamic lights, miner helmet, throwable torches, iron multitool.");
+Bukkit.getScheduler().runTaskTimer(host,this::oreHints,10L,10L);
+host.getLogger().info("MiningGear enabled: dynamic lights, unbreakable leather miner cap, visible ore hints, throwable torches.");
 }
 private ItemStack item(String type){
-ItemStack i=new ItemStack(type.equals("helmet")?Material.IRON_HELMET:Material.IRON_PICKAXE);ItemMeta m=i.getItemMeta();
-m.getPersistentDataContainer().set(key,PersistentDataType.STRING,type);
-applyModel(m,type);
-if(type.equals("helmet")){m.setDisplayName("§6Шахтёрская каска");m.setLore(List.of("§7Освещает путь без факела в руке","§7Уровень света: 12"));}
-else{
-m.setDisplayName("§6Железный мультитул");m.setLore(List.of("§7Кирка · Топор · Лопата","§7Железный уровень добычи · Общая прочность: 500"));
-var t=m.getTool();t.setRules(List.of());t.setDefaultMiningSpeed(1f);t.setDamagePerBlock(1);
-t.addRule(Tag.INCORRECT_FOR_IRON_TOOL,null,false);
-t.addRule(Tag.MINEABLE_PICKAXE,6f,true);t.addRule(Tag.MINEABLE_AXE,6f,true);t.addRule(Tag.MINEABLE_SHOVEL,6f,true);
-m.setTool(t);if(m instanceof Damageable d)d.setMaxDamage(500);
+ItemStack i=new ItemStack(Material.LEATHER_HELMET);ItemMeta m=i.getItemMeta();
+m.getPersistentDataContainer().set(key,PersistentDataType.STRING,"helmet");
+applyHelmet(m);i.setItemMeta(m);return i;
 }
+private boolean applyHelmet(ItemMeta m){
+boolean changed=false;NamespacedKey model=new NamespacedKey("minecraftunified","miner_helmet");
+if(!model.equals(m.getItemModel())){m.setItemModel(model);changed=true;}
+var eq=m.getEquippable();if(!model.equals(eq.getModel())){eq.setModel(model);m.setEquippable(eq);changed=true;}
+if(!m.isUnbreakable()){m.setUnbreakable(true);changed=true;}
+if(m instanceof Damageable d&&d.getDamage()!=0){d.setDamage(0);changed=true;}
+if(m.hasAttributeModifiers()){m.setAttributeModifiers(null);changed=true;}
+List<String> lore=List.of("§7Защита как у кожаного шлема","§aНе ломается","§7Уровень света: 12","§7Мягко подсвечивает видимые руды в радиусе 7 блоков");
+if(!lore.equals(m.getLore())){m.setLore(lore);m.setDisplayName("§6Шахтёрская шапка");changed=true;}
+return changed;
+}
+private ItemStack migrate(ItemStack i){
+if(i==null||!i.hasItemMeta())return i;
+ItemMeta m=i.getItemMeta();String t=m.getPersistentDataContainer().get(key,PersistentDataType.STRING);
+if("multitool".equals(t)&&i.getType()==Material.IRON_PICKAXE){
+m.getPersistentDataContainer().remove(key);m.setItemModel(null);m.displayName(null);m.lore(null);
+m.setTool(null);
+if(m instanceof Damageable d){int max=d.hasMaxDamage()?d.getMaxDamage():500;int damage=d.getDamage();d.setMaxDamage(null);d.setDamage(Math.min(Material.IRON_PICKAXE.getMaxDurability()-1,(int)Math.round(damage*(double)Material.IRON_PICKAXE.getMaxDurability()/Math.max(1,max))));}
 i.setItemMeta(m);return i;
 }
-private boolean applyModel(ItemMeta m,String type){
-boolean changed=false;NamespacedKey model=new NamespacedKey("minecraftunified",type.equals("helmet")?"miner_helmet":"iron_multitool");
-if(!model.equals(m.getItemModel())){m.setItemModel(model);changed=true;}
-if(type.equals("helmet")){
-var eq=m.getEquippable();if(!model.equals(eq.getModel())){eq.setModel(model);m.setEquippable(eq);changed=true;}
+if(!"helmet".equals(t))return i;
+if(i.getType()!=Material.LEATHER_HELMET){
+i=i.withType(Material.LEATHER_HELMET);
+m=i.getItemMeta();m.getPersistentDataContainer().set(key,PersistentDataType.STRING,"helmet");
+if(m instanceof Damageable d){d.setMaxDamage(null);d.setDamage(0);}
+applyHelmet(m);i.setItemMeta(m);return i;
 }
-return changed;
+if(applyHelmet(m))i.setItemMeta(m);
+return i;
 }
 private boolean is(ItemStack i,String type){return i!=null&&i.hasItemMeta()&&type.equals(i.getItemMeta().getPersistentDataContainer().get(key,PersistentDataType.STRING));}
 private boolean survival(Player p){return p.getGameMode()==GameMode.SURVIVAL||p.getGameMode()==GameMode.ADVENTURE;}
 boolean command(CommandSender sender,String[] args){
-if(args.length!=3||!args[0].equals("give")){sender.sendMessage("§7/u mining give <игрок> helmet|multitool · Shift+ПКМ с факелом — бросок");return true;}
+if(args.length!=3||!args[0].equals("give")){sender.sendMessage("§7/u mining give <игрок> helmet · Shift+ПКМ с факелом — бросок");return true;}
 if(!sender.hasPermission("minecraftunified.mining.admin")){sender.sendMessage("§cНет прав.");return true;}
-Player p=Bukkit.getPlayerExact(args[1]);if(p==null||!Set.of("helmet","multitool").contains(args[2])){sender.sendMessage("§cИгрок или предмет не найден.");return true;}
+Player p=Bukkit.getPlayerExact(args[1]);if(p==null||!args[2].equals("helmet")){sender.sendMessage("§cИгрок или предмет не найден.");return true;}
 for(ItemStack rest:p.getInventory().addItem(item(args[2])).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);return true;
 }
 private void upgradeInventory(Inventory inv){
-for(int slot=0;slot<inv.getSize();slot++){ItemStack i=inv.getItem(slot);if(i==null||!i.hasItemMeta())continue;ItemMeta m=i.getItemMeta();String t=m.getPersistentDataContainer().get(key,PersistentDataType.STRING);if(t!=null&&Set.of("helmet","multitool").contains(t)&&applyModel(m,t)){i.setItemMeta(m);inv.setItem(slot,i);}}
+for(int slot=0;slot<inv.getSize();slot++){ItemStack i=inv.getItem(slot);if(i==null||!i.hasItemMeta()||!i.getItemMeta().getPersistentDataContainer().has(key,PersistentDataType.STRING))continue;inv.setItem(slot,migrate(i));}
 }
 @EventHandler public void openGear(org.bukkit.event.inventory.InventoryOpenEvent e){upgradeInventory(e.getInventory());}
+@EventHandler public void joinGear(PlayerJoinEvent e){upgradeInventory(e.getPlayer().getInventory());upgradeInventory(e.getPlayer().getEnderChest());}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void protectCap(PlayerItemDamageEvent e){if(is(e.getItem(),"helmet"))e.setCancelled(true);}
+private void oreHints(){
+if(!host.getConfig().getBoolean("mining.ore-hints",true))return;
+for(Player p:Bukkit.getOnlinePlayers()){
+if(!survival(p)||p.isDead()||!is(p.getInventory().getHelmet(),"helmet"))continue;
+Location eye=p.getEyeLocation();World w=p.getWorld();double radius=7;
+int minX=(eye.getBlockX()-8)>>4,maxX=(eye.getBlockX()+8)>>4,minZ=(eye.getBlockZ()-8)>>4,maxZ=(eye.getBlockZ()+8)>>4;boolean loaded=true;
+for(int cx=minX;cx<=maxX;cx++)for(int cz=minZ;cz<=maxZ;cz++)if(!w.isChunkLoaded(cx,cz))loaded=false;
+if(!loaded)continue;
+Set<Block> seen=new HashSet<>();
+for(int dy=-2;dy<=2;dy++)for(int dx=-3;dx<=3;dx++){
+Location aim=eye.clone();aim.setYaw(eye.getYaw()+dx*12);aim.setPitch(Math.max(-90,Math.min(90,eye.getPitch()+dy*14)));
+RayTraceResult hit=w.rayTraceBlocks(eye,aim.getDirection(),radius,FluidCollisionMode.NEVER,false);
+if(hit==null||hit.getHitBlock()==null||hit.getHitBlockFace()==null)continue;
+Block b=hit.getHitBlock();String name=b.getType().name();
+if(!(name.endsWith("_ORE")||name.equals("ANCIENT_DEBRIS"))||!seen.add(b))continue;
+Vector v=hit.getHitPosition().clone().add(hit.getHitBlockFace().getDirection().multiply(.045));
+Color color=name.contains("DIAMOND")?Color.fromRGB(0x8EE8DB):name.contains("EMERALD")?Color.fromRGB(0x85D68E):Color.fromRGB(0xE8C88D);
+p.spawnParticle(Particle.DUST,v.toLocation(w),3,.035,.035,.035,0,new Particle.DustOptions(color,.55f));
+if(seen.size()>=6)break;
+}
+}
+}
 private int level(ItemStack i){
 if(i==null)return 0;
 return switch(i.getType()){case TORCH,WALL_TORCH,GLOWSTONE,SEA_LANTERN,SHROOMLIGHT,LANTERN,END_ROD,JACK_O_LANTERN -> 14;case SOUL_TORCH,SOUL_LANTERN -> 10;case REDSTONE_TORCH -> 7;default -> 0;};

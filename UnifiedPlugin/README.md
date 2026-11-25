@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.14
+
+Miner cap is a leather helmet (1 armor), unbreakable, light level 12, subtle owner-only ore particles on the first visible ore hit by a ray, up to 7 blocks. No through-wall ore reveal. Multitool recipe and issuance retired; existing tagged iron multitools migrate to ordinary iron pickaxes on inventory access with proportional wear and enchantments preserved. New cap item and correctly laid-out humanoid head texture. No changes to other modules.
+
 # MinecraftUnified 1.1.13
 
 Adds manually drawn 32px icons for miner helmet and iron multitool, and a custom worn miner helmet texture. Existing tagged items receive the models on access without replacing their enchantments or durability. The full pack is committed alongside the build; SHA-1 is verified by CI. Coordinate packet remapping is deferred due to documented GrimAC incompatibility. Use Paper Anti-Xray mode 3 as a baseline; light-conditioned packet hiding is not included.
