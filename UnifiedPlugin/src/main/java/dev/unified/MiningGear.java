@@ -16,7 +16,8 @@ import org.bukkit.inventory.*;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.util.*;
+import org.bukkit.util.Vector;
+import org.bukkit.util.RayTraceResult;
 import java.util.*;
 
 final class MiningGear implements Listener {

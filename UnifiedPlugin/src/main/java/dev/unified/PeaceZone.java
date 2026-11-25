@@ -8,7 +8,6 @@ import org.bukkit.event.*;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.player.*;
-import org.bukkit.projectiles.ProjectileSource;
 import java.util.*;
 
 final class PeaceZone implements Listener {
@@ -18,7 +17,7 @@ private final NamespacedKey giant=new NamespacedKey("swampsky","giant_frog");
 PeaceZone(UnifiedPlugin host){this.host=host;}
 void enable(){
 Bukkit.getPluginManager().registerEvents(this,host);
-for(World w:Bukkit.getWorlds())if(w.getEnvironment()==World.Environment.NORMAL)w.setGameRule(GameRules.REDUCED_DEBUG_INFO,true);
+for(World w:Bukkit.getWorlds())w.setGameRule(GameRules.REDUCED_DEBUG_INFO,true);
 Bukkit.getScheduler().runTaskTimer(host,this::sweep,20L,40L);
 host.getLogger().info("PeaceZone enabled: 500x500 around overworld spawn, 16 containers/chunk.");
 }
