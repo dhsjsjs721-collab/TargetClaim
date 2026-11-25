@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "pvp_practice",
+  "version": "0.3.0",
+  "name": "PvP Practice",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "pvp.PracticeClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.20.1",
+    "minecraft": "~26.3",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}
