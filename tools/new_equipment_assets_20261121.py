@@ -4,6 +4,8 @@ Only adds/upgrades paths inside the ONE existing unified resource pack.
 No new pack URL or independent pack ZIP.
 """
 import io
+import base64
+from pathlib import Path
 import json
 from PIL import Image,ImageDraw
 
@@ -164,4 +166,7 @@ def assets():
                         "fixed":{"rotation":[0,0,0],"translation":[0,0,0],"scale":[1.1,1.1,1.1]}
                     }
                 })
+    overrides=Path(__file__).resolve().parents[1]/'resourcepacks'/'mythic-ritual-assets.json'
+    if overrides.is_file():
+        result.update({k:base64.b64decode(v) for k,v in json.loads(overrides.read_text()).items()})
     return result
