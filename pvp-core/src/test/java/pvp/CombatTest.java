@@ -236,9 +236,9 @@ var behindView=new AimModel.Angles(180,0);
 check(!AimModel.intersects(practiceEye,behindView,practiceBox));
 for(int n=0;n<1000;n++) {
 var view=new AimModel.Angles(n*.73-365,n%178-89);
-var next=AimModel.bodyDirection(practiceEye,view,practiceBox);
-check(AimModel.intersects(practiceEye,next,practiceBox));
-if(AimModel.intersects(practiceEye,view,practiceBox)) check(next.equals(view));
+var bodyNext=AimModel.bodyDirection(practiceEye,view,practiceBox);
+check(AimModel.intersects(practiceEye,bodyNext,practiceBox));
+if(AimModel.intersects(practiceEye,view,practiceBox)) check(bodyNext.equals(view));
 }
 System.out.println("Combat tests passed");
 }
