@@ -8,6 +8,9 @@ import net.minecraft.world.phys.EntityHitResult;
 final class PracticeCombat {
 static boolean golemTest;
 static boolean networkTest;
+static boolean autoJump=true;
+private static int jumpDelay;
+private static long trackingTick;
 private static LocalPlayer lastPlayer;
 private static LivingEntity aimTarget;
 private static float lastHealth;
@@ -35,13 +38,17 @@ angularError=Double.NaN;
 decision=CombatEngine.Decision.WAIT;
 readyTicks=0;
 responseWindow=0;
+jumpDelay=0;
+trackingTick=0;
 return;
 }
 var self=mc.player;
-if(lastPlayer!=self) { lastPlayer=self; aimTarget=null; lastHealth=self.getHealth(); responseWindow=0; readyTicks=0; }
+if(lastPlayer!=self) { lastPlayer=self; aimTarget=null; lastHealth=self.getHealth(); responseWindow=0; readyTicks=0; jumpDelay=0; trackingTick=0; }
 if(self.getHealth()<lastHealth) responseWindow=12;
 else if(responseWindow>0) responseWindow--;
 lastHealth=self.getHealth();
+if(jumpDelay>0) jumpDelay--;
+trackingTick++;
 if(mc.gui.screen()!=null || mc.isPaused()) { aimTarget=null; return; }
 angularError=Double.NaN;
 decision=CombatEngine.Decision.WAIT;
@@ -52,7 +59,14 @@ var candidate=new TargetFilter.Candidate(true,false,true,true,false,false);
 boolean criticalMode=mode==CombatEngine.Mode.CRITICAL || mode==CombatEngine.Mode.COUNTER_CRITICAL;
 boolean falling=!self.onGround() && self.getDeltaMovement().y<0 && self.fallDistance>0;
 boolean restricted=self.isInWater() || self.isPassenger() || self.onClimbable() || self.isMobilityRestricted();
-if(!restricted && criticalMode && falling && self.isSprinting() && self.getAttackStrengthScale(0)>=.95f) { self.setSprinting(false); status="Stopping sprint"; }
+boolean counterReady=mode!=CombatEngine.Mode.COUNTER_CRITICAL || responseWindow>0 || (!target.onGround() && target.getDeltaMovement().y<0);
+if(autoJump && criticalMode && counterReady && !restricted && self.onGround() && jumpDelay==0 && self.getAttackStrengthScale(0)>=.95f && mc.level.noCollision(self,self.getBoundingBox().move(0,1.1,0))) {
+self.setSprinting(false);
+self.jumpFromGround();
+jumpDelay=5;
+status="Auto jump";
+}
+else if(!restricted && criticalMode && falling && self.isSprinting() && self.getAttackStrengthScale(0)>=.95f) { self.setSprinting(false); status="Stopping sprint"; }
 else {
 var frame=new CombatEngine.Frame(self.getAttackStrengthScale(0),self.onGround(),self.getDeltaMovement().y<0 ? self.fallDistance : 0,self.isSprinting(),restricted,inRange(self,target),true,!target.onGround() && target.getDeltaMovement().y<0,responseWindow>0,candidate);
 decision=CombatEngine.evaluate(mode,frame);
@@ -74,7 +88,7 @@ LivingEntity selected=null;
 for(var target:mc.level.getEntitiesOfClass(LivingEntity.class,self.getBoundingBox().inflate(3),target -> valid(self,target))) {
 var bb=target.getBoundingBox();
 var box=new AimModel.Box(new AimModel.Vec(bb.minX,bb.minY,bb.minZ),new AimModel.Vec(bb.maxX,bb.maxY,bb.maxZ));
-var desired=AimModel.direction(new AimModel.Vec(eye.x,eye.y,eye.z),AimModel.nearestAimPoint(new AimModel.Vec(eye.x,eye.y,eye.z),current,box));
+var desired=AimModel.direction(new AimModel.Vec(eye.x,eye.y,eye.z),AimModel.trackingPoint(new AimModel.Vec(eye.x,eye.y,eye.z),current,box,trackingTick));
 double error=AimModel.error(current,desired);
 if(error>settings.fov()/2) continue;
 if(target==aimTarget || error<bestError) { bestError=error; best=desired; selected=target; }
@@ -83,7 +97,7 @@ if(target==aimTarget) break;
 aimTarget=selected;
 if(best!=null) {
 angularError=bestError;
-if(!(mc.hitResult instanceof EntityHitResult aimed && aimed.getEntity()==selected)) {
+if(bestError>.10) {
 var next=AimModel.step(current,best,settings);
 self.setYRot(self.getYRot()+(float)AimModel.wrap(next.yaw()-current.yaw()));
 self.setXRot((float)next.pitch());
