@@ -6,7 +6,7 @@ public final class PracticeScreen extends Screen {
 public PracticeScreen() { super(Component.literal("PvP Practice")); }
 private static Component status(String name, boolean value) { return Component.literal(name+": "+(value?"ON":"OFF")); }
 @Override protected void init() {
-int x=width/2-110, y=height/2-72;
+int x=width/2-110, y=height/2-96;
 addRenderableWidget(Button.builder(status("Aim practice",PracticeClient.settings.aimEnabled()),button -> {
 var s=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(!s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
@@ -32,7 +32,14 @@ addRenderableWidget(Button.builder(Component.literal("Lock GUI (until restart)")
 PracticeClient.guiLocked=true;
 onClose();
 }).bounds(x,y+96,220,20).build());
-addRenderableWidget(Button.builder(Component.literal("Close"),button -> onClose()).bounds(x,y+120,220,20).build());
+var result=Button.builder(Component.literal("Ready ticks: "+PracticeCombat.readyTicks()),button -> {}).bounds(x,y+120,220,20).build();
+result.active=false;
+addRenderableWidget(result);
+double error=PracticeCombat.angularError();
+var aim=Button.builder(Component.literal(Double.isFinite(error)?String.format(java.util.Locale.ROOT,"Aim error: %.1f deg",error):"Aim error: no sample"),button -> {}).bounds(x,y+144,220,20).build();
+aim.active=false;
+addRenderableWidget(aim);
+addRenderableWidget(Button.builder(Component.literal("Close"),button -> onClose()).bounds(x,y+168,220,20).build());
 }
 @Override public boolean isPauseScreen() { return false; }
 }
