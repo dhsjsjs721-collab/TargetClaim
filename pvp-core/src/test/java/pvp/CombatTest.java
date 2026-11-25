@@ -184,6 +184,20 @@ check(Double.isFinite(choice.cost()));
 var m=choice.movement();
 check(!(m.forward()&&m.back()) && !(m.left()&&m.right()));
 }
+var trace=new CombatTrace();
+trace.state(1,"WAIT_TARGET");
+trace.state(2,"WAIT_TARGET");
+trace.attempt(3,true);
+trace.confirm(6,3);
+trace.attempt(10,false);
+trace.expire(51);
+check(trace.summary().equals("1/2 hits | 1 timeout"));
+check(trace.report().contains("WAIT_TARGET=2") && trace.report().contains("3.0 ticks"));
+for(int i=0;i<100;i++) trace.event(i,"event"+i);
+check(!trace.report().contains("0 event0\n"));
+check(trace.report().contains("99 event99"));
+trace.clear();
+check(trace.summary().equals("0/0 hits | 0 timeout"));
 System.out.println("Combat tests passed");
 }
 }

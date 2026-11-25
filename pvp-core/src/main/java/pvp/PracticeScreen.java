@@ -37,7 +37,11 @@ addRenderableWidget(result);
 var aim=Button.builder(Component.literal(PracticeCombat.status()+" | Timeout: "+PracticeCombat.expiredHits()),button -> {}).bounds(x,y+168,220,20).build();
 aim.active=false;
 addRenderableWidget(aim);
-addRenderableWidget(Button.builder(Component.literal("Close"),button -> onClose()).bounds(x,y+192,220,20).build());
+addRenderableWidget(Button.builder(Component.literal("Print diagnostics"),button -> {
+System.out.println(PracticeCombat.diagnostics());
+button.setMessage(Component.literal("Diagnostics printed"));
+}).bounds(x,y+192,136,20).build());
+addRenderableWidget(Button.builder(Component.literal("Close"),button -> onClose()).bounds(x+140,y+192,80,20).build());
 }
 @Override public boolean isPauseScreen() { return false; }
 }

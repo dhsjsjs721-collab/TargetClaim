@@ -16,6 +16,10 @@ static boolean autoMove=true;
 private static final double AIM_RANGE=6.0;
 private record Pending(int entityId,long tick) {}
 private static final ArrayDeque<Pending> pending=new ArrayDeque<>();
+private static final CombatTrace trace=new CombatTrace();
+static String diagnostics() { return trace.report(); }
+private static void setStatus(String value) { status=value; trace.state(trackingTick,value); }
+private static void expirePending() { while(!pending.isEmpty() && trackingTick-pending.peekFirst().tick()>40) { pending.removeFirst(); expiredHits++; trace.expire(trackingTick); } }
 private static int confirmedHits,expiredHits,jumpCount;
 private static int jumpPressTicks;
 private static int blockedJumpTicks;
@@ -80,12 +84,13 @@ lastHealth=mc.player==null?0:mc.player.getHealth();
 responseWindow=readyTicks=attackDelay=jumpDelay=descendingTicks=confirmedHits=expiredHits=jumpCount=blockedJumpTicks=readyWait=0;
 waitingTarget=null;
 jumpTiming.reset(); consecutiveNoRay=0;
-trackingTick=0; hitThisFall=false; angularError=Double.NaN; decision=CombatEngine.Decision.WAIT; pending.clear();
+trackingTick=0; hitThisFall=false; angularError=Double.NaN; decision=CombatEngine.Decision.WAIT; pending.clear(); trace.clear();
 }
 static void tick(Minecraft mc,CombatSettings settings) {
 if(!enabled(mc)) { status="Not in enabled world"; resetWorld(mc); return; }
 var self=mc.player;
 if(lastPlayer!=self || lastLevel!=mc.level) resetWorld(mc);
+expirePending();
 if(!available(mc,self)) { clearJump(); descendingTicks=0; readyWait=0; waitingTarget=null; return; }
 if(self.getHealth()<lastHealth) responseWindow=12;
 else if(responseWindow>0) responseWindow--;
@@ -93,7 +98,6 @@ lastHealth=self.getHealth();
 if(jumpDelay>0) jumpDelay--;
 if(attackDelay>0) attackDelay--;
 if(blockedJumpTicks>0) blockedJumpTicks--;
-while(!pending.isEmpty() && trackingTick-pending.peekFirst().tick()>40) { pending.removeFirst(); expiredHits++; }
 boolean falling=!self.onGround() && self.getDeltaMovement().y<0 && self.fallDistance>0;
 descendingTicks=falling?Math.min(descendingTicks+1,20):0;
 if(self.onGround()) {
@@ -109,18 +113,19 @@ if(falling && observedAscent && requestedJumpTick>=0) {
 jumpTiming.observe((int)(trackingTick-requestedJumpTick)); observedAscent=false; requestedJumpTick=-1;
 }
 if(jumpTarget!=null && (++jumpAge>26 || !aimValid(self,jumpTarget) || jumpItem!=self.getMainHandItem().getItem())) clearJump();
-if(!settings.triggerEnabled()) { clearJump(); readyWait=0; waitingTarget=null; status="AutoCritical off"; return; }
+if(!settings.triggerEnabled()) { clearJump(); readyWait=0; waitingTarget=null; setStatus("AutoCritical off"); return; }
 decision=CombatEngine.Decision.WAIT;
 EntityHitResult hit=pickTarget(mc,self);
 LivingEntity crosshair=hit!=null && hit.getEntity() instanceof LivingEntity living && aimValid(self,living)?living:null;
 LivingEntity target=crosshair!=null?crosshair:settings.aimEnabled() && aimTarget!=null && valid(self,aimTarget) && Double.isFinite(angularError) && angularError<9?aimTarget:null;
-if(target==null) { if(++consecutiveNoRay>=3) { readyWait=0; waitingTarget=null; } status=aimTarget!=null?"Approach / align":"No valid target"; return; }
+if(target==null) { if(++consecutiveNoRay>=3) { readyWait=0; waitingTarget=null; } setStatus(aimTarget!=null?"Approach / align":"No valid target"); return; }
 consecutiveNoRay=0;
 boolean restricted=restricted(self);
 boolean canJump=!restricted && !self.isShiftKeyDown() && mc.level.noCollision(self,self.getBoundingBox().move(0,.35,0)) && blockedJumpTicks==0;
 boolean counter=responseWindow>0 || (!target.onGround() && target.getDeltaMovement().y<0);
 float cooldown=self.getAttackStrengthScale(.5f);
 boolean itemReady=!self.cannotAttackWithItem(self.getMainHandItem(),0);
+if(mc.options.keyAttack.isDown()) { clearJump(); readyWait=0; setStatus("Manual attack"); return; }
 if(waitingTarget!=target) { waitingTarget=target; readyWait=0; }
 if(crosshair==target && cooldown>.90 && itemReady) readyWait=Math.min(20,readyWait+1);
 else if(cooldown<=.90 || !itemReady) readyWait=0;
@@ -136,7 +141,7 @@ if(target==sampledTarget && tracker.uncertainty()>.35) future=Math.max(now,futur
 boolean urgent=crosshair==target && (future>reach-.18 && future>now+.04 || now>reach-.20 || blockedJumpTicks>0);
 var frame=new CombatEngine.Frame(cooldown,self.onGround(),falling?self.fallDistance:0,self.isSprinting(),restricted,crosshair==target || inRange(self,target),crosshair==target,!target.onGround() && target.getDeltaMovement().y<0,responseWindow>0,new TargetFilter.Candidate(true,false,true,true,false,false));
 var action=CombatEngine.adaptivePlan(frame,descendingTicks,hitThisFall,canJump,jumpRequested,attackDelay==0 && itemReady,jumpDelay==0,urgent,self.getCurrentItemAttackStrengthDelay(),readyWait,jumpTiming.horizon());
-status=action.name();
+setStatus(action.name());
 switch(action) {
 case JUMP -> { requestedJumpTick=trackingTick; observedAscent=false; jumpRequested=true; jumpPressTicks=3; jumpDelay=5; jumpTarget=target; jumpItem=self.getMainHandItem().getItem(); jumpAge=0; }
 case STOP_SPRINT -> self.setSprinting(false);
@@ -147,12 +152,13 @@ attackDelay=2;
 clearJump();
 readyTicks++;
 pending.addLast(new Pending(target.getId(),trackingTick));
-while(pending.size()>32) { pending.removeFirst(); expiredHits++; }
+trace.attempt(trackingTick,action==CombatEngine.Action.CRITICAL);
+while(pending.size()>32) { pending.removeFirst(); expiredHits++; trace.expire(trackingTick); }
 status=action==CombatEngine.Action.CRITICAL?(counter?"Counter attempt":"Critical attempt"):"Normal attack";
 readyWait=0;
 decision=action==CombatEngine.Action.CRITICAL?CombatEngine.Decision.CRITICAL_WINDOW:CombatEngine.Decision.NORMAL_WINDOW;
 responseWindow=0;
-} else { status="Attack not consumed"; attackDelay=1; }
+} else { setStatus("Attack not consumed"); attackDelay=1; }
 }
 default -> {}
 }
@@ -198,7 +204,8 @@ previousEye=origin;
 best=AimModel.direction(origin,AimModel.movingPoint(AimModel.trackingPoint(origin,current,box,trackingTick),box,relativeMotion));
 bestError=AimModel.error(current,best);
 angularError=bestError;
-if(bestError>.12 && !(bestError<.45 && rayOn(mc,self,selected))) {
+boolean onTarget=rayOn(mc,self,selected);
+if(bestError>.12 && !(onTarget && bestError<1.2 && motionAngle<1.0)) {
 turn=AimModel.smoothTurn(current,best,turn,settings,motionAngle);
 self.setYRot(self.getYRot()+(float)turn.yaw());
 self.setXRot((float)Math.max(-90,Math.min(90,self.getXRot()+turn.pitch())));
@@ -212,10 +219,10 @@ static void startTick(Minecraft mc,CombatSettings settings) {
 if(!enabled(mc)) { resetWorld(mc); return; }
 var self=mc.player;
 if(lastPlayer!=self || lastLevel!=mc.level) resetWorld(mc);
-if(!available(mc,self)) { clearJump(); aimTarget=null; resetTracking(); return; }
 trackingTick++;
+if(!available(mc,self)) { clearJump(); aimTarget=null; resetTracking(); return; }
 updateAim(mc,self,settings);
-if(!settings.triggerEnabled()) { clearJump(); return; }
+if(!settings.triggerEnabled() || mc.options.keyAttack.isDown()) { clearJump(); return; }
 boolean critActive=jumpTarget!=null && aimValid(self,jumpTarget) && !restricted(self);
 if(critActive || (!self.onGround() && !hitThisFall && aimTarget!=null && valid(self,aimTarget) && !restricted(self))) {
 if(mc.options.keySprint.isDown()) { mc.options.keySprint.setDown(false); forcedSprint=true; }
@@ -225,7 +232,7 @@ if(jumpRequested && critActive && self.onGround() && (valid(self,jumpTarget) || 
 if(jumpPressTicks>0) {
 if(!mc.options.keyJump.isDown()) { mc.options.keyJump.setDown(true); forcedJump=true; }
 jumpPressTicks--;
-} else { blockedJumpTicks=12; clearJump(); status="Jump blocked"; }
+} else { blockedJumpTicks=12; clearJump(); setStatus("Jump blocked"); }
 } else if(jumpRequested && self.onGround() && (!critActive || (!valid(self,jumpTarget) && !rayOn(mc,self,jumpTarget)))) clearJump();
 if(autoMove && !jumpRequested && self.onGround() && settings.aimEnabled() && aimTarget!=null && aimValid(self,aimTarget) && !self.isShiftKeyDown() && !mc.options.keyDown.isDown() && !mc.options.keyLeft.isDown() && !mc.options.keyRight.isDown() && !mc.options.keyUp.isDown()) {
 double dx=aimTarget.getX()-self.getX(),dz=aimTarget.getZ()-self.getZ();
@@ -265,7 +272,7 @@ if(mc.player==null || mc.level==null || lastPlayer!=mc.player || lastLevel!=mc.l
 if(packet.sourceCauseId()!=mc.player.getId() || packet.sourceDirectId()!=mc.player.getId()) return;
 for(var it=pending.iterator();it.hasNext();) {
 var attempt=it.next();
-if(attempt.entityId()==packet.entityId() && trackingTick-attempt.tick()<=40) { it.remove(); confirmedHits++; break; }
+if(attempt.entityId()==packet.entityId() && trackingTick-attempt.tick()<=40) { it.remove(); confirmedHits++; trace.confirm(trackingTick,attempt.tick()); break; }
 }
 }
 private static boolean attack(Minecraft mc,LocalPlayer self,EntityHitResult hit) {
