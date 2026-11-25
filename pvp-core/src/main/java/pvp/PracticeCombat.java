@@ -73,7 +73,7 @@ decision=CombatEngine.Decision.WAIT;
 if(!self.isAlive() || self.isSpectator() || self.isCreative() || self.isUsingItem() || self.isHandsBusy()) { aimTarget=null; resetTracking(); clearJump(); descendingTicks=0; status="Player busy"; return; }
 boolean falling=!self.onGround() && self.getDeltaMovement().y<0 && self.fallDistance>0;
 if(self.onGround()) { hitThisFall=false; if(jumpAge>2) clearJump(); }
-if(!settings.triggerEnabled() || (jumpTarget!=null && (++jumpAge>24 || !valid(self,jumpTarget) || jumpItem!=self.getMainHandItem().getItem()))) clearJump();
+if(!settings.triggerEnabled() || (jumpTarget!=null && (++jumpAge>24 || !aimValid(self,jumpTarget) || jumpItem!=self.getMainHandItem().getItem()))) clearJump();
 descendingTicks=falling?Math.min(descendingTicks+1,20):0;
 status=settings.triggerEnabled()?"No valid target":"AutoCritical off";
 if(settings.triggerEnabled() && mc.hitResult instanceof EntityHitResult hit && hit.getEntity() instanceof LivingEntity target && valid(self,target)) {
