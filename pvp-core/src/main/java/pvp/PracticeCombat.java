@@ -7,11 +7,14 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.effect.MobEffects;
 import pvp.mixin.MinecraftAttackInvoker;
 import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.level.ClipContext;
 final class PracticeCombat {
 static boolean golemTest;
 static boolean networkTest;
+static boolean autoMove=true;
+private static final double ATTACK_RANGE=3.2;
 private static int jumpDelay;
-private static boolean jumpRequested,forcedJump,forcedForward,forcedSprint;
+private static boolean jumpRequested,forcedJump,forcedForward,forcedSprint,forcedBack,forcedLeft,forcedRight;
 private static int descendingTicks;
 private static boolean hitThisFall;
 private static long trackingTick;
@@ -41,7 +44,7 @@ private static boolean aimValid(LocalPlayer self,LivingEntity target) {
 return target!=self && (target instanceof Player || (golemTest && "entity.minecraft.iron_golem".equals(target.getType().getDescriptionId()))) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && (!(target instanceof Player other) || self.canHarmPlayer(other)) && self.distanceToSqr(target)<=36;
 }
 private static boolean inRange(LocalPlayer self, LivingEntity target) {
-return self.getAttackRangeWith(self.getMainHandItem()).isInRange(self,target.getBoundingBox(),3.0);
+return self.getAttackRangeWith(self.getMainHandItem()).isInRange(self,target.getBoundingBox(),ATTACK_RANGE);
 }
 static void tick(Minecraft mc, CombatSettings settings) {
 if(mc.player==null || mc.level==null || mc.gameMode==null || (!mc.hasSingleplayerServer() && !networkTest)) {
@@ -79,7 +82,8 @@ if(self.onGround()) { hitThisFall=false; if(jumpAge>2) clearJump(); }
 if(!settings.triggerEnabled() || (jumpTarget!=null && (++jumpAge>24 || !aimValid(self,jumpTarget) || jumpItem!=self.getMainHandItem().getItem()))) clearJump();
 descendingTicks=falling?Math.min(descendingTicks+1,20):0;
 status=settings.triggerEnabled()?"No valid target":"AutoCritical off";
-LivingEntity crosshair=mc.hitResult instanceof EntityHitResult hit && hit.getEntity() instanceof LivingEntity living && valid(self,living)?living:null;
+EntityHitResult freshHit=pickTarget(mc,self);
+LivingEntity crosshair=freshHit!=null && freshHit.getEntity() instanceof LivingEntity living && valid(self,living)?living:null;
 LivingEntity candidateTarget=crosshair!=null?crosshair:settings.aimEnabled() && aimTarget!=null && valid(self,aimTarget) && Double.isFinite(previousAimError) && previousAimError<12?aimTarget:null;
 if(settings.triggerEnabled() && candidateTarget!=null) {
 var target=candidateTarget;
@@ -87,7 +91,7 @@ var candidate=new TargetFilter.Candidate(true,false,true,true,false,false);
 boolean restricted=self.isInWater() || self.isInLava() || self.isPassenger() || self.onClimbable() || self.isMobilityRestricted() || self.hasEffect(MobEffects.BLINDNESS) || self.isFallFlying();
 boolean counter=responseWindow>0 || (!target.onGround() && target.getDeltaMovement().y<0);
 var frame=new CombatEngine.Frame(self.getAttackStrengthScale(0),self.onGround(),falling?self.fallDistance:0,self.isSprinting(),restricted,inRange(self,target),crosshair==target,!target.onGround() && target.getDeltaMovement().y<0,responseWindow>0,candidate);
-if(!restricted && self.onGround() && attackDelay==0 && jumpDelay==0 && self.getAttackStrengthScale(0)>=.95f && mc.level.noCollision(self,self.getBoundingBox().move(0,.35,0))) {
+if(!restricted && self.onGround() && attackDelay==0 && jumpDelay==0 && self.getAttackStrengthScale(0)>=.85f && mc.level.noCollision(self,self.getBoundingBox().move(0,.35,0))) {
 self.setSprinting(false);
 jumpRequested=true;
 jumpDelay=5;
@@ -107,13 +111,14 @@ status=CombatEngine.reason(CombatEngine.Mode.CRITICAL,frame);
 if(hitThisFall) status="Waiting for landing";
 else if(falling && decision==CombatEngine.Decision.WAIT && status.equals("Attack ready")) status="Waiting for descent tick";
 if(decision!=CombatEngine.Decision.WAIT) {
-((MinecraftAttackInvoker)mc).pvp$startAttack();
+if(attack(mc,self,freshHit)) {
 hitThisFall=true;
 attackDelay=3;
 clearJump();
 readyTicks++;
-status=counter?"Counter attempt":"Critical attempt";
+status=counter?"Counter attack":"Critical attack";
 responseWindow=0;
+} else { status="Attack not consumed"; attackDelay=1; }
 }
 }
 }
@@ -176,14 +181,42 @@ if(jumpRequested && jumpTarget!=null && self.onGround() && valid(self,jumpTarget
 if(!mc.options.keyJump.isDown()) { mc.options.keyJump.setDown(true); forcedJump=true; }
 }
 jumpRequested=false;
-if(settings.aimEnabled() && aimTarget!=null && aimValid(self,aimTarget) && !mc.options.keyDown.isDown() && !mc.options.keyLeft.isDown() && !mc.options.keyRight.isDown() && !mc.options.keyUp.isDown()) {
-var direction=AimModel.direction(new AimModel.Vec(self.getX(),self.getY(),self.getZ()),new AimModel.Vec(aimTarget.getX(),aimTarget.getY(),aimTarget.getZ()));
+if(autoMove && settings.aimEnabled() && aimTarget!=null && aimValid(self,aimTarget) && !mc.options.keyDown.isDown() && !mc.options.keyLeft.isDown() && !mc.options.keyRight.isDown() && !mc.options.keyUp.isDown()) {
 double dx=aimTarget.getX()-self.getX(),dz=aimTarget.getZ()-self.getZ();
-if(AimModel.shouldApproach(dx*dx+dz*dz,AimModel.wrap(direction.yaw()-self.getYRot()))) { mc.options.keyUp.setDown(true); forcedForward=true; }
+if(Math.abs(aimTarget.getY()-self.getY())<1.5 && !self.horizontalCollision && !self.isInWater() && !self.isPassenger()) {
+var move=AimModel.flank(dx,dz,aimTarget.getYRot(),self.getYRot());
+if(move.forward()) { mc.options.keyUp.setDown(true); forcedForward=true; }
+if(move.back()) { mc.options.keyDown.setDown(true); forcedBack=true; }
+if(move.left()) { mc.options.keyLeft.setDown(true); forcedLeft=true; }
+if(move.right()) { mc.options.keyRight.setDown(true); forcedRight=true; }
+}
 }
 }
 static void releaseInput(Minecraft mc) {
-if(forcedJump || forcedForward || forcedSprint) { KeyMapping.setAll(); forcedJump=false; forcedForward=false; forcedSprint=false; }
+if(forcedJump || forcedForward || forcedSprint || forcedBack || forcedLeft || forcedRight) { KeyMapping.setAll(); forcedJump=false; forcedForward=false; forcedSprint=false; forcedBack=false; forcedLeft=false; forcedRight=false; }
+}
+private static EntityHitResult pickTarget(Minecraft mc,LocalPlayer self) {
+var eye=self.getEyePosition();
+var end=eye.add(self.getViewVector(1.0f).scale(ATTACK_RANGE));
+var block=mc.level.clip(new ClipContext(eye,end,ClipContext.Block.COLLIDER,ClipContext.Fluid.NONE,self));
+double nearest=eye.distanceToSqr(block.getLocation());
+EntityHitResult result=null;
+for(var e:mc.level.getEntitiesOfClass(LivingEntity.class,self.getBoundingBox().inflate(ATTACK_RANGE+1),e->e!=self && e.isAlive() && !e.isSpectator())) {
+var box=e.getBoundingBox();
+var point=box.contains(eye)?java.util.Optional.of(eye):box.clip(eye,end);
+if(point.isEmpty()) continue;
+double dist=eye.distanceToSqr(point.get());
+if(dist<=nearest) { nearest=dist; result=new EntityHitResult(e,point.get()); }
+}
+return result;
+}
+private static boolean attack(Minecraft mc,LocalPlayer self,EntityHitResult hit) {
+if(hit==null) return false;
+var previous=mc.hitResult;
+float before=self.getAttackStrengthScale(0);
+try { mc.hitResult=hit; ((MinecraftAttackInvoker)mc).pvp$startAttack(); }
+finally { mc.hitResult=previous; }
+return self.getAttackStrengthScale(0)<before;
 }
 private static void clearJump() { jumpTarget=null; jumpItem=null; jumpAge=0; jumpRequested=false; }
 private PracticeCombat() {}
