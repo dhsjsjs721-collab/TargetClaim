@@ -32,14 +32,27 @@ if(mc.gui.screen()!=null) return;
 angularError=Double.NaN;
 decision=CombatEngine.Decision.WAIT;
 if(!self.isAlive() || self.isSpectator() || self.isCreative() || self.isUsingItem()) return;
-if(!(mc.hitResult instanceof EntityHitResult hit) || !(hit.getEntity() instanceof Player target) || target==self || !target.isAlive() || target.isSpectator() || target.isInvisible() || !self.hasLineOfSight(target)) return;
 if(settings.aimEnabled()) {
 var eye=self.getEyePosition();
+var current=new AimModel.Angles(self.getYRot(),self.getXRot());
+AimModel.Angles best=null;
+double bestError=settings.fov()/2;
+for(var target:mc.level.players()) {
+if(target==self || !target.isAlive() || target.isSpectator() || target.isInvisible() || !self.hasLineOfSight(target) || self.distanceToSqr(target)>9) continue;
 var bb=target.getBoundingBox();
 var box=new AimModel.Box(new AimModel.Vec(bb.minX,bb.minY,bb.minZ),new AimModel.Vec(bb.maxX,bb.maxY,bb.maxZ));
 var desired=AimModel.direction(new AimModel.Vec(eye.x,eye.y,eye.z),AimModel.point(box,.67));
-angularError=Math.hypot(AimModel.wrap(desired.yaw()-self.getYRot()),desired.pitch()-self.getXRot());
+double error=Math.hypot(AimModel.wrap(desired.yaw()-current.yaw()),desired.pitch()-current.pitch());
+if(error<bestError) { bestError=error; best=desired; }
 }
+if(best!=null) {
+angularError=bestError;
+var next=AimModel.step(current,best,settings);
+self.setYRot((float)next.yaw());
+self.setXRot((float)next.pitch());
+}
+}
+if(!(mc.hitResult instanceof EntityHitResult hit) || !(hit.getEntity() instanceof Player target) || target==self || !target.isAlive() || target.isSpectator() || target.isInvisible() || !self.hasLineOfSight(target)) return;
 if(settings.triggerEnabled()) {
 var candidate=new TargetFilter.Candidate(true,false,true,true,false,false);
 var frame=new CombatEngine.Frame(self.getAttackStrengthScale(0),self.onGround(),self.fallDistance,self.isSprinting(),self.isUsingItem() || self.isInWater() || self.isPassenger() || self.onClimbable(),self.distanceToSqr(target)<=9,true,false,responseWindow>0,candidate);
