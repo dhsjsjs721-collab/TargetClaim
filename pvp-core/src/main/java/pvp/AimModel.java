@@ -33,6 +33,12 @@ public static Angles direction(Vec eye,Vec p) {
 double x=p.x()-eye.x(),y=p.y()-eye.y(),z=p.z()-eye.z();
 return new Angles(Math.toDegrees(Math.atan2(z,x))-90,-Math.toDegrees(Math.atan2(y,Math.hypot(x,z))));
 }
+public static double targetScore(double angle,double fov,double distanceSquared) {
+return .7*angle/(fov*.5)+.3*Math.min(1,Math.sqrt(Math.max(0,distanceSquared))/4);
+}
+public static boolean retainTarget(double bestScore,double retainedScore) {
+return Double.isFinite(retainedScore) && bestScore>=retainedScore*.75;
+}
 public static Angles step(Angles current,Angles target,CombatSettings settings) {
 if (!settings.aimEnabled()) return current;
 double dy=wrap(target.yaw()-current.yaw()),dp=target.pitch()-current.pitch();
