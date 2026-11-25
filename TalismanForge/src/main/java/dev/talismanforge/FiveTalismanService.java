@@ -163,7 +163,7 @@ private int count(ItemStack i,NamespacedKey k,int fallback){
 Integer number=i.getItemMeta().getPersistentDataContainer().get(k,PersistentDataType.INTEGER);
 return number==null?fallback:number;
 }
-private void count(ItemStack i,NamespacedKey k,int v){
+private void setCount(ItemStack i,NamespacedKey k,int v){
 ItemMeta m=i.getItemMeta();m.getPersistentDataContainer().set(k,PersistentDataType.INTEGER,v);i.setItemMeta(m);
 }
 private List<Long> scheduledHeads(ItemStack i){
@@ -181,7 +181,7 @@ private void regrow(Player p,ItemStack i,long now){
 List<Long> times=scheduledHeads(i);Collections.sort(times);
 int h=count(i,heads,3),before=h;
 while(!times.isEmpty()&&times.get(0)<=now&&h<3){times.remove(0);h++;}
-if(h!=before){count(i,heads,h);scheduledHeads(i,times);p.sendActionBar("§aГидра: отросла голова, "+h+"/3");}
+if(h!=before){setCount(i,heads,h);scheduledHeads(i,times);p.sendActionBar("§aГидра: отросла голова, "+h+"/3");}
 }
 private void health(Player p,double amount){
 var a=p.getAttribute(Attribute.MAX_HEALTH);
@@ -235,13 +235,13 @@ if(e.getTo().getY()<floor){Location l=e.getFrom().clone();l.setY(Math.max(floor,
 @EventHandler public void ghostHit(EntityDamageByEntityEvent e){if(e.getDamager() instanceof Player p&&ghost(p))e.setCancelled(true);}
 @EventHandler public void neutralNether(EntityTargetLivingEntityEvent e){
 if(!(e.getTarget() instanceof Player p)||carried(p)!=Kind.CERBERUS)return;
-if(e.getEntity() instanceof Ghast||e.getEntity() instanceof Piglin||e.getEntity() instanceof ZombifiedPiglin||e.getEntity() instanceof Blaze){
+if(e.getEntity() instanceof Ghast||e.getEntity() instanceof Piglin||e.getEntity() instanceof PigZombie||e.getEntity() instanceof Blaze){
 if(!angryMobs.contains(e.getEntity().getUniqueId()))e.setCancelled(true);
 }
 }
 @EventHandler public void angryNether(EntityDamageByEntityEvent e){
 if(e.getDamager() instanceof Player p&&carried(p)==Kind.CERBERUS
-&&(e.getEntity() instanceof Ghast||e.getEntity() instanceof Piglin||e.getEntity() instanceof ZombifiedPiglin||e.getEntity() instanceof Blaze))angryMobs.add(e.getEntity().getUniqueId());
+&&(e.getEntity() instanceof Ghast||e.getEntity() instanceof Piglin||e.getEntity() instanceof PigZombie||e.getEntity() instanceof Blaze))angryMobs.add(e.getEntity().getUniqueId());
 }
 private void stone(Player p,int ticks){
 UUID id=p.getUniqueId(),nowId=id;
@@ -409,7 +409,7 @@ switch(k){
 case CERBERUS->{consume(p);heal(p,5);ghostStart(p);}
 case KRAKEN->{
 int left=count(carried,lives,2)-1;
-if(left<=0)consume(p);else count(carried,lives,left);
+if(left<=0)consume(p);else setCount(carried,lives,left);
 heal(p,5);
 p.sendMessage("§3Кракен спас тебя. Осталось спасений: "+left);
 }
@@ -433,7 +433,7 @@ if(left<=0){consume(p);p.sendMessage("§cПоследняя голова Гид�
 else{
 List<Long> times=scheduledHeads(carried);
 times.add(System.currentTimeMillis()+120000L);
-count(carried,heads,left);scheduledHeads(carried,times);
+setCount(carried,heads,left);scheduledHeads(carried,times);
 p.sendMessage("§aГидра спасла тебя! Осталось "+left+" головы; восстановление через 2 минуты.");
 }
 heal(p,4);
