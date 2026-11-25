@@ -46,6 +46,22 @@ return new Angles(wrap(current.yaw()+clamp(dy*(settings.horizontalSpeed()+(1-set
 public static boolean shouldApproach(double horizontalDistanceSquared,double yawError) {
 return horizontalDistanceSquared>6.25 && horizontalDistanceSquared<=36 && Math.abs(yawError)<25;
 }
+public record Movement(boolean forward,boolean back,boolean left,boolean right) {}
+public static Movement flank(double dx,double dz,double targetYaw,double viewYaw) {
+double d=Math.hypot(dx,dz);
+if(d<.01 || d>6) return new Movement(false,false,false,false);
+double rx=-dx/d,rz=-dz/d;
+double yaw=Math.toRadians(targetYaw);
+double bx=Math.sin(yaw),bz=-Math.cos(yaw);
+double cross=rx*bz-rz*bx,dot=rx*bx+rz*bz;
+double radial=clamp((d-2.25)*.8,-1,1);
+double orbit=dot>.92?0:Math.copySign(.85,Math.abs(cross)<.001?1:cross);
+double wx=-rx*radial-rz*orbit,wz=-rz*radial+rx*orbit;
+double view=Math.toRadians(viewYaw);
+double forward=wx*-Math.sin(view)+wz*Math.cos(view);
+double right=wx*-Math.cos(view)+wz*-Math.sin(view);
+return new Movement(forward>.23,forward<-.35,right<-.23,right>.23);
+}
 public static double targetScore(double angle,double fov,double distanceSquared) {
 return .7*angle/(fov*.5)+.3*Math.min(1,Math.sqrt(Math.max(0,distanceSquared))/4);
 }
