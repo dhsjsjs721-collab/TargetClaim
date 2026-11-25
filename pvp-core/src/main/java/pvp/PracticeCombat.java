@@ -3,7 +3,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.InteractionHand;
+import pvp.mixin.MinecraftAttackInvoker;
 import net.minecraft.world.phys.EntityHitResult;
 final class PracticeCombat {
 static boolean golemTest;
@@ -42,13 +42,17 @@ decision=CombatEngine.Decision.WAIT;
 if(!self.isAlive() || self.isSpectator() || self.isCreative() || self.isUsingItem()) return;
 if(settings.triggerEnabled() && mc.hitResult instanceof EntityHitResult hit && hit.getEntity() instanceof LivingEntity target && valid(self,target)) {
 var candidate=new TargetFilter.Candidate(true,false,true,true,false,false);
-var frame=new CombatEngine.Frame(self.getAttackStrengthScale(0),self.onGround(),self.getDeltaMovement().y<0 ? self.fallDistance : 0,self.isSprinting(),self.isUsingItem() || self.isInWater() || self.isPassenger() || self.onClimbable(),self.distanceToSqr(target)<=9,true,!target.onGround() && target.getDeltaMovement().y<0,responseWindow>0,candidate);
+boolean criticalMode=mode==CombatEngine.Mode.CRITICAL || mode==CombatEngine.Mode.COUNTER_CRITICAL;
+boolean falling=!self.onGround() && self.getDeltaMovement().y<0 && self.fallDistance>0;
+if(criticalMode && falling && self.isSprinting() && self.getAttackStrengthScale(0)>=.95f) self.setSprinting(false);
+else {
+var frame=new CombatEngine.Frame(self.getAttackStrengthScale(0),self.onGround(),self.getDeltaMovement().y<0 ? self.fallDistance : 0,self.isSprinting(),self.isUsingItem() || self.isInWater() || self.isPassenger() || self.onClimbable() || self.isMobilityRestricted(),self.distanceToSqr(target)<=9,true,!target.onGround() && target.getDeltaMovement().y<0,responseWindow>0,candidate);
 decision=CombatEngine.evaluate(mode,frame);
 if(decision!=CombatEngine.Decision.WAIT) {
-mc.gameMode.attack(self,target);
-self.swingAndResetAttackStrength(InteractionHand.MAIN_HAND,self.getMainHandItem().getAttackAnimation(),false);
+((MinecraftAttackInvoker)mc).pvp$startAttack();
 readyTicks++;
 responseWindow=0;
+}
 }
 }
 if(!settings.aimEnabled()) aimTarget=null;
