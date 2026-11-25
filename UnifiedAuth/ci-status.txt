@@ -1,1 +1,1 @@
-SUCCESS UnifiedAuth-1.5.1.jar
+SUCCESS UnifiedAuth-1.6.0.jar
