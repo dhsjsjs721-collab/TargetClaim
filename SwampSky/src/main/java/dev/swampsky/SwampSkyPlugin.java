@@ -87,7 +87,7 @@ for(World w:Bukkit.getWorlds())for(Chunk ch:w.getLoadedChunks())scan(ch);
 Bukkit.getScheduler().runTaskTimer(this,this::step,5L,3L);
 Bukkit.getScheduler().runTaskTimer(this,this::mountedTick,1L,1L);
 // Wing displays follow EVERY tick; navigation is deliberately slower.
-Bukkit.getScheduler().runTaskTimer(this,this::wingsTick,1L,1L);
+// Retired flying wing-display movement: no background wing follow task.
 Bukkit.getScheduler().runTaskTimer(this,this::bounceStep,1L,1L);
 Bukkit.getScheduler().runTaskTimer(this,this::frogWallSlide,1L,1L);
 Bukkit.getScheduler().runTaskTimer(this,this::frogWingsMotion,1L,1L);
@@ -121,7 +121,8 @@ AttributeInstance size=pig.getAttribute(Attribute.SCALE);
 if(size!=null&&Math.abs(size.getBaseValue()-.70)>.001)size.setBaseValue(.70);
 }
 private void flyingPig(Pig p){
-if(!getConfig().getBoolean("enable-flying-pigs",false))return;
+// Permanently retired: never create winged pigs even if old config enables them.
+if(true)return;
 if(marked(p,flyingKey))return;
 mark(p,flyingKey);ground.remove(p.getUniqueId());
 p.setGravity(true);p.setAI(true);p.setAware(true);p.setCollidable(true);
@@ -181,11 +182,7 @@ if(e.getSpawnReason()!=CreatureSpawnEvent.SpawnReason.NATURAL&&e.getSpawnReason(
 if(e.getEntity() instanceof Pig p){
 // Preserve ordinary pig spawns; retired flying pig variants never generate.
 ground.add(p.getUniqueId());
-if(!getConfig().getBoolean("enable-flying-pigs",false))return;
-Biome pigBiome=p.getLocation().getBlock().getBiome();
-if(allowedPigBiome(pigBiome)){
-double chance=getConfig().getDouble(pigBiome==Biome.MUSHROOM_FIELDS?"mushroom-pig-chance":"flying-chance",pigBiome==Biome.MUSHROOM_FIELDS?.80:.28);
-if(random.nextDouble()<chance)Bukkit.getScheduler().runTask(this,()->{if(p.isValid())flyingPig(p);});
+// All newly spawned pigs remain ordinary grounded pigs.
 }
 else ground.add(p.getUniqueId());
 }
@@ -209,7 +206,7 @@ if(!marked(entity,flyingKey)){ground.remove(entity.getUniqueId());groundTargets.
 Entity entity=e.getEntity();
 UUID id=entity.getUniqueId();
 if(entity instanceof Pig){
-if(marked(entity,flyingKey))e.getDrops().add(new ItemStack(Material.PHANTOM_MEMBRANE,1+random.nextInt(2)));
+// No winged-pig exclusive drops.
 wings.remove(id);ground.remove(id);pigClear(id);groundTargets.remove(id);groundPathUntil.remove(id);
 forgetFlight(id);
 aggro.remove(id);aggroUntil.remove(id);attackCooldown.remove(id);hitWindow.remove(id);hitCount.remove(id);knockbackUntil.remove(id);
@@ -254,7 +251,7 @@ if(random.nextDouble()<chance){
 pig.getPersistentDataContainer().set(ownerKey,PersistentDataType.STRING,player.getUniqueId().toString());
 pig.setSaddle(true);
 // A successfully tamed pig becomes a winged companion that circles its owner.
-if(!marked(pig,flyingKey))flyingPig(pig);
+// A tamed pig stays grounded and can still be ridden.
 pig.setCustomName(null);pig.setCustomNameVisible(false);
 pig.getWorld().spawnParticle(Particle.HEART,pig.getLocation().add(0,1,0),8,.32,.3,.32,.03);
 }else pig.getWorld().spawnParticle(Particle.SMOKE,pig.getLocation().add(0,.8,0),3,.3,.2,.3,.01);
@@ -281,6 +278,7 @@ if(player.isSneaking())return;
 Bukkit.getScheduler().runTask(this,()->mountFlyingPig(player,pig));
 }
 private void breedWingedPigs(){
+if(true)return; // Retired flying pig breeding.
 // Winged pigs are not controlled by vanilla pathfinding. Match willing parents
 // explicitly to ensure pumpkin breeding works while they fly.
 Set<UUID> paired=new HashSet<>();
@@ -318,9 +316,7 @@ if(first!=null && first.equals(owner(father))){
 baby.getPersistentDataContainer().set(ownerKey,PersistentDataType.STRING,first);
 baby.setCustomName(null);baby.setCustomNameVisible(false);
 }
-if(marked(mother,flyingKey)||marked(father,flyingKey)){
-Bukkit.getScheduler().runTask(this,()->{if(baby.isValid())flyingPig(baby);});
-}
+// Flying pig inheritance retired.
 }
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)
 public void dismount(EntityDismountEvent e){
