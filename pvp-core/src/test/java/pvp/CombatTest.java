@@ -198,6 +198,20 @@ check(!trace.report().contains("0 event0\n"));
 check(trace.report().contains("99 event99"));
 trace.clear();
 check(trace.summary().equals("0/0 hits | 0 timeout"));
+check(!CombatTrace.manualAction(.7,.8,true,12,12));
+check(CombatTrace.manualAction(.9,.02,true,12,12));
+check(CombatTrace.manualAction(.8,.9,false,12,12));
+check(CombatTrace.manualAction(.8,.9,true,12,20));
+check(!CombatTrace.manualAction(Double.NaN,.9,true,12,12));
+trace.sample(.95,2.3,3.0,.4,true);
+trace.sample(.8,3.4,3.0,Double.NaN,false);
+trace.movement("MOVE");
+trace.movement("BLOCKED");
+check(trace.report().contains("Samples aligned: 1/2"));
+check(trace.report().contains("distance=3.40") && trace.report().contains("angle=n/a"));
+check(trace.report().contains("BLOCKED=1"));
+trace.clear();
+check(trace.report().contains("Samples aligned: 0/0"));
 System.out.println("Combat tests passed");
 }
 }

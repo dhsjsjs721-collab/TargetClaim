@@ -17,7 +17,13 @@ private static final double AIM_RANGE=6.0;
 private record Pending(int entityId,long tick) {}
 private static final ArrayDeque<Pending> pending=new ArrayDeque<>();
 private static final CombatTrace trace=new CombatTrace();
-static String diagnostics() { return trace.report(); }
+private static String previousReport="";
+private static boolean sessionActive;
+private static float startStrength=Float.NaN;
+private static Object startItem;
+private static double startWeaponDelay;
+private static long manualTick=-1;
+static String diagnostics() { return (sessionActive?trace.report():previousReport.isEmpty()?trace.report():previousReport); }
 private static void setStatus(String value) { status=value; trace.state(trackingTick,value); }
 private static void expirePending() { while(!pending.isEmpty() && trackingTick-pending.peekFirst().tick()>40) { pending.removeFirst(); expiredHits++; trace.expire(trackingTick); } }
 private static int confirmedHits,expiredHits,jumpCount;
@@ -78,20 +84,26 @@ return mc.gui.screen()==null && !mc.isPaused() && mc.getCameraEntity()==self && 
 private static boolean restricted(LocalPlayer self) {
 return self.isInWater() || self.isInLava() || self.isPassenger() || self.onClimbable() || self.isMobilityRestricted() || self.hasEffect(MobEffects.BLINDNESS) || self.isFallFlying() || self.getAbilities().flying;
 }
+private static void endSession() {
+if(sessionActive) { previousReport=trace.report(); sessionActive=false; }
+}
 private static void resetWorld(Minecraft mc) {
+endSession();
 lastPlayer=mc.player; lastLevel=mc.level; clearJump(); aimTarget=null; resetTracking();
 lastHealth=mc.player==null?0:mc.player.getHealth();
 responseWindow=readyTicks=attackDelay=jumpDelay=descendingTicks=confirmedHits=expiredHits=jumpCount=blockedJumpTicks=readyWait=0;
 waitingTarget=null;
 jumpTiming.reset(); consecutiveNoRay=0;
 trackingTick=0; hitThisFall=false; angularError=Double.NaN; decision=CombatEngine.Decision.WAIT; pending.clear(); trace.clear();
+startStrength=Float.NaN; startItem=null; startWeaponDelay=0; manualTick=-1;
 }
 static void tick(Minecraft mc,CombatSettings settings) {
-if(!enabled(mc)) { status="Not in enabled world"; resetWorld(mc); return; }
+if(!enabled(mc)) { if(sessionActive) resetWorld(mc); status="Not in enabled world"; return; }
 var self=mc.player;
 if(lastPlayer!=self || lastLevel!=mc.level) resetWorld(mc);
+sessionActive=true;
 expirePending();
-if(!available(mc,self)) { clearJump(); descendingTicks=0; readyWait=0; waitingTarget=null; return; }
+if(!available(mc,self)) { clearJump(); descendingTicks=0; readyWait=0; waitingTarget=null; startStrength=Float.NaN; return; }
 if(self.getHealth()<lastHealth) responseWindow=12;
 else if(responseWindow>0) responseWindow--;
 lastHealth=self.getHealth();
@@ -114,6 +126,9 @@ jumpTiming.observe((int)(trackingTick-requestedJumpTick)); observedAscent=false;
 }
 if(jumpTarget!=null && (++jumpAge>26 || !aimValid(self,jumpTarget) || jumpItem!=self.getMainHandItem().getItem())) clearJump();
 if(!settings.triggerEnabled()) { clearJump(); readyWait=0; waitingTarget=null; setStatus("AutoCritical off"); return; }
+if(mc.options.keyAttack.isDown() || CombatTrace.manualAction(startStrength,self.getAttackStrengthScale(.5f),startItem==self.getMainHandItem().getItem(),startWeaponDelay,self.getCurrentItemAttackStrengthDelay())) {
+manualTick=trackingTick; clearJump(); readyWait=0; setStatus("Manual attack / item change"); return;
+}
 decision=CombatEngine.Decision.WAIT;
 EntityHitResult hit=pickTarget(mc,self);
 LivingEntity crosshair=hit!=null && hit.getEntity() instanceof LivingEntity living && aimValid(self,living)?living:null;
@@ -125,7 +140,6 @@ boolean canJump=!restricted && !self.isShiftKeyDown() && mc.level.noCollision(se
 boolean counter=responseWindow>0 || (!target.onGround() && target.getDeltaMovement().y<0);
 float cooldown=self.getAttackStrengthScale(.5f);
 boolean itemReady=!self.cannotAttackWithItem(self.getMainHandItem(),0);
-if(mc.options.keyAttack.isDown()) { clearJump(); readyWait=0; setStatus("Manual attack"); return; }
 if(waitingTarget!=target) { waitingTarget=target; readyWait=0; }
 if(crosshair==target && cooldown>.90 && itemReady) readyWait=Math.min(20,readyWait+1);
 else if(cooldown<=.90 || !itemReady) readyWait=0;
@@ -141,6 +155,7 @@ if(target==sampledTarget && tracker.uncertainty()>.35) future=Math.max(now,futur
 boolean urgent=crosshair==target && (future>reach-.18 && future>now+.04 || now>reach-.20 || blockedJumpTicks>0);
 var frame=new CombatEngine.Frame(cooldown,self.onGround(),falling?self.fallDistance:0,self.isSprinting(),restricted,crosshair==target || inRange(self,target),crosshair==target,!target.onGround() && target.getDeltaMovement().y<0,responseWindow>0,new TargetFilter.Candidate(true,false,true,true,false,false));
 var action=CombatEngine.adaptivePlan(frame,descendingTicks,hitThisFall,canJump,jumpRequested,attackDelay==0 && itemReady,jumpDelay==0,urgent,self.getCurrentItemAttackStrengthDelay(),readyWait,jumpTiming.horizon());
+trace.sample(cooldown,now,reach,angularError,crosshair==target);
 setStatus(action.name());
 switch(action) {
 case JUMP -> { requestedJumpTick=trackingTick; observedAscent=false; jumpRequested=true; jumpPressTicks=3; jumpDelay=5; jumpTarget=target; jumpItem=self.getMainHandItem().getItem(); jumpAge=0; }
@@ -216,13 +231,18 @@ angularError=AimModel.error(new AimModel.Angles(self.getYRot(),self.getXRot()),b
 }
 private static void resetTracking() { tracker.reset(); lastMovement=new AimModel.Movement(false,false,false,false); sampledTarget=null; previousRelative=null; previousEye=null; targetMotion=new AimModel.Vec(0,0,0); relativeMotion=new AimModel.Vec(0,0,0); motionAngle=0; turn=new AimModel.Turn(0,0); angularError=Double.NaN; }
 static void startTick(Minecraft mc,CombatSettings settings) {
-if(!enabled(mc)) { resetWorld(mc); return; }
+if(!enabled(mc)) { if(sessionActive) resetWorld(mc); return; }
 var self=mc.player;
 if(lastPlayer!=self || lastLevel!=mc.level) resetWorld(mc);
+sessionActive=true;
 trackingTick++;
+startStrength=self.getAttackStrengthScale(.5f);
+startItem=self.getMainHandItem().getItem();
+startWeaponDelay=self.getCurrentItemAttackStrengthDelay();
 if(!available(mc,self)) { clearJump(); aimTarget=null; resetTracking(); return; }
 updateAim(mc,self,settings);
 if(!settings.triggerEnabled() || mc.options.keyAttack.isDown()) { clearJump(); return; }
+if(jumpTarget!=null && jumpItem!=self.getMainHandItem().getItem()) { clearJump(); trace.event(trackingTick,"JUMP_CANCEL_ITEM_CHANGE"); }
 boolean critActive=jumpTarget!=null && aimValid(self,jumpTarget) && !restricted(self);
 if(critActive || (!self.onGround() && !hitThisFall && aimTarget!=null && valid(self,aimTarget) && !restricted(self))) {
 if(mc.options.keySprint.isDown()) { mc.options.keySprint.setDown(false); forcedSprint=true; }
@@ -249,11 +269,12 @@ return mc.level.noCollision(self,next) && !mc.level.noCollision(self,next.move(0
 var move=choice.movement();
 lastMovement=move;
 if(Double.isFinite(choice.cost())) {
+trace.movement(move.forward() || move.back() || move.left() || move.right()?"MOVE":"HOLD");
 if(move.forward()) { mc.options.keyUp.setDown(true); forcedForward=true; }
 if(move.back()) { mc.options.keyDown.setDown(true); forcedBack=true; }
 if(move.left()) { mc.options.keyLeft.setDown(true); forcedLeft=true; }
 if(move.right()) { mc.options.keyRight.setDown(true); forcedRight=true; }
-}
+} else trace.movement("BLOCKED");
 }
 }
 }
@@ -270,6 +291,7 @@ public static void recordDamage(ClientboundDamageEventPacket packet) {
 var mc=Minecraft.getInstance();
 if(mc.player==null || mc.level==null || lastPlayer!=mc.player || lastLevel!=mc.level) return;
 if(packet.sourceCauseId()!=mc.player.getId() || packet.sourceDirectId()!=mc.player.getId()) return;
+if(manualTick>=0 && trackingTick-manualTick<=2) { trace.event(trackingTick,"MANUAL_DAMAGE_UNATTRIBUTED"); return; }
 for(var it=pending.iterator();it.hasNext();) {
 var attempt=it.next();
 if(attempt.entityId()==packet.entityId() && trackingTick-attempt.tick()<=40) { it.remove(); confirmedHits++; trace.confirm(trackingTick,attempt.tick()); break; }
