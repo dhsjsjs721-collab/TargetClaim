@@ -117,17 +117,42 @@ if(event.getPlayer() instanceof Player p)migratePlayer(p);
 cleanse(event.getInventory());
 }
 void pulse(){
+long now=System.currentTimeMillis();
 for(Player p:Bukkit.getOnlinePlayers()){
 migratePlayer(p);
 Kind k=carried(p);
-if(k==null)continue;
-// No passive bonuses outside PvP combat.
+ItemStack held=item(p);
+if(k==Kind.CERBERUS){
+int opponents=0;
+for(Entity near:p.getNearbyEntities(8,6,8))if(near instanceof Player enemy&&mayAttack(p,enemy)
+&&inCombat.getOrDefault(enemy.getUniqueId(),0L)>now)opponents++;
+health(p,-6+Math.min(2,opponents)*4);
+}else if(k==Kind.KRAKEN){health(p,6);krakenControl(p,now);}
+else if(k==Kind.HYDRA){
+health(p,-6);regrow(p,held,now);
+for(PotionEffectType effect:List.of(PotionEffectType.POISON,PotionEffectType.WITHER,PotionEffectType.WEAKNESS,
+PotionEffectType.SLOWNESS,PotionEffectType.BLINDNESS,PotionEffectType.NAUSEA,PotionEffectType.MINING_FATIGUE))p.removePotionEffect(effect);
+}else health(p,0);
+if(k==Kind.PHOENIX){
+UUID id=p.getUniqueId();
+if(now-phoenixRecharge.getOrDefault(id,0L)>=2000){
+p.setAbsorptionAmount(Math.min(10,p.getAbsorptionAmount()+2));
+phoenixRecharge.put(id,now);
 }
-long now=System.currentTimeMillis();
-if(offensiveCooldown.size()>20000)offensiveCooldown.clear();
-if(defensiveCooldown.size()>20000)defensiveCooldown.clear();
-offensiveCooldown.entrySet().removeIf(e->now-e.getValue()>180000);
-defensiveCooldown.entrySet().removeIf(e->now-e.getValue()>180000);
+}else{fireStored.remove(p.getUniqueId());phoenixRecharge.remove(p.getUniqueId());}
+if(k==Kind.GORGON){
+for(Entity ent:p.getNearbyEntities(6,5,6)){
+if(ent instanceof Player target)gorgonStare(p,target,now);
+if(ent instanceof Monster mob&&mob.hasLineOfSight(p)){
+Vector to=p.getEyeLocation().toVector().subtract(mob.getEyeLocation().toVector());
+if(to.lengthSquared()>.01&&mob.getEyeLocation().getDirection().dot(to.normalize())>.94)
+mob.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,60,9));
+}
+}
+}
+}
+inCombat.entrySet().removeIf(e->e.getValue()<now);
+markedEnds.entrySet().removeIf(e->e.getValue()<now);
 }
 
 private ItemStack item(Player p){
