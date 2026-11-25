@@ -21,6 +21,16 @@ def main():
     with tempfile.TemporaryDirectory(prefix="purpur-263-smoke-") as wd_str:
         wd=Path(wd_str)
         (wd/"plugins").mkdir()
+        relic_dir=wd/"plugins"/"TalismanForge"
+        relic_dir.mkdir()
+        relic_file=relic_dir/"mythic-artifacts.yml"
+        kinds=["thor","anubis","koschei","kitsune","medusa"]
+        charges=[2,125,1,7,2]
+        serials=[f"00000000-0000-4000-8000-{n:012d}" for n in range(1,6)]
+        legacy="artifacts:\n"
+        for kind,charge,serial in zip(kinds,charges,serials):
+            legacy+=f"  {kind}:\n    serial: '{serial}'\n    charges: {charge}\n    awakened: {'true' if kind=='kitsune' else 'false'}\n"
+        relic_file.write_text(legacy,encoding="utf8")
         shutil.copyfile(JAR,wd/"plugins"/JAR.name)
         (wd/"eula.txt").write_text("eula=true\n")
         (wd/"server.properties").write_text(
@@ -74,7 +84,7 @@ def main():
             if not any("Done (" in line for line in logs):
                 raise RuntimeError("Purpur did not fully start within 150s or crashed")
             print("Purpur started; testing universal routing",flush=True)
-            for cmd in ["u status","u guide","u recipes","u give","u claim create","u talisman list","u vfx thor","u trap","u trap give nobody 1","u ss status","u tf","u tf give nobody thor","u ce help","u pig","u frog","u trader","u help"]:
+            for cmd in ["u status","u guide","u recipes","u give","u claim create","u talisman list","u talisman selftest","u vfx thor","u trap","u trap give nobody 1","u ss status","u tf","u tf give nobody thor","u ce help","u pig","u frog","u trader","u help"]:
                 proc.stdin.write(cmd+"\n")
                 proc.stdin.flush()
                 time.sleep(.8)
@@ -87,6 +97,18 @@ def main():
                 except subprocess.TimeoutExpired:proc.kill();proc.wait(timeout=5)
             reader.join(timeout=5)
         output="\n".join(logs)
+        if "SELFTEST relic registry 5/5" not in output:raise AssertionError("Independent relic self-test did not pass")
+        for kind in kinds:
+            if f"SELFTEST {kind} OK" not in output:raise AssertionError("Relic self-test failed: "+kind)
+        backup=relic_dir/"mythic-artifacts-pre-instances.yml"
+        if not backup.is_file() or backup.read_text(encoding="utf8")!=legacy:raise AssertionError("Legacy registry backup missing or changed")
+        migrated=relic_file.read_text(encoding="utf8")
+        if "instances:" not in migrated:raise AssertionError("Registry did not migrate")
+        import re
+        for kind,charge,serial in zip(kinds,charges,serials):
+            match=re.search(r"(?m)^  "+re.escape(serial)+r":\s*\n((?:    [^\n]*\n)*)",migrated)
+            if not match or f"kind: {kind}" not in match[1] or f"charges: {charge}" not in match[1]:raise AssertionError("Lost legacy state for "+kind+"\n"+migrated)
+        print("SUCCESS: all five legacy relic records migrated with independent charges; registry self-test 5/5",flush=True)
         print("Purpur smoke lines:",len(logs),flush=True)
         for name in EXPECTED:
             if "Enabled module: "+name not in output:

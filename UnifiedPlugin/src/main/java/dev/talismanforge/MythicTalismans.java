@@ -192,6 +192,10 @@ final class MythicTalismans implements Listener {
     List<String> names(){return Arrays.stream(Kind.values()).map(Kind::key).toList();}
     boolean command(CommandSender sender,String[] args){
         if(args.length==0)return false;
+        if(args[0].equalsIgnoreCase("selftest")){
+            if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
+            registrySelfTest(sender);return true;
+        }
         if(args[0].equalsIgnoreCase("list")){sender.sendMessage("§6Пять мифических реликвий — количество экземпляров не ограничено.");for(Kind kind:Kind.values())sender.sendMessage(title(kind,kind.key()+" · "+kind.title+" → "+kind.awakening));sender.sendMessage("§7Реликвии активны во второй руке, Кощей — через установленное яйцо. Мирная зона отключает способности.");return true;}
         if(args[0].equalsIgnoreCase("vfx")){if(!(sender instanceof Player p)||!p.hasPermission("talismanforge.admin")){sender.sendMessage("§cТолько администратор в игре.");return true;}Kind kind=args.length>=2?Kind.parse(args[1]):null;if(kind==null){sender.sendMessage("§e/u vfx thor|anubis|koschei|kitsune|medusa");return true;}burst(p.getLocation(),kind,24);rescueVfx(p.getLocation().clone(),kind);return true;}
         if(args[0].equalsIgnoreCase("give")&&args.length>=3){
@@ -219,6 +223,27 @@ final class MythicTalismans implements Listener {
         p.sendMessage("§6✦ Пробуждение: выбрось одну реликвию и одно обычное яйцо дракона рядом на твёрдый блок. Стой рядом 6 секунд.");
         p.sendMessage("§7Для установленного яйца Кощея достаточно бросить яйцо дракона рядом, если ты владелец.");
         return true;
+    }
+    // Test item metadata and instance lookup on the actual running Paper API.
+    // Temporary entries exist only during this synchronous command and are never saved.
+    private void registrySelfTest(CommandSender sender){
+        int passed=0;
+        for(Kind k:Kind.values()){
+            State a=new State(k),b=new State(k);a.serial=UUID.randomUUID().toString();b.serial=UUID.randomUUID().toString();
+            a.charges=k==Kind.ANUBIS?75:1;b.charges=k==Kind.ANUBIS?125:3;
+            states.put(a.serial,a);states.put(b.serial,b);
+            try{
+                ItemStack old=item(a),other=item(b);
+                if(state(old)!=a||state(other)!=b||a==b||a.charges==b.charges)throw new IllegalStateException("independent serials");
+                String prior=a.serial;changeSerial(a,UUID.randomUUID().toString());a.awakened=true;
+                ItemStack awakened=item(a);
+                if(state(old)!=null||state(awakened)!=a||state(other)!=b||b.awakened||a.charges==(b.charges)||prior.equals(a.serial))throw new IllegalStateException("awakening isolation");
+                if(cap(k,a)!=(k==Kind.KITSUNE?9:k.initial)||cap(k,b)!=k.initial)throw new IllegalStateException("charge capacity");
+                passed++;sender.sendMessage("SELFTEST "+k.key()+" OK");
+            }catch(Exception e){sender.sendMessage("SELFTEST "+k.key()+" FAILED: "+e.getMessage());plugin.getLogger().warning("Relic registry self-test failed: "+k+" "+e);}
+            finally{states.remove(a.serial);states.remove(b.serial);}
+        }
+        sender.sendMessage("SELFTEST relic registry "+passed+"/5");
     }
     private boolean take(Player p,Material type,int count){
         int available=0;for(ItemStack i:p.getInventory().getStorageContents())if(i!=null&&i.getType()==type&&!tagged(i))available+=i.getAmount();
