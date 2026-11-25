@@ -1,5 +1,5 @@
 name: MinecraftUnified
-version: 1.1.9
+version: 1.1.10
 main: dev.unified.UnifiedPlugin
 api-version: '26.3'
 author: MinecraftUnified
@@ -32,8 +32,6 @@ commands:
     description: Edit a map using an HTTPS image
     usage: /u map
 permissions:
-  minecraftunified.shields.admin:
-    default: op
   minecraftunified.trap.use:
     default: true
   minecraftunified.trap.admin:

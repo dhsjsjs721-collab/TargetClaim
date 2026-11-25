@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.10
+
+Retired all three custom shields. Existing tagged shields are converted to vanilla shields on inventory/chunk access, retaining enchantments and proportional durability. Recipes, special effects and /u shield are removed. Unused shield textures remain in the unchanged compatible resource pack. Spawn peace-zone redesign and other gameplay changes are not included.
+
 # MinecraftUnified 1.1.9
 
 Anubis soul attribution now uses Paper spawn reasons and recent confirmed hits, with clear feedback for excluded mobs. Drop an ordinary dragon egg and one unawakened relic next to each other on solid ground, same survival player, then remain within 8 blocks for six seconds. The ritual locks both inputs against pickup, merging, hoppers, damage and teleportation. It uses an atomic registry commit for spent egg UUIDs, new serials and crash recovery. Existing placed Koschei eggs support an adjacent egg offering from their owner. A crash across Minecraft player/chunk saves cannot be guaranteed fully atomic; test disconnects and crash recovery in staging. New pixel textures for reliquary and hook, same unified resource pack path; packaging pins the matching pack commit. No other systems changed.

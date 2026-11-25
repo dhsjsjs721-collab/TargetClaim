@@ -13,7 +13,7 @@ import os
 import sys
 
 ROOT=Path(__file__).resolve().parents[2]
-JAR=ROOT/"UnifiedPlugin"/"build"/"libs"/"MinecraftUnified-1.1.9.jar"
+JAR=ROOT/"UnifiedPlugin"/"build"/"libs"/"MinecraftUnified-1.1.10.jar"
 URL="https://api.purpurmc.org/v2/purpur/26.3/2659/download"
 EXPECTED=["TargetClaim","TalismanForge","EnchantmentForge","SwampSky","ImageMaps"]
 
@@ -30,7 +30,7 @@ def main():
         )
         print("Downloading official Purpur 26.3 build 2659...",flush=True)
         server=wd/"server.jar"
-        headers={"User-Agent":"MinecraftUnified-CI/1.1.9 (github.com/dhsjsjs721-collab/TargetClaim)","Accept":"application/json"}
+        headers={"User-Agent":"MinecraftUnified-CI/1.1.10 (github.com/dhsjsjs721-collab/TargetClaim)","Accept":"application/json"}
         tested="Purpur 26.3 build 2659"
         try:
             request=urllib.request.Request(URL,headers=headers)
@@ -74,7 +74,7 @@ def main():
             if not any("Done (" in line for line in logs):
                 raise RuntimeError("Purpur did not fully start within 150s or crashed")
             print("Purpur started; testing universal routing",flush=True)
-            for cmd in ["u status","u trap","u shield","u shield give nobody wither","u trap give nobody 1","u ss status","u tf","u tf give nobody thor","u ce help","u pig","u frog","u trader","u help"]:
+            for cmd in ["u status","u trap","u trap give nobody 1","u ss status","u tf","u tf give nobody thor","u ce help","u pig","u frog","u trader","u help"]:
                 proc.stdin.write(cmd+"\n")
                 proc.stdin.flush()
                 time.sleep(.8)
@@ -95,9 +95,9 @@ def main():
         if "5 mythic talismans" not in output:
             print("\\n".join(logs[-120:]))
             raise AssertionError("New five-case-only TalismanForge module did not start")
-        if "Combat shields active: Wither, Turtle, Crusher" not in output:
+        if "Special shields retired; vanilla shields preserved." not in output:
             print("\\n".join(logs[-100:]))
-            raise AssertionError("Three combat shield recipes / startup did not initialize")
+            raise AssertionError("Retired shield migration did not initialize")
         if "Deepslate craft enabled: 4 basalt + 4 blackstone + 1 obsidian -> 8 deepslate" not in output:
             raise AssertionError("Crafting recipe for 8 deepslate was not registered")
         if "Obsidian PvP trap module enabled" not in output:

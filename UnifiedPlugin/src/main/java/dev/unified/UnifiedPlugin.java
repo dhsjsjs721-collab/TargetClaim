@@ -27,7 +27,7 @@ public final class UnifiedPlugin extends JavaPlugin implements CommandExecutor,T
 private final List<ModuleBridge> enabledModules=new ArrayList<>();
 private final Map<String,String> failedModules=new LinkedHashMap<>();
 private TrapItems trapItems;
-private CombatShields combatShields;
+private RetiredShields retiredShields;
 private DeepslateCrafts deepslateCrafts;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("claims","p"),Map.entry("p","p"),Map.entry("private","p"),
@@ -82,16 +82,8 @@ if(trapItems!=null){try{trapItems.disable();}catch(Throwable ignored){}}
 trapItems=null;
 }
 }
-try{
-combatShields=new CombatShields(this);
-combatShields.enable();
-getLogger().info("Combat shields active: Wither, Turtle, Crusher");
-}catch(Throwable ex){
-getLogger().severe("Custom combat shields failed: "+ex);
-ex.printStackTrace();
-if(combatShields!=null)try{combatShields.disable();}catch(Throwable ignored){}
-combatShields=null;
-}
+retiredShields=new RetiredShields(this);
+retiredShields.enable();
 try{
 deepslateCrafts=new DeepslateCrafts(this);
 deepslateCrafts.enable();
@@ -104,7 +96,7 @@ deepslateCrafts=null;
 if(Bukkit.getPluginManager().getPlugin("TalismanForge")!=null){
 getLogger().severe("WARNING: standalone TalismanForge detected. Remove its old JAR from plugins to prevent duplicate abilities or command conflicts.");
 }
-getLogger().info("MinecraftUnified 1.1.9 started modules "+enabledModules.size()+"/"+modules.size()+
+getLogger().info("MinecraftUnified 1.1.10 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
 @EventHandler public void unifiedCommandList(PlayerCommandSendEvent event){
@@ -123,9 +115,8 @@ for(ModuleBridge m:enabledModules)if(m.getName().equals(module))return true;
 return false;
 }
 private void status(CommandSender sender){
-sender.sendMessage("§aMinecraftUnified 1.1.9 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
+sender.sendMessage("§aMinecraftUnified 1.1.10 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
 sender.sendMessage(trapItems!=null?"§a✓ PvP-трапки §7активны":"§c✗ PvP-трапки §7не активны");
-sender.sendMessage(combatShields!=null?"§a✓ 3 особых щита §7активны":"§c✗ Особые щиты §7не запущены");
 sender.sendMessage(deepslateCrafts!=null?"§a✓ Крафт сланца §7активен":"§c✗ Крафт сланца §7не запущен");
 for(String name:List.of("TargetClaim","TalismanForge","EnchantmentForge","SwampSky","ImageMaps")){
 if(enabled(name))sender.sendMessage("§a✓ "+name+" §7работает");
@@ -147,7 +138,7 @@ sender.sendMessage("§e/u talisman list §7— список пяти новых 
 sender.sendMessage("§e/u talisman give <ник> all §7— выдать все пять сразу");
 sender.sendMessage("§e/u enchant §7— зачарования; §e/u trader §7— торговец");
 sender.sendMessage("§e/u wildlife §7— лягушки и экипировка; §e/u frog §7— гигантская лягушка");
-sender.sendMessage("§e/u map §7— карты; §e/u shield §7— щиты; §e/u trap §7— обсидиановая ловушка");
+sender.sendMessage("§e/u map §7— карты; §e/u trap §7— обсидиановая ловушка");
 sender.sendMessage("§7Летающие свиньи удалены; обычные свиньи сохранены.");
 }
 
@@ -172,10 +163,6 @@ yield command==null?null:command+(args.length==1?"":" "+String.join(" ",Arrays.c
 if(args.length==0||args[0].equalsIgnoreCase("help")){help(sender);return true;}
 String action=args[0].toLowerCase(Locale.ROOT);
 if(action.equals("status")||action.equals("check")||action.equals("list")){status(sender);return true;}
-if(action.equals("shield")||action.equals("shields")){
-if(combatShields==null){sender.sendMessage("§cМодуль щитов не запущен.");return true;}
-return combatShields.command(sender,Arrays.copyOfRange(args,1,args.length));
-}
 if(action.equals("trap")||action.equals("trapka")){
 if(trapItems==null){sender.sendMessage("§cМодуль PvP-трапок не запущен.");return true;}
 return trapItems.handleCommand(sender,Arrays.copyOfRange(args,1,args.length));
@@ -205,15 +192,10 @@ return true;
 @Override public List<String> onTabComplete(CommandSender sender,Command command,String alias,String[] args){
 if(args.length<=1){
 String prefix=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-return List.of("help","status","claim","team","talisman","enchant","wildlife","frog","trader","map","trap","shield")
+return List.of("help","status","claim","team","talisman","enchant","wildlife","frog","trader","map","trap")
 .stream().filter(x->x.startsWith(prefix)).toList();
 }
 String action=args[0].toLowerCase(Locale.ROOT);
-if(action.equals("shield")||action.equals("shields")){
-if(args.length==2)return List.of("give").stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
-if(args.length==4&&args[1].equalsIgnoreCase("give"))return List.of("wither","turtle","crusher").stream().filter(x->x.startsWith(args[3].toLowerCase(Locale.ROOT))).toList();
-return List.of();
-}
 if(action.equals("trap")||action.equals("trapka")){
 if(args.length==2)return List.of("give","help").stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
 if(args.length==3&&args[1].equalsIgnoreCase("give"))
@@ -236,7 +218,6 @@ return sub.tabComplete(sender,target,rest);
 }
 @Override public void onDisable(){
 if(deepslateCrafts!=null){try{deepslateCrafts.disable();}catch(Throwable ex){getLogger().warning("Recipe cleanup failed: "+ex);}deepslateCrafts=null;}
-if(combatShields!=null){try{combatShields.disable();}catch(Throwable error){getLogger().warning("Shield cleanup failed: "+error);}combatShields=null;}
 if(trapItems!=null){try{trapItems.disable();}catch(Throwable failure){getLogger().warning("PvP trap cleanup failed: "+failure.getMessage());}trapItems=null;}
 for(int i=enabledModules.size()-1;i>=0;i--){
 ModuleBridge module=enabledModules.get(i);
