@@ -48,3 +48,8 @@ pig-safe-flight-ride-speed: 0.29
 flying-pig-safe-speed: 0.21
 # Winged pigs normally stand / walk, and only take short airborne trips.
 # Space ascends while mounted. Looking down + W descends, never through blocks.
+
+# Exploration equipment: no endless rain ascent; speed values in blocks/tick.
+frog-wings-glide-speed-v2: 0.62
+frog-wings-rain-speed-v2: 0.72
+frog-wings-water-speed-v2: 0.55

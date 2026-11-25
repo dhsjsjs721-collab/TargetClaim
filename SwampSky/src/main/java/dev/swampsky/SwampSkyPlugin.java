@@ -1013,6 +1013,8 @@ p.damage(2,f);
 f.getWorld().playSound(f.getLocation(),Sound.ENTITY_FROG_TONGUE,1,.65f);
 }
 }
+private List<String> legsLore(){return List.of("§aСкорость I во время спринта на земле","§7Shift у стены: контролируемое скольжение","§7Устойчивость к отбрасыванию: 25%","§7Защита: 5 · Твёрдость: 1","§7Прочность: 350");}
+private List<String> wingsLore(){return List.of("§aПлавное планирование, особенно под дождём","§7Ускоренное плавание при спринте","§7Защита: 3 · Прочность: 1024","§7Shift в полёте: быстрое снижение","§8Без фейерверков, починки и набора высоты");}
 private ItemStack item(String kind,int amount){
 Material material=switch(kind){case "hide"->Material.RABBIT_HIDE;case "boots"->Material.LEATHER_BOOTS;case "leggings"->Material.LEATHER_LEGGINGS;case "wings"->Material.ELYTRA;default->Material.FEATHER;};
 ItemStack it=new ItemStack(material,amount);
@@ -1023,8 +1025,8 @@ m.setItemModel(new NamespacedKey("swampsky",kind.equals("pig_wing")?"pig_wing":"
 m.setLore(switch(kind){
 case "hide"->List.of("§7Добыча с гигантской жабы");
 case "boots"->List.of("§aПрыгучесть I","§7Полная защита от урона при падении","§7Один отскок, Shift — без отскока","§7Защита как у алмазных ботинок","§7Прочность: 250");
-case "leggings"->List.of("§aСкорость I","§7Медленное скольжение по стенам","§7Полная устойчивость к отбрасыванию","§7Защита как у алмазных поножей","§7Прочность: 350");
-case "wings"->List.of("§aЗащита: как железный нагрудник","§7Прочность: 4096","§7Дождь: подъём, вода: ускорение","§7Обычный полёт медленнее элитр","§8Не чинится, фейерверки бесполезны");
+case "leggings"->legsLore();
+case "wings"->wingsLore();
 default->List.of();
 });
 if(m instanceof LeatherArmorMeta leather)leather.setColor(Color.fromRGB(75,171,80));
@@ -1056,7 +1058,7 @@ private void armor(Player p){
 if(p.isDead())return;
 if(is(p.getInventory().getBoots(),"boots"))p.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST,45,0,true,false,true));
 if(is(p.getInventory().getLeggings(),"leggings")){
-p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,45,0,true,false,true));
+if(p.isSprinting()&&p.isOnGround()&&!p.isInWater())p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,25,0,true,false,true));
 if(p.getVelocity().lengthSquared()>.05)p.getWorld().spawnParticle(Particle.ITEM_SLIME,p.getLocation(),2,.2,0,.2,.01);
 }
 }
@@ -1112,7 +1114,7 @@ if(kind.equals("boots")||kind.equals("leggings")){
 // Namespaced keyed modifiers make migration idempotent for old equipment.
 boolean legs=kind.equals("leggings");
 EquipmentSlotGroup group=legs?EquipmentSlotGroup.LEGS:EquipmentSlotGroup.FEET;
-double armor=legs?6.0:3.0;
+double armor=legs?5.0:3.0;
 int maxDamage=legs?350:250;
 String prefix="frog_"+kind+"_";
 NamespacedKey armorKey=new NamespacedKey(this,prefix+"armor");
@@ -1121,7 +1123,7 @@ NamespacedKey knockbackKey=new NamespacedKey(this,prefix+"knockback");
 var currentArmor=meta.getAttributeModifiers(Attribute.ARMOR);
 boolean hasArmor=false;
 if(currentArmor!=null)for(AttributeModifier modifier:currentArmor){
-if(armorKey.equals(modifier.getKey()))hasArmor=true;
+if(armorKey.equals(modifier.getKey())){if(Math.abs(modifier.getAmount()-armor)<.0001)hasArmor=true;else{meta.removeAttributeModifier(Attribute.ARMOR,modifier);changed=true;}}
 }
 if(!hasArmor){
 meta.addAttributeModifier(Attribute.ARMOR,new AttributeModifier(armorKey,armor,AttributeModifier.Operation.ADD_NUMBER,group));
@@ -1130,20 +1132,20 @@ changed=true;
 var currentToughness=meta.getAttributeModifiers(Attribute.ARMOR_TOUGHNESS);
 boolean hasToughness=false;
 if(currentToughness!=null)for(AttributeModifier modifier:currentToughness){
-if(toughnessKey.equals(modifier.getKey()))hasToughness=true;
+if(toughnessKey.equals(modifier.getKey())){if(Math.abs(modifier.getAmount()-(legs?1.0:2.0))<.0001)hasToughness=true;else{meta.removeAttributeModifier(Attribute.ARMOR_TOUGHNESS,modifier);changed=true;}}
 }
 if(!hasToughness){
-meta.addAttributeModifier(Attribute.ARMOR_TOUGHNESS,new AttributeModifier(toughnessKey,2.0,AttributeModifier.Operation.ADD_NUMBER,group));
+meta.addAttributeModifier(Attribute.ARMOR_TOUGHNESS,new AttributeModifier(toughnessKey,legs?1.0:2.0,AttributeModifier.Operation.ADD_NUMBER,group));
 changed=true;
 }
 if(legs){
 var currentKnockback=meta.getAttributeModifiers(Attribute.KNOCKBACK_RESISTANCE);
 boolean hasKnockback=false;
 if(currentKnockback!=null)for(AttributeModifier modifier:currentKnockback){
-if(knockbackKey.equals(modifier.getKey()))hasKnockback=true;
+if(knockbackKey.equals(modifier.getKey())){if(Math.abs(modifier.getAmount()-.25)<.0001)hasKnockback=true;else{meta.removeAttributeModifier(Attribute.KNOCKBACK_RESISTANCE,modifier);changed=true;}}
 }
 if(!hasKnockback){
-meta.addAttributeModifier(Attribute.KNOCKBACK_RESISTANCE,new AttributeModifier(knockbackKey,1.0,AttributeModifier.Operation.ADD_NUMBER,EquipmentSlotGroup.LEGS));
+meta.addAttributeModifier(Attribute.KNOCKBACK_RESISTANCE,new AttributeModifier(knockbackKey,.25,AttributeModifier.Operation.ADD_NUMBER,EquipmentSlotGroup.LEGS));
 changed=true;
 }
 }
@@ -1159,19 +1161,22 @@ NamespacedKey modifierKey=new NamespacedKey(this,"frog_wings_armor");
 boolean found=false;
 var modifiers=meta.getAttributeModifiers(Attribute.ARMOR);
 if(modifiers!=null)for(AttributeModifier mod:modifiers){
-if(modifierKey.equals(mod.getKey())){found=true;break;}
+if(modifierKey.equals(mod.getKey())){if(Math.abs(mod.getAmount()-3.0)<.0001)found=true;else{meta.removeAttributeModifier(Attribute.ARMOR,mod);changed=true;}}
 }
 if(!found){
 meta.addAttributeModifier(Attribute.ARMOR,
-new AttributeModifier(modifierKey,6.0,AttributeModifier.Operation.ADD_NUMBER,EquipmentSlotGroup.CHEST));
+new AttributeModifier(modifierKey,3.0,AttributeModifier.Operation.ADD_NUMBER,EquipmentSlotGroup.CHEST));
 changed=true;
 }
 // Purpur/Paper 26.3 throws if getMaxDamage() is called before custom
 // max_damage has been set on the ItemMeta. The vanilla Elytra default is
 // smaller than 4096 but does not count as a custom max damage component.
 if(meta instanceof org.bukkit.inventory.meta.Damageable damageable
-&&(!damageable.hasMaxDamage()||damageable.getMaxDamage()!=4096)){
-damageable.setMaxDamage(4096);
+&&(!damageable.hasMaxDamage()||damageable.getMaxDamage()!=1024)){
+int oldMax=damageable.hasMaxDamage()?damageable.getMaxDamage():Material.ELYTRA.getMaxDurability();
+int oldDamage=damageable.getDamage();
+damageable.setMaxDamage(1024);
+damageable.setDamage(Math.min(1023,(int)Math.round(oldDamage*1024.0/Math.max(1,oldMax))));
 changed=true;
 }
 if(meta.hasEnchant(Enchantment.MENDING)){
@@ -1179,6 +1184,7 @@ meta.removeEnchant(Enchantment.MENDING);
 changed=true;
 }
 }
+if(kind.equals("leggings")||kind.equals("wings")){List<String> lore=kind.equals("leggings")?legsLore():wingsLore();if(!lore.equals(meta.getLore())){meta.setLore(lore);changed=true;}}
 if(changed)stack.setItemMeta(meta);
 return changed;
 }
@@ -1189,7 +1195,7 @@ Bukkit.getScheduler().runTaskLater(this,()->{if(event.getPlayer().isOnline())upg
 private void frogWallSlide(){
 for(Player p:Bukkit.getOnlinePlayers()){
 if(p.isDead()||p.isOnGround()||p.isInsideVehicle()||p.isFlying()||p.isGliding()||p.isSwimming()
-||!is(p.getInventory().getLeggings(),"leggings"))continue;
+||!p.isSneaking()||!is(p.getInventory().getLeggings(),"leggings"))continue;
 Vector velocity=p.getVelocity();
 if(velocity.getY()>=-.12)continue;
 Location at=p.getLocation();
@@ -1202,7 +1208,7 @@ wall=true;break;
 }
 }
 if(wall){
-p.setVelocity(new Vector(velocity.getX(),-.12,velocity.getZ()));
+p.setVelocity(new Vector(velocity.getX()*.85,-.18,velocity.getZ()*.85));
 p.setFallDistance(0);
 }
 }
@@ -1251,16 +1257,15 @@ fallSpeed.remove(id);
 }
 private void frogWingsMotion(){
 for(Player p:Bukkit.getOnlinePlayers()){
-if(p.isDead()||p.getGameMode()==GameMode.SPECTATOR||p.isInsideVehicle())continue;
+if(p.isDead()||p.getGameMode()==GameMode.SPECTATOR||p.isInsideVehicle()||p.isFlying())continue;
 if(!is(p.getInventory().getChestplate(),"wings"))continue;
+if(p.getInventory().getChestplate().getItemMeta() instanceof org.bukkit.inventory.meta.Damageable d&&d.getDamage()>=1023)continue;
 Vector v=p.getVelocity();
 if(p.isInWater()){
-// Water alone grants fast motion. This also works when swimming (not gliding).
+if(p.isSwimming()&&p.isSprinting()){
 Vector aim=p.getLocation().getDirection();
-double strength=getConfig().getDouble("frog-wings-water-speed",.95);
-if(aim.lengthSquared()>.001){
-Vector desired=aim.normalize().multiply(strength);
-p.setVelocity(v.multiply(.30).add(desired.multiply(.70)));
+double strength=Math.max(.30,Math.min(.65,getConfig().getDouble("frog-wings-water-speed-v2",.55)));
+if(aim.lengthSquared()>.001)p.setVelocity(v.multiply(.45).add(aim.normalize().multiply(strength*.55)));
 }
 continue;
 }
@@ -1268,22 +1273,13 @@ if(!p.isGliding())continue;
 boolean rain=p.getWorld().hasStorm()
 &&p.getWorld().getHighestBlockYAt(p.getLocation().getBlockX(),p.getLocation().getBlockZ())<=p.getLocation().getBlockY()
 &&!dryBiome(p.getLocation().getBlock().getBiome());
-double maxHorizontal=Math.max(.30,Math.min(1.3,getConfig().getDouble(rain?"frog-wings-rain-speed":"frog-wings-glide-speed",rain?.58:.65)));
+double maxHorizontal=Math.max(.30,Math.min(.80,getConfig().getDouble(rain?"frog-wings-rain-speed-v2":"frog-wings-glide-speed-v2",rain?.72:.62)));
 double vx=v.getX(),vz=v.getZ();
 double horizontal=Math.sqrt(vx*vx+vz*vz);
-if(horizontal>maxHorizontal){
-vx*=maxHorizontal/horizontal;
-vz*=maxHorizontal/horizontal;
-}
-double y;
-if(rain){
-// Rain creates a gentle ascent; no artificial horizontal slowdown below the cap.
-y=.085;
-}else{
-// Ordinary frog-wings flight always sinks, even if the player pitches up.
-y=Math.min(-.065,v.getY());
-}
+if(horizontal>maxHorizontal){vx*=maxHorizontal/horizontal;vz*=maxHorizontal/horizontal;}
+double y=p.isSneaking()?Math.min(-.25,v.getY()):Math.min(rain?-.045:-.09,Math.max(v.getY(),rain?-.18:-.30));
 p.setVelocity(new Vector(vx,y,vz));
+if(tick%12==0&&rain)p.getWorld().spawnParticle(Particle.SPLASH,p.getLocation(),2,.3,.2,.3,.01);
 }
 }
 private boolean dryBiome(Biome b){
