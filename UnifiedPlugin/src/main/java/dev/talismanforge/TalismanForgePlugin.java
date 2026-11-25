@@ -36,7 +36,7 @@ private final Map<UUID,UUID> holograms=new HashMap<>();
 private final Random random=new Random();
 private int pulses=0;
 private MythicTalismans myths;
-public Location getKoscheiEggLocation(){return myths==null?null:myths.eggLocation();}
+public List<Location> getKoscheiEggLocations(){return myths==null?List.of():myths.eggLocations();}
 private static final class Altar {
 UUID id=UUID.randomUUID(),owner,world;
 int x,y,z;
@@ -198,7 +198,7 @@ for(Player p:w.getPlayers()){double d=p.getLocation().distanceSquared(loc);if(d<
 if(nearest!=null){
 // Exactly one of five new talismans. No direct mob/fishing/egg drops.
 String reward=myths.issueRandom(nearest);
-if(reward==null){give(nearest,new ItemStack(Material.TOTEM_OF_UNDYING));give(nearest,new ItemStack(Material.AMETHYST_SHARD,7));give(nearest,new ItemStack(Material.OBSIDIAN));reward="Все пять реликвий уже выданы — ингредиенты возвращены";}
+if(reward==null){give(nearest,new ItemStack(Material.TOTEM_OF_UNDYING));give(nearest,new ItemStack(Material.AMETHYST_SHARD,7));give(nearest,new ItemStack(Material.OBSIDIAN));reward="Ошибка сохранения — ингредиенты возвращены";}
 // No speed reward; the case grants only a mythic talisman.
 nearest.sendMessage("§b✦ Реликварий пробудился: "+reward);
 removeAltar(a);b.setType(Material.AIR,false);continue;}
@@ -257,7 +257,7 @@ Player p=Bukkit.getPlayerExact(args[1]);if(p==null){sender.sendMessage("§cИг�
 ItemStack item;
 if(args[2].equalsIgnoreCase("chest")||args[2].equalsIgnoreCase("reliquary"))item=chestItem();
 else if(args[2].equalsIgnoreCase("hook"))item=hookListener.createHookItem();
-else if(args[2].equalsIgnoreCase("all")){int count=0;for(MythicTalismans.Kind k:MythicTalismans.Kind.values())if(myths.issue(p,k))count++;sender.sendMessage("§aВыдано уникальных реликвий: "+count);return true;}
+else if(args[2].equalsIgnoreCase("all")){int count=0;for(MythicTalismans.Kind k:MythicTalismans.Kind.values())if(myths.issue(p,k))count++;sender.sendMessage("§aВыдано реликвий: "+count);return true;}
 else{sender.sendMessage("§cНеизвестный талисман.");return true;}
 give(p,item);sender.sendMessage("§aВыдано игроку "+p.getName());return true;
 }

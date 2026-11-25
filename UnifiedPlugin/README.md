@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.15
+
+Unlimited independently registered relics. Old singleton registry migrates preserving serials. One bound Koschei egg per player. Each instance has its own charges, storage and awakening. Live multiplayer testing required.
+
 # MinecraftUnified 1.1.14
 
 Miner cap is a leather helmet (1 armor), unbreakable, light level 12, subtle owner-only ore particles on the first visible ore hit by a ray, up to 7 blocks. No through-wall ore reveal. Multitool recipe and issuance retired; existing tagged iron multitools migrate to ordinary iron pickaxes on inventory access with proportional wear and enchantments preserved. New cap item and correctly laid-out humanoid head texture. No changes to other modules.

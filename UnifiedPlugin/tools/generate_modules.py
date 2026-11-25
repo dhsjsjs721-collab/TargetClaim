@@ -69,8 +69,8 @@ def convert(code,namespace,name,path):
     code=code.replace("getPluginManager().disablePlugin(this)","getPluginManager().disablePlugin(host())")
 
     if name=="TargetClaim":
-        code=re.sub(r'org\.bukkit\.plugin\.Plugin tf=Bukkit\.getPluginManager\(\)\.getPlugin\("TalismanForge"\);\nif\(tf!=null.*?catch\(ReflectiveOperationException ignored\)\{\}', 'Location egg=((dev.unified.UnifiedPlugin)host()).getKoscheiEggLocation();\\nif(egg!=null&&egg.getWorld()!=null&&egg.getWorld().getUID().equals(c.world)&&egg.getBlockX()>=left&&egg.getBlockX()<=right&&egg.getBlockY()>=bottom&&egg.getBlockY()<=top&&egg.getBlockZ()>=front&&egg.getBlockZ()<=back)return true;', code, count=1)
-        if 'getKoscheiEggLocation();' not in code:raise ValueError("Missing hosted egg/claim integration")
+        code=re.sub(r'org\.bukkit\.plugin\.Plugin tf=Bukkit\.getPluginManager\(\)\.getPlugin\("TalismanForge"\);\nif\(tf!=null.*?catch\(ReflectiveOperationException ignored\)\{\}', 'for(Location egg:((dev.unified.UnifiedPlugin)host()).getKoscheiEggLocations())if(egg!=null&&egg.getWorld()!=null&&egg.getWorld().getUID().equals(c.world)&&egg.getBlockX()>=left&&egg.getBlockX()<=right&&egg.getBlockY()>=bottom&&egg.getBlockY()<=top&&egg.getBlockZ()>=front&&egg.getBlockZ()<=back)return true;', code, count=1)
+        if 'getKoscheiEggLocations()' not in code:raise ValueError("Missing hosted egg/claim integration")
 
     # TalismanForge's previous shield and item state keys already use the
     # original namespace, via the explicit Keys above. No data migration.
