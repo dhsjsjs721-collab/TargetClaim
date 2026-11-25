@@ -19,6 +19,14 @@ double t=Math.max(0,(center.x()-eye.x())*dx+(center.y()-eye.y())*dy+(center.z()-
 double mx=(b.max().x()-b.min().x())*.16,my=(b.max().y()-b.min().y())*.18,mz=(b.max().z()-b.min().z())*.16;
 return new Vec(clamp(eye.x()+t*dx,b.min().x()+mx,b.max().x()-mx),clamp(eye.y()+t*dy,b.min().y()+my,b.max().y()-my),clamp(eye.z()+t*dz,b.min().z()+mz,b.max().z()-mz));
 }
+public static Vec trackingPoint(Vec eye,Angles view,Box b,double phase) {
+Vec near=nearestAimPoint(eye,view,b);
+double fx=.5+.10*Math.sin(phase*.11);
+double fy=.63+.09*Math.sin(phase*.073);
+double fz=.5+.10*Math.cos(phase*.097);
+Vec anchor=new Vec(b.min().x()+(b.max().x()-b.min().x())*fx,b.min().y()+(b.max().y()-b.min().y())*fy,b.min().z()+(b.max().z()-b.min().z())*fz);
+return new Vec(near.x()*.45+anchor.x()*.55,near.y()*.45+anchor.y()*.55,near.z()*.45+anchor.z()*.55);
+}
 public static double error(Angles a,Angles b) { double ap=Math.toRadians(a.pitch()),bp=Math.toRadians(b.pitch()),dy=Math.toRadians(wrap(b.yaw()-a.yaw()));
 return Math.toDegrees(Math.acos(clamp(Math.sin(ap)*Math.sin(bp)+Math.cos(ap)*Math.cos(bp)*Math.cos(dy),-1,1))); }
 public static Angles direction(Vec eye,Vec p) {
@@ -29,7 +37,7 @@ public static Angles step(Angles current,Angles target,CombatSettings settings) 
 if (!settings.aimEnabled()) return current;
 double dy=wrap(target.yaw()-current.yaw()),dp=target.pitch()-current.pitch();
 if (error(current,target)>settings.fov()/2) return current;
-return new Angles(wrap(current.yaw()+clamp(dy*settings.horizontalSpeed(),-8,8)),clamp(current.pitch()+clamp(dp*settings.verticalSpeed(),-5,5),-90,90));
+return new Angles(wrap(current.yaw()+clamp(dy*settings.horizontalSpeed(),-12,12)),clamp(current.pitch()+clamp(dp*settings.verticalSpeed(),-8,8),-90,90));
 }
 private AimModel() {}
 }
