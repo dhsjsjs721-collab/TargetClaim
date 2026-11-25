@@ -5,6 +5,12 @@ api-version: '26.3'
 author: MinecraftUnified
 description: All 5 Minecraft Paper gameplay systems in a single JAR
 commands:
+  skin:
+    description: Change own Minecraft skin
+    usage: /skin <nickname or texture URL>
+  disc:
+    description: Save YouTube link on a music disc
+    usage: /disc <YouTube URL> [title]
   trap:
     description: FunTime-style temporary obsidian trap
     usage: /u trap [give <player> [amount]]

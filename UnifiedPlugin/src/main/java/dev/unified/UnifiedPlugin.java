@@ -31,6 +31,7 @@ private RetiredShields retiredShields;
 private DeepslateCrafts deepslateCrafts;
 private PeaceZone peace;
 private MiningGear mining;
+private MediaItems media;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("claims","p"),Map.entry("p","p"),Map.entry("private","p"),
 Map.entry("team","team"),Map.entry("teams","team"),Map.entry("clan","team"),Map.entry("clans","team"),
@@ -90,6 +91,8 @@ trapItems=null;
 retiredShields=new RetiredShields(this);
 retiredShields.enable();
 mining=new MiningGear(this);mining.enable();
+media=new MediaItems(this);media.enable();
+for(String name:List.of("skin","disc")){PluginCommand c=getCommand(name);if(c!=null)c.setExecutor((sender,command,label,args)->name.equals("skin")?media.skin(sender,args):media.disc(sender,args));}
 try{
 deepslateCrafts=new DeepslateCrafts(this);
 deepslateCrafts.enable();
@@ -152,6 +155,7 @@ sender.sendMessage("§e/u enchant §7— зачарования; §e/u trader §
 sender.sendMessage("§e/u wildlife §7— лягушки и экипировка; §e/u frog §7— гигантская лягушка");
 sender.sendMessage("§e/u map §7— карты; §e/u trap §7— обсидиановая ловушка");
 sender.sendMessage("§e/u mining §7— шахтёрская экипировка и метательные факелы");
+sender.sendMessage("§e/skin §7— смена скина; §e/disc §7— записать ссылку YouTube на пластинку");
 sender.sendMessage("§e/u guide §7— краткое руководство игрока");
 }
 
