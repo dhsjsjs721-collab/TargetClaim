@@ -33,6 +33,16 @@ public static Angles direction(Vec eye,Vec p) {
 double x=p.x()-eye.x(),y=p.y()-eye.y(),z=p.z()-eye.z();
 return new Angles(Math.toDegrees(Math.atan2(z,x))-90,-Math.toDegrees(Math.atan2(y,Math.hypot(x,z))));
 }
+public static Vec movingPoint(Vec base,Box box,Vec relativeMotion) {
+double marginX=(box.max().x()-box.min().x())*.12,marginY=(box.max().y()-box.min().y())*.12,marginZ=(box.max().z()-box.min().z())*.12;
+return new Vec(clamp(base.x()+relativeMotion.x()*.5,box.min().x()+marginX,box.max().x()-marginX),clamp(base.y()+relativeMotion.y()*.5,box.min().y()+marginY,box.max().y()-marginY),clamp(base.z()+relativeMotion.z()*.5,box.min().z()+marginZ,box.max().z()-marginZ));
+}
+public static Angles movingStep(Angles current,Angles target,CombatSettings settings,double motion) {
+if(!settings.aimEnabled() || error(current,target)>settings.fov()/2) return current;
+double boost=clamp(motion/5,0,1);
+double dy=wrap(target.yaw()-current.yaw()),dp=target.pitch()-current.pitch();
+return new Angles(wrap(current.yaw()+clamp(dy*(settings.horizontalSpeed()+(1-settings.horizontalSpeed())*.55*boost),-12-6*boost,12+6*boost)),clamp(current.pitch()+clamp(dp*(settings.verticalSpeed()+(1-settings.verticalSpeed())*.55*boost),-8-4*boost,8+4*boost),-90,90));
+}
 public static double targetScore(double angle,double fov,double distanceSquared) {
 return .7*angle/(fov*.5)+.3*Math.min(1,Math.sqrt(Math.max(0,distanceSquared))/4);
 }
