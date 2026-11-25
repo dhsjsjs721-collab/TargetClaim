@@ -20,6 +20,10 @@ private static LivingEntity jumpTarget;
 private static Object jumpItem;
 private static int jumpAge;
 private static LivingEntity aimTarget;
+private static LivingEntity sampledTarget;
+private static AimModel.Vec previousRelative;
+private static AimModel.Vec relativeMotion=new AimModel.Vec(0,0,0);
+private static double motionAngle;
 private static float lastHealth;
 private static int responseWindow;
 private static int readyTicks;
@@ -30,8 +34,9 @@ private static CombatEngine.Decision decision=CombatEngine.Decision.WAIT;
 static double angularError() { return angularError; }
 static int readyTicks() { return readyTicks; }
 static CombatEngine.Decision decision() { return decision; }
-private static boolean valid(LocalPlayer self,LivingEntity target) {
-return target!=self && (target instanceof Player || (golemTest && "entity.minecraft.iron_golem".equals(target.getType().getDescriptionId()))) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && (!(target instanceof Player other) || self.canHarmPlayer(other)) && inRange(self,target);
+private static boolean valid(LocalPlayer self,LivingEntity target) { return aimValid(self,target) && inRange(self,target); }
+private static boolean aimValid(LocalPlayer self,LivingEntity target) {
+return target!=self && (target instanceof Player || (golemTest && "entity.minecraft.iron_golem".equals(target.getType().getDescriptionId()))) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && (!(target instanceof Player other) || self.canHarmPlayer(other)) && self.distanceToSqr(target)<=20.25;
 }
 private static boolean inRange(LocalPlayer self, LivingEntity target) {
 return self.getAttackRangeWith(self.getMainHandItem()).isInRange(self,target.getBoundingBox(),3.0);
@@ -42,7 +47,7 @@ status="Not in enabled world";
 lastPlayer=null;
 lastLevel=null;
 clearJump();
-aimTarget=null;
+aimTarget=null; resetTracking();
 angularError=Double.NaN;
 decision=CombatEngine.Decision.WAIT;
 readyTicks=0;
@@ -55,17 +60,17 @@ trackingTick=0;
 return;
 }
 var self=mc.player;
-if(lastPlayer!=self || lastLevel!=mc.level) { lastPlayer=self; lastLevel=mc.level; clearJump(); aimTarget=null; lastHealth=self.getHealth(); responseWindow=0; readyTicks=0; jumpDelay=0; attackDelay=0; descendingTicks=0; hitThisFall=false; trackingTick=0; }
+if(lastPlayer!=self || lastLevel!=mc.level) { lastPlayer=self; lastLevel=mc.level; clearJump(); aimTarget=null; resetTracking(); lastHealth=self.getHealth(); responseWindow=0; readyTicks=0; jumpDelay=0; attackDelay=0; descendingTicks=0; hitThisFall=false; trackingTick=0; }
 if(self.getHealth()<lastHealth) responseWindow=12;
 else if(responseWindow>0) responseWindow--;
 lastHealth=self.getHealth();
 if(jumpDelay>0) jumpDelay--;
 if(attackDelay>0) attackDelay--;
 trackingTick++;
-if(mc.gui.screen()!=null || mc.isPaused()) { aimTarget=null; clearJump(); descendingTicks=0; return; }
+if(mc.gui.screen()!=null || mc.isPaused()) { aimTarget=null; resetTracking(); clearJump(); descendingTicks=0; return; }
 angularError=Double.NaN;
 decision=CombatEngine.Decision.WAIT;
-if(!self.isAlive() || self.isSpectator() || self.isCreative() || self.isUsingItem() || self.isHandsBusy()) { aimTarget=null; clearJump(); descendingTicks=0; status="Player busy"; return; }
+if(!self.isAlive() || self.isSpectator() || self.isCreative() || self.isUsingItem() || self.isHandsBusy()) { aimTarget=null; resetTracking(); clearJump(); descendingTicks=0; status="Player busy"; return; }
 boolean falling=!self.onGround() && self.getDeltaMovement().y<0 && self.fallDistance>0;
 if(self.onGround()) { hitThisFall=false; if(jumpAge>2) clearJump(); }
 if(!settings.triggerEnabled() || (jumpTarget!=null && (++jumpAge>24 || !valid(self,jumpTarget) || jumpItem!=self.getMainHandItem().getItem()))) clearJump();
@@ -106,7 +111,7 @@ responseWindow=0;
 }
 }
 }
-if(!settings.aimEnabled()) aimTarget=null;
+if(!settings.aimEnabled()) { aimTarget=null; resetTracking(); }
 if(settings.aimEnabled()) {
 var eye=self.getEyePosition();
 var current=new AimModel.Angles(self.getYRot(),self.getXRot());
@@ -114,7 +119,7 @@ AimModel.Angles best=null;
 double bestError=Double.POSITIVE_INFINITY,bestScore=Double.POSITIVE_INFINITY,retainedScore=Double.POSITIVE_INFINITY,retainedError=0;
 AimModel.Angles retained=null;
 LivingEntity selected=null;
-for(var target:mc.level.getEntitiesOfClass(LivingEntity.class,self.getBoundingBox().inflate(3),target -> valid(self,target))) {
+for(var target:mc.level.getEntitiesOfClass(LivingEntity.class,self.getBoundingBox().inflate(4.5),target -> aimValid(self,target))) {
 var bb=target.getBoundingBox();
 var box=new AimModel.Box(new AimModel.Vec(bb.minX,bb.minY,bb.minZ),new AimModel.Vec(bb.maxX,bb.maxY,bb.maxZ));
 var desired=AimModel.direction(new AimModel.Vec(eye.x,eye.y,eye.z),AimModel.trackingPoint(new AimModel.Vec(eye.x,eye.y,eye.z),current,box,trackingTick));
@@ -126,17 +131,33 @@ if(score<bestScore) { bestScore=score; bestError=error; best=desired; selected=t
 }
 if(retained!=null && AimModel.retainTarget(bestScore,retainedScore)) { best=retained; bestError=retainedError; selected=aimTarget; }
 aimTarget=selected;
-if(best!=null) {
+if(best!=null && selected!=null) {
+var bb=selected.getBoundingBox();
+var box=new AimModel.Box(new AimModel.Vec(bb.minX,bb.minY,bb.minZ),new AimModel.Vec(bb.maxX,bb.maxY,bb.maxZ));
+var origin=new AimModel.Vec(eye.x,eye.y,eye.z);
+var center=AimModel.point(box,.65);
+var relative=new AimModel.Vec(center.x()-eye.x,center.y()-eye.y,center.z()-eye.z);
+if(sampledTarget==selected && previousRelative!=null) {
+var delta=new AimModel.Vec(relative.x()-previousRelative.x(),relative.y()-previousRelative.y(),relative.z()-previousRelative.z());
+relativeMotion=new AimModel.Vec(relativeMotion.x()*.35+delta.x()*.65,relativeMotion.y()*.35+delta.y()*.65,relativeMotion.z()*.35+delta.z()*.65);
+var zero=new AimModel.Vec(0,0,0);
+motionAngle=AimModel.error(AimModel.direction(zero,previousRelative),AimModel.direction(zero,relative));
+} else resetTracking();
+sampledTarget=selected;
+previousRelative=relative;
+best=AimModel.direction(origin,AimModel.movingPoint(AimModel.trackingPoint(origin,current,box,trackingTick),box,relativeMotion));
+bestError=AimModel.error(current,best);
 angularError=bestError;
 if(bestError>.10) {
-var next=AimModel.step(current,best,settings);
+var next=AimModel.movingStep(current,best,settings,motionAngle);
 self.setYRot(self.getYRot()+(float)AimModel.wrap(next.yaw()-current.yaw()));
 self.setXRot((float)next.pitch());
 }
-}
+} else resetTracking();
 }
 
 }
+private static void resetTracking() { sampledTarget=null; previousRelative=null; relativeMotion=new AimModel.Vec(0,0,0); motionAngle=0; }
 private static void clearJump() { jumpTarget=null; jumpItem=null; jumpAge=0; }
 private PracticeCombat() {}
 }
