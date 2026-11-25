@@ -13,7 +13,9 @@ static CombatSettings settings=CombatSettings.defaults();
 public void onInitializeClient() {
 var category=KeyMapping.Category.register(Identifier.fromNamespaceAndPath("pvp_practice","practice"));
 var key=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.pvp_practice.open",InputConstants.Type.KEYBOARD,InputConstants.KEY_DOWN,category));
+ClientTickEvents.START_CLIENT_TICK.register(client -> PracticeCombat.startTick(client,settings));
 ClientTickEvents.END_CLIENT_TICK.register(client -> {
+PracticeCombat.releaseInput(client);
 while(key.consumeClick()) {
 if(!guiLocked && client.player != null && client.gui.screen()==null) client.gui.setScreen(new PracticeScreen());
 }
