@@ -44,6 +44,12 @@ for(int phase=0;phase<200;phase++) {
 var track=AimModel.trackingPoint(new AimModel.Vec(0,1.6,0),front,box,phase);
 check(track.x()>-.3 && track.x()<.3 && track.y()>0 && track.y()<1.8 && track.z()>2 && track.z()<2.6);
 }
+check(CombatEngine.autoCritical(crit,1,false)==CombatEngine.Decision.CRITICAL_WINDOW);
+check(CombatEngine.autoCritical(crit,2,true)==CombatEngine.Decision.WAIT);
+check(CombatEngine.autoCritical(nearFull,1,false)==CombatEngine.Decision.WAIT);
+check(CombatEngine.autoCritical(nearFull,2,false)==CombatEngine.Decision.CRITICAL_WINDOW);
+check(CombatEngine.autoCritical(normal,2,false)==CombatEngine.Decision.WAIT);
+check(CombatEngine.autoCritical(blocked,2,false)==CombatEngine.Decision.WAIT);
 System.out.println("Combat tests passed");
 }
 }
