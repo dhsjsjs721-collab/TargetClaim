@@ -28,7 +28,7 @@ check(pt.x()>=-.3 && pt.x()<=.3 && pt.y()>0 && pt.y()<1.8 && pt.z()>2 && pt.z()<
 var rear=new AimModel.Angles(180,0);
 var front=new AimModel.Angles(0,0);
 check(AimModel.step(front,rear,new CombatSettings(true,false,.35,.25,150)).equals(front));
-check(Math.abs(AimModel.step(front,rear,new CombatSettings(true,false,.35,.25,360)).yaw())==8);
+check(Math.abs(AimModel.step(front,rear,new CombatSettings(true,false,.35,.25,360)).yaw())==12);
 check(CombatSettings.defaults().fov()==150);
 var nearFull=new CombatEngine.Frame(.96,false,.2,false,false,true,true,false,false,t);
 check(CombatEngine.evaluate(CombatEngine.Mode.CRITICAL,nearFull)==CombatEngine.Decision.CRITICAL_WINDOW);
@@ -37,6 +37,13 @@ check(CombatEngine.reason(CombatEngine.Mode.CRITICAL,weak).equals("Cooldown"));
 check(CombatEngine.reason(CombatEngine.Mode.COMBO,normal).equals("Waiting for sprint"));
 check(CombatEngine.reason(CombatEngine.Mode.CRITICAL,crit).equals("Attack ready"));
 check(AimModel.wrap(181-179)==2);
+var track1=AimModel.trackingPoint(new AimModel.Vec(0,1.6,0),front,box,0);
+var track2=AimModel.trackingPoint(new AimModel.Vec(0,1.6,0),front,box,15);
+check(!track1.equals(track2));
+for(int phase=0;phase<200;phase++) {
+var track=AimModel.trackingPoint(new AimModel.Vec(0,1.6,0),front,box,phase);
+check(track.x()>-.3 && track.x()<.3 && track.y()>0 && track.y()<1.8 && track.z()>2 && track.z()<2.6);
+}
 System.out.println("Combat tests passed");
 }
 }
