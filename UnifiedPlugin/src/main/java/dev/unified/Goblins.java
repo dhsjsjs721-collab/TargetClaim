@@ -2,6 +2,7 @@ package dev.unified;
 
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.*;
@@ -34,6 +35,8 @@ private ItemStack skin(Material material,int style){
 ItemStack i=new ItemStack(material);var m=i.getItemMeta();NamespacedKey model=new NamespacedKey("minecraftunified",style==1?"goblin_mushroom":"goblin_forest");
 m.getPersistentDataContainer().set(costume,PersistentDataType.BYTE,(byte)1);
 m.setAttributeModifiers(null);
+EquipmentSlotGroup slot=switch(material){case LEATHER_HELMET->EquipmentSlotGroup.HEAD;case LEATHER_CHESTPLATE->EquipmentSlotGroup.CHEST;case LEATHER_LEGGINGS->EquipmentSlotGroup.LEGS;default->EquipmentSlotGroup.FEET;};
+m.addAttributeModifier(Attribute.ARMOR,new AttributeModifier(new NamespacedKey("minecraftunified","goblin_skin_"+material.name().toLowerCase(Locale.ROOT)),0,AttributeModifier.Operation.ADD_NUMBER,slot));
 m.setUnbreakable(true);var eq=m.getEquippable();eq.setModel(model);m.setEquippable(eq);
 i.setItemMeta(m);return i;
 }
@@ -99,7 +102,7 @@ boolean command(CommandSender s,String[] args){
 if(!(s instanceof Player p)||!s.hasPermission("minecraftunified.goblin.admin")){s.sendMessage("§cНужны права администратора и игрок в мире.");return true;}
 int count=1;try{if(args.length>0)count=Math.max(1,Math.min(12,Integer.parseInt(args[0])));}catch(NumberFormatException ex){s.sendMessage("§e/u goblin [1–12] [forest|mushroom]");return true;}
 int style=args.length>1&&args[1].equalsIgnoreCase("mushroom")?1:0;
-int made=0;for(int a=0;a<40&&made<count;a++){Location l=p.getLocation().clone().add(ThreadLocalRandom.current().nextInt(-6,7),0,ThreadLocalRandom.current().nextInt(-6,7));l=surface(p.getWorld(),l.getBlockX(),l.getBlockZ());if(l!=null&&valid(l,false,style)&&l.distanceSquared(p.getLocation())>=4&&spawn(l,style))made++;}
+int made=0;for(int a=0;a<40&&made<count;a++){Location l=p.getLocation().clone().add(ThreadLocalRandom.current().nextInt(-6,7),0,ThreadLocalRandom.current().nextInt(-6,7));l.setX(l.getBlockX()+.5);l.setZ(l.getBlockZ()+.5);l.setY(l.getBlockY());for(int dy:new int[]{0,1,-1,2,-2}){Location candidate=l.clone().add(0,dy,0);if(valid(candidate,false,style)&&candidate.distanceSquared(p.getLocation())>=4&&spawn(candidate,style)){made++;break;}}}
 s.sendMessage("§aГоблинов создано: "+made+" / "+count+" (вне мирной зоны и приватов).");return true;
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void convert(EntityTransformEvent e){if(isGoblin(e.getEntity()))e.setCancelled(true);}
