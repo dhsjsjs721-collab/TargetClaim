@@ -1,9 +1,9 @@
 name: UnifiedAuth
-version: 1.5.1
+version: 1.6.0
 main: dev.unified.auth.UnifiedAuth
 api-version: '26.3'
 load: POSTWORLD
-description: Early 4-digit PIN plus password authentication and optional IP trust
+description: Pre-world password then masked PIN, optional network recognition
 softdepend: [nLogin, OpeNLogin, AuthMe, AuthMeReloaded]
 commands:
   ua:

@@ -1,4 +1,4 @@
-# UnifiedAuth 1.5.1 — Paper 26.3 / Java 25
+# UnifiedAuth 1.6.0 — Paper 26.3 / Java 25
 authentication:
   enabled: true
   pin-length: 4
@@ -13,19 +13,18 @@ antibot:
   max-new-connections-per-ip-per-minute: 24
   maximum-tracked-addresses: 4000
 
-# The checkbox is opt-in per player. Offline accounts remember a network only,
-# unless the administrator has verified secure proxy forwarding.
-# An IP address is not a device ID.
+# Network recognition only. Every login requires password AND PIN.
 remember-ip:
   enabled: true
   expire-after-days: 7
-  allow-password-skip: true
-  allow-verified-proxy-offline-mode: false
 welcome:
   enabled: true
   sound: true
+  animation: true
 branding:
   name: "Land of Losers"
   edition: "Vanilla+"
   auth-subtitle: "Твой мир. Твоя история."
   tab-header-enabled: true
+  # Enable only after the auth-only bitmap font is installed and loaded.
+  auth-art-enabled: false

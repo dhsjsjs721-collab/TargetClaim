@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class UnifiedAuth extends JavaPlugin implements Listener {
-private enum Stage { LEGACY_PIN, CREATE_PIN, LOGIN_PIN }
+private enum Stage { LEGACY_PIN, CREATE_PASSWORD, CREATE_PIN, LOGIN_PASSWORD, LOGIN_PIN }
 private static final class Session {
 final UUID uuid;
 final String name;
@@ -56,8 +56,9 @@ final String ip;
 final CompletableFuture<Boolean> result=new CompletableFuture<>();
 final StringBuilder digits=new StringBuilder(12);
 final AtomicBoolean working=new AtomicBoolean();
-Stage stage;
-boolean trusted;
+volatile Stage stage;
+volatile boolean passwordVerified;
+volatile String preparedPassword;
 boolean knownNetwork;
 boolean rememberSubmitted;
 int failures;
@@ -68,6 +69,8 @@ this.uuid=uuid;this.name=name;this.connection=connection;this.ip=ip;this.stage=s
 }
 void erase(){
 digits.setLength(0);
+preparedPassword=null;
+passwordVerified=false;
 }
 }
 private static final class Window {
@@ -85,7 +88,7 @@ private AccountStore legacy;
 private DualCredentialStore accounts;
 private RememberedIpStore trust;
 private volatile boolean ready;
-private boolean rememberEnabled,rememberPasswordSkip,antiBot;
+private boolean rememberEnabled,antiBot;
 private int maxAttempts,maxPending,timeoutSeconds,ipLimit,maxTracked,legacyPinLength,rememberDays;
 private long successes,registered,migrations,denied,rateDenied,trustedLogins;
 private int cleanupTask=-1;
@@ -127,18 +130,12 @@ thread.setDaemon(true);
 return thread;
 },new ThreadPoolExecutor.AbortPolicy());
 boolean wantsRemember=getConfig().getBoolean("remember-ip.enabled",true);
-rememberPasswordSkip=RememberIpPolicy.maySkipPassword(Bukkit.getOnlineMode(),
-getConfig().getBoolean("remember-ip.allow-verified-proxy-offline-mode",false),
-getConfig().getBoolean("remember-ip.allow-password-skip",true));
 if(wantsRemember){
 try{
-// Never promote a record collected on an unverified connection into a password shortcut.
-String directory=rememberPasswordSkip?"v2-trust":"v3-network-history";
-trust=new RememberedIpStore(getDataFolder().toPath().resolve(directory),rememberDays);
+trust=new RememberedIpStore(getDataFolder().toPath().resolve("v3-network-history"),rememberDays);
 rememberEnabled=true;
-if(!rememberPasswordSkip)getLogger().info("Remember IP: recognition only; PIN and password remain mandatory.");
 }catch(IOException failure){
-getLogger().warning("Remember IP unavailable, full PIN/password still required: "+failure.getMessage());
+getLogger().warning("Remember IP unavailable; full authentication still required: "+failure.getMessage());
 }
 }
 ready=true;
@@ -148,7 +145,7 @@ long now=System.currentTimeMillis();
 ips.entrySet().removeIf(entry->now-entry.getValue().opened>120000);
 failuresByAccountIp.entrySet().removeIf(entry->now-entry.getValue().opened>900000);
 },1200,1200);
-getLogger().info("Pre-world single-step registration and login: 4-digit PIN and password on one screen; "+accounts.count()+" v2 accounts, "+legacy.count()+" legacy records. IP remember="+rememberEnabled);
+getLogger().info("Pre-world password then PIN; "+accounts.count()+" v2 accounts, "+legacy.count()+" legacy records. IP remember="+rememberEnabled);
 getLogger().warning("Vanilla Minecraft dialog text input SHOWS password characters. Use a private screen.");
 }
 @Override public void onDisable(){
@@ -209,10 +206,9 @@ connection.disconnect(branded("Сессия авторизации уже сущ
 }
 InetSocketAddress address=connection.getClientAddress();
 String ip=address==null||address.getAddress()==null?null:address.getAddress().getHostAddress();
-// Remembered IP never bypasses the 4-digit PIN. It skips only the password.
+// Remembered IP is cosmetic network recognition only; both credentials are mandatory.
 boolean knownNetwork=accounts.exists(name) && rememberEnabled && ip!=null &&
 trust.isTrusted(name,uuid,ip,System.currentTimeMillis());
-boolean trustedConnection=knownNetwork && rememberPasswordSkip;
 if(isLocked(name,ip)){
 denied++;
 connection.disconnect(branded("Слишком много попыток входа. Попробуйте позже.",DANGER));
@@ -222,9 +218,8 @@ if(sessions.size()>=maxPending){
 denied++;
 connection.disconnect(branded("Очередь входа заполнена",DANGER));return;
 }
-Stage initial=accounts.exists(name)?Stage.LOGIN_PIN:legacy.exists(name)?Stage.LEGACY_PIN:Stage.CREATE_PIN;
+Stage initial=accounts.exists(name)?Stage.LOGIN_PASSWORD:legacy.exists(name)?Stage.LEGACY_PIN:Stage.CREATE_PASSWORD;
 Session s=new Session(uuid,name,connection,ip,initial);
-s.trusted=trustedConnection;
 s.knownNetwork=knownNetwork;
 s.remember=knownNetwork;
 if(sessions.putIfAbsent(uuid,s)!=null){
@@ -281,50 +276,48 @@ private ActionButton button(String caption,String id,TextColor color,int width,S
 return ActionButton.create(accent(caption,color),Component.text(hint,MUTED),width,
 DialogAction.customClick(Key.key("unifiedauth:"+id),null));
 }
+private static boolean passwordStage(Stage stage){
+return stage==Stage.CREATE_PASSWORD || stage==Stage.LOGIN_PASSWORD;
+}
 private void render(Session s,String notice){
 if(s.result.isDone() || !s.connection.isConnected())return;
-String label=switch(s.stage){
-case LEGACY_PIN -> "Обновление аккаунта";
-case CREATE_PIN -> "Создание аккаунта";
-case LOGIN_PIN -> s.trusted?"Быстрый вход":"Вход в аккаунт";
-};
-DialogBase.Builder base=DialogBase.builder(brand()
-.append(Component.text("  •  ",MUTED)).append(Component.text(label,ICE)))
-.canCloseWithEscape(false);
+Stage stage=s.stage;
+boolean password=passwordStage(stage);
+boolean create=stage==Stage.CREATE_PASSWORD || stage==Stage.CREATE_PIN;
+String label=stage==Stage.LEGACY_PIN?"Обновление аккаунта":create?"Регистрация":"Авторизация";
+DialogBase.Builder base=DialogBase.builder(brand().append(Component.text(" · "+label,MUTED))).canCloseWithEscape(false);
 List<DialogInput> inputs=new ArrayList<>();
 List<ActionButton> buttons=new ArrayList<>();
 List<DialogBody> body=new ArrayList<>();
-body.add(DialogBody.plainMessage(brand().append(Component.text("  ·  ",MUTED)).append(accent(getConfig().getString("branding.edition","Vanilla+"),GOLD))));
-body.add(DialogBody.plainMessage(accent("ЗАЩИЩЁННЫЙ ВХОД",ROSE)));
-body.add(DialogBody.plainMessage(Component.text(getConfig().getString("branding.auth-subtitle","Твой мир. Твоя история."),MUTED)));
+if(getConfig().getBoolean("branding.auth-art-enabled",false)){
+Component art=Component.text("\uE100",NamedTextColor.WHITE).font(Key.key("landoflosers:auth_art"));
+body.add(DialogBody.plainMessage(art.append(Component.text("\n \n \n \n \n \n \n ")),280));
+}
+body.add(DialogBody.plainMessage(brand().append(Component.text(" · ",MUTED)).append(accent(getConfig().getString("branding.edition","Vanilla+"),GOLD))));
+body.add(DialogBody.plainMessage(accent(stage==Stage.LEGACY_PIN?"ОБНОВЛЕНИЕ • СТАРЫЙ PIN":password?"01 / 02  •  ПАРОЛЬ":"02 / 02  •  PIN-КОД",ROSE)));
+body.add(DialogBody.plainMessage(Component.text(password?"● ━━━━━ ○":stage==Stage.LEGACY_PIN?"Подтвердите прежний аккаунт":"✓ ━━━━━ ●",password?ICE:MINT)));
 if(notice!=null)body.add(DialogBody.plainMessage(Component.text(notice,DANGER)));
-if(s.stage==Stage.LEGACY_PIN){
-body.add(DialogBody.plainMessage(Component.text("Введите старый PIN, чтобы обновить аккаунт.",NamedTextColor.WHITE)));
-body.add(DialogBody.plainMessage(accent("●".repeat(s.digits.length())+"○".repeat(Math.max(0,legacyPinLength-s.digits.length())),GOLD)));
-for(int i=1;i<=9;i++)buttons.add(button(Integer.toString(i),"digit"+i));
-buttons.add(button("⌫","back"));
-buttons.add(button("0","digit0"));
-}else{
-body.add(DialogBody.plainMessage(Component.text(s.stage==Stage.CREATE_PIN?"Создайте PIN и надёжный пароль.":s.trusted?"Сеть распознана. Подтвердите вход своим PIN.":"Подтвердите свою личность.",NamedTextColor.WHITE)));
-if(s.knownNetwork && !s.trusted)body.add(DialogBody.plainMessage(Component.text("✓ Сеть распознана. PIN и пароль обязательны.",MINT)));
-inputs.add(DialogInput.text("pin",accent("PIN  •  4 цифры",ICE))
-.width(280).initial("").maxLength(4).build());
-if(!s.trusted || s.stage!=Stage.LOGIN_PIN){
-inputs.add(DialogInput.text("password",accent("Пароль  •  10–64 символа",ICE))
-.width(280).initial("").maxLength(64).build());
+if(password){
+body.add(DialogBody.plainMessage(Component.text(create?"Создайте надёжный пароль.":"Введите пароль от вашего аккаунта.",NamedTextColor.WHITE)));
+if(s.knownNetwork)body.add(DialogBody.plainMessage(Component.text("✓ Знакомая сеть. Пароль и PIN обязательны.",MINT)));
+inputs.add(DialogInput.text("password",accent("Пароль  •  10–64 символа",ICE)).width(280).initial("").maxLength(64).build());
 if(rememberEnabled && s.ip!=null){
 inputs.add(DialogInput.bool("remember",Component.text("Запомнить текущий IP на "+rememberDays+" дн.",GOLD),s.remember,"yes","no"));
-body.add(DialogBody.plainMessage(Component.text(rememberPasswordSkip?"Только личная сеть: при следующем входе потребуется PIN.":"IP используется для распознавания сети, не вместо пароля.",MUTED)));
 }
-}
-body.add(DialogBody.plainMessage(Component.text("Не показывайте экран: символы PIN и пароля не скрываются Minecraft.",MUTED)));
+body.add(DialogBody.plainMessage(Component.text("Не показывайте экран: Minecraft не скрывает пароль.",MUTED)));
+buttons.add(button("Далее  →","submit-password",MINT,150,"Перейти к PIN-коду"));
+}else{
+int length=stage==Stage.LEGACY_PIN?legacyPinLength:4;
+body.add(DialogBody.plainMessage(Component.text(stage==Stage.LEGACY_PIN?"Введите прежний PIN.":create?"Придумайте PIN из четырёх цифр.":"Пароль подтверждён. Введите PIN.",NamedTextColor.WHITE)));
+body.add(DialogBody.plainMessage(accent("● ".repeat(s.digits.length())+"○ ".repeat(Math.max(0,length-s.digits.length())),GOLD)));
+for(int i=1;i<=9;i++)buttons.add(button(Integer.toString(i),"digit"+i,ICE,48,"Цифра "+i));
+buttons.add(button("⌫","back",ROSE,48,"Удалить цифру"));
+buttons.add(button("0","digit0",ICE,48,"Цифра 0"));
+buttons.add(button("✓","submit-pin",MINT,48,"Подтвердить PIN"));
 }
 base.body(body);
 if(!inputs.isEmpty())base.inputs(inputs);
-buttons.add(button(s.stage==Stage.CREATE_PIN?"Создать аккаунт":"Продолжить","submit",MINT,150,"Подтвердить данные и войти"));
-if(s.stage==Stage.LOGIN_PIN && s.trusted)buttons.add(button("Войти с паролем","full",GOLD,150,"Обычный вход и управление запоминанием IP"));
-Dialog dialog=Dialog.create(builder->builder.empty()
-.base(base.build()).type(DialogType.multiAction(buttons).build()));
+Dialog dialog=Dialog.create(builder->builder.empty().base(base.build()).type(DialogType.multiAction(buttons).columns(password?1:3).build()));
 s.connection.getAudience().showDialog(dialog);
 }
 private void renderLater(Session s,String notice){
@@ -334,75 +327,67 @@ if(sessions.get(s.uuid)==s && !s.result.isDone())render(s,notice);
 }
 @EventHandler
 public void click(PlayerCustomClickEvent event){
-if(!event.getIdentifier().asString().equals("unifiedauth:submit") &&
-!event.getIdentifier().asString().startsWith("unifiedauth:digit") &&
-!event.getIdentifier().asString().equals("unifiedauth:back") &&
-!event.getIdentifier().asString().equals("unifiedauth:full"))return;
+String id=event.getIdentifier().asString();
+if(!id.startsWith("unifiedauth:"))return;
 if(!(event.getCommonConnection() instanceof PlayerConfigurationConnection connection))return;
 UUID uuid=connection.getProfile().getId();
 if(uuid==null)return;
 Session s=sessions.get(uuid);
-if(s==null||s.result.isDone()||s.working.get())return;
-String action=event.getIdentifier().asString().substring("unifiedauth:".length());
+if(s==null || s.connection!=connection)return;
+String action=id.substring("unifiedauth:".length());
 synchronized(s){
+if(s.result.isDone() || s.working.get())return;
 long now=System.currentTimeMillis();
 if(now-s.lastAction<60)return;
 s.lastAction=now;
-if(s.stage==Stage.LEGACY_PIN){
+Stage stage=s.stage;
+if(passwordStage(stage)){
+if(!action.equals("submit-password"))return;
+DialogResponseView response=event.getDialogResponseView();
+String password=response==null?null:response.getText("password");
+if(!passwordValid(password)){
+renderLater(s,"Пароль должен содержать от 10 до 64 символов.");return;
+}
+Boolean remember=response.getBoolean("remember");
+s.rememberSubmitted=remember!=null && rememberEnabled && s.ip!=null;
+if(s.rememberSubmitted)s.remember=remember;
+if(stage==Stage.CREATE_PASSWORD){
+runCrypto(s,stage,()->{
+String prepared=accounts.preparePassword(password);
+synchronized(s){
+if(s.result.isDone())return false;
+s.preparedPassword=prepared;
+}
+return true;
+},false);
+}else runCrypto(s,stage,()->accounts.verifyPassword(s.name,password),false);
+return;
+}
+int length=stage==Stage.LEGACY_PIN?legacyPinLength:4;
 if(action.startsWith("digit")&&action.length()==6){
 char digit=action.charAt(5);
-if(digit>='0'&&digit<='9'&&s.digits.length()<legacyPinLength)s.digits.append(digit);
+if(digit>='0'&&digit<='9'&&s.digits.length()<length)s.digits.append(digit);
 renderLater(s,null);return;
 }
 if(action.equals("back")){
 if(!s.digits.isEmpty())s.digits.setLength(s.digits.length()-1);
 renderLater(s,null);return;
 }
-if(!action.equals("submit"))return;
-if(s.digits.length()!=legacyPinLength){renderLater(s,"Введите старый PIN");return;}
+if(!action.equals("submit-pin"))return;
+if(s.digits.length()!=length){renderLater(s,"Введите все цифры PIN.");return;}
 String pin=s.digits.toString();
 s.digits.setLength(0);
-runCrypto(s,Stage.LEGACY_PIN,()->legacy.authenticate(s.name,pin),false);
-return;
+if(stage==Stage.LEGACY_PIN){
+runCrypto(s,stage,()->legacy.authenticate(s.name,pin),false);return;
 }
-if(action.equals("full") && s.stage==Stage.LOGIN_PIN && s.trusted){
-s.trusted=false;
-renderLater(s,null);
-return;
-}
-if(!action.equals("submit"))return;
-DialogResponseView response=event.getDialogResponseView();
-String pin=response==null?null:response.getText("pin");
-String password=response==null?null:response.getText("password");
-Boolean remember=response==null?null:response.getBoolean("remember");
-s.rememberSubmitted=remember!=null && rememberEnabled && s.ip!=null && !s.trusted;
-if(s.rememberSubmitted)s.remember=remember;
-if(pin==null || !pin.matches("[0-9]{4}")){
-renderLater(s,"PIN должен содержать ровно 4 цифры.");return;
-}
-Stage stage=s.stage;
+if(!s.passwordVerified){s.result.complete(false);return;}
 if(stage==Stage.CREATE_PIN){
-if(!passwordValid(password)){
-renderLater(s,"Пароль должен содержать от 10 до 64 символов. PIN ровно 4 цифры.");
-return;
-}
-final String savePin=pin,savePassword=password;
+String prepared=s.preparedPassword;
+if(prepared==null){s.result.complete(false);return;}
 boolean migration=legacy.exists(s.name);
-// One form is enough. Commit to disk and recheck BOTH credentials before
-// releasing the connection into the game; no confirmation dialog loop.
-runCrypto(s,Stage.CREATE_PIN,()->
-accounts.register(s.name,savePin,savePassword)
-&& accounts.verifyPin(s.name,savePin)
-&& accounts.verifyPassword(s.name,savePassword),migration);
-return;
-}
-if(stage==Stage.LOGIN_PIN){
-if(!s.trusted&&!passwordValid(password)){
-renderLater(s,"Введите пароль от 10 до 64 символов.");return;
-}
-final String checkPin=pin,checkPassword=password;
-runCrypto(s,Stage.LOGIN_PIN,()->accounts.verifyPin(s.name,checkPin) &&
-(s.trusted?(rememberPasswordSkip && trust.isTrusted(s.name,s.uuid,s.ip,System.currentTimeMillis())):accounts.verifyPassword(s.name,checkPassword)),false);
+runCrypto(s,stage,()->!s.result.isDone() && accounts.registerPrepared(s.name,pin,prepared) && accounts.verifyPin(s.name,pin),migration);
+}else if(stage==Stage.LOGIN_PIN){
+runCrypto(s,stage,()->accounts.verifyPin(s.name,pin),false);
 }
 }
 }
@@ -416,7 +401,7 @@ boolean ok=false;
 try{ok=check.run();}
 catch(Exception error){getLogger().warning("Credential check/save failed for "+s.name+" ("+error.getClass().getSimpleName()+"). Access denied.");}
 boolean passed=ok;
-if(passed && !s.result.isDone() && (submitted==Stage.CREATE_PIN || (submitted==Stage.LOGIN_PIN && !s.trusted)) &&
+if(passed && !s.result.isDone() && (submitted==Stage.CREATE_PIN || submitted==Stage.LOGIN_PIN) && s.passwordVerified &&
 s.rememberSubmitted && rememberEnabled && s.ip!=null){
 try{
 if(s.remember)trust.trust(s.name,s.uuid,s.ip,System.currentTimeMillis());
@@ -425,14 +410,16 @@ else if(trust.isTrusted(s.name,s.uuid,s.ip,System.currentTimeMillis()))trust.for
 }
 try{
 Bukkit.getScheduler().runTask(this,()->{
-s.working.set(false);
-if(sessions.get(s.uuid)!=s || s.result.isDone())return;
+synchronized(s){
+try{
+if(sessions.get(s.uuid)!=s || s.result.isDone() || s.stage!=submitted)return;
 if(!passed){
 if(submitted==Stage.CREATE_PIN){
 // Do not keep showing registration when saving fails: diagnose it and
 // fail closed, never accidentally allow an unauthenticated player in.
 if(accounts.exists(s.name)){
-s.stage=Stage.LOGIN_PIN;
+s.erase();
+s.stage=Stage.LOGIN_PASSWORD;
 render(s,"Учётная запись уже существует. Теперь войдите.");
 }else{
 getLogger().severe("Account registration could not be persisted for "+s.name+". Check plugins/UnifiedAuth folder permissions.");
@@ -440,15 +427,25 @@ s.result.complete(false);
 }
 return;
 }
-failure(s,"Неверный PIN или пароль.");return;
+failure(s,passwordStage(submitted)?"Неверный пароль.":"Неверный PIN.");return;
 }
-failuresByAccountIp.remove(lockKey(s.name,s.ip));
 switch(submitted){
 case LEGACY_PIN -> {
+s.stage=Stage.CREATE_PASSWORD;
+render(s,null);
+}
+case CREATE_PASSWORD -> {
+s.passwordVerified=true;
 s.stage=Stage.CREATE_PIN;
-render(s,"Старый PIN верен. Создайте новый PIN и пароль.");
+render(s,null);
+}
+case LOGIN_PASSWORD -> {
+s.passwordVerified=true;
+s.stage=Stage.LOGIN_PIN;
+render(s,null);
 }
 case CREATE_PIN -> {
+failuresByAccountIp.remove(lockKey(s.name,s.ip));
 registered++;
 if(migrated)migrations++;
 passwordAuthenticated.add(s.uuid);
@@ -457,14 +454,16 @@ s.erase();
 s.result.complete(true);
 }
 case LOGIN_PIN -> {
+failuresByAccountIp.remove(lockKey(s.name,s.ip));
 successes++;
-if(s.trusted)trustedLogins++;
-else passwordAuthenticated.add(s.uuid);
+passwordAuthenticated.add(s.uuid);
 verifiedJoins.put(s.uuid,false);
 s.erase();
 s.result.complete(true);
 }
 default -> {}
+}
+}finally{s.working.set(false);}
 }
 });
 }catch(IllegalStateException shutdown){s.result.complete(false);}
@@ -475,7 +474,7 @@ private void failure(Session s,String message){
 s.failures++;
 recordFailure(s.name,s.ip);
 s.digits.setLength(0);
-if(s.failures>=maxAttempts){s.result.complete(false);return;}
+if(isLocked(s.name,s.ip) || s.failures>=maxAttempts){s.result.complete(false);return;}
 renderLater(s,message+" Осталось попыток: "+(maxAttempts-s.failures)+".");
 }
 private String lockKey(String name,String ip){return name+"|"+(ip==null?"unknown":ip);}
@@ -510,21 +509,32 @@ Bukkit.getScheduler().runTaskLater(this,()->{
 if(!player.isOnline() || Bukkit.getPlayer(player.getUniqueId())!=player)return;
 String edition=getConfig().getString("branding.edition","Vanilla+");
 String greeting=first?"Аккаунт создан":"С возвращением";
-player.showTitle(Title.title(brand(),
-Component.text(greeting+", ",MUTED).append(accent(player.getName(),MINT)),
-Title.Times.times(Duration.ofMillis(450),Duration.ofSeconds(3),Duration.ofMillis(850))));
+if(getConfig().getBoolean("welcome.animation",true)){
+player.showTitle(Title.title(accent("✧  Врата открыты  ✧",GOLD),Component.text("Личность подтверждена",MINT),
+Title.Times.times(Duration.ofMillis(250),Duration.ofMillis(650),Duration.ofMillis(250))));
+if(getConfig().getBoolean("welcome.sound",true))
+player.playSound(Sound.sound(Key.key("minecraft:block.amethyst_block.chime"),Sound.Source.MASTER,0.65f,0.85f));
+Bukkit.getScheduler().runTaskLater(this,()->{
+if(!player.isOnline() || Bukkit.getPlayer(player.getUniqueId())!=player)return;
+player.showTitle(Title.title(brand(),Component.text(greeting+", ",ROSE).append(accent(player.getName(),GOLD)),
+Title.Times.times(Duration.ofMillis(500),Duration.ofSeconds(3),Duration.ofMillis(900))));
+if(getConfig().getBoolean("welcome.sound",true))
+player.playSound(Sound.sound(Key.key("minecraft:block.amethyst_block.chime"),Sound.Source.MASTER,0.55f,1.35f));
+},24L);
+}else player.showTitle(Title.title(brand(),Component.text(greeting+", ",ROSE).append(accent(player.getName(),GOLD)),
+Title.Times.times(Duration.ofMillis(500),Duration.ofSeconds(3),Duration.ofMillis(900))));
 player.sendActionBar(branded("✓ Авторизация успешна",MINT));
 player.sendMessage(Component.text("━━━━━━━━━━━━━━━━━━━━━━━━━━━━",MUTED));
 player.sendMessage(Component.text("  ").append(brand()).append(Component.text("  ·  "+edition,GOLD)));
 player.sendMessage(Component.text("  "+greeting+", ",MUTED).append(accent(player.getName(),ROSE)));
-player.sendMessage(Component.text("  Ваш аккаунт защищён. Приятной игры!",MINT));
+player.sendMessage(Component.text("  Твой мир. Твоя история. Твои правила.",MUTED));
+player.sendMessage(Component.text("  ✦  Новая глава начинается здесь.",GOLD));
 player.sendMessage(Component.text("━━━━━━━━━━━━━━━━━━━━━━━━━━━━",MUTED));
 if(getConfig().getBoolean("branding.tab-header-enabled",true)){
 player.sendPlayerListHeaderAndFooter(brand().append(Component.text(" · "+edition,GOLD)),
 Component.text("Твой мир. Твоя история.",MUTED));
 }
-if(getConfig().getBoolean("welcome.sound",true))
-player.playSound(Sound.sound(Key.key("minecraft:entity.player.levelup"),Sound.Source.MASTER,0.45f,1.25f));
+
 },10L);
 }
 
@@ -541,7 +551,7 @@ if(ip==null){player.sendMessage("Cannot obtain IP; PIN/password required.");retu
 String action=args.length>1?args[1].toLowerCase(Locale.ROOT):"status";
 if(action.equals("status")){
 long until=trust.trustedUntil(name,uuid,ip,System.currentTimeMillis());
-player.sendMessage(until==0?"Этот IP не запомнен.":"Сеть запомнена ещё на "+Math.max(0,(until-System.currentTimeMillis()+86399999)/86400000)+" дн. "+(rememberPasswordSkip?"Доступен вход по PIN.":"PIN и пароль обязательны."));
+player.sendMessage(until==0?"Этот IP не запомнен.":"Сеть запомнена ещё на "+Math.max(0,(until-System.currentTimeMillis()+86399999)/86400000)+" дн. "+"Пароль и PIN обязательны.");
 }else if(action.equals("on") || action.equals("off") || action.equals("forget")){
 try{
 executor.execute(()->{
@@ -554,7 +564,7 @@ return;
 trust.trust(name,uuid,ip,System.currentTimeMillis());
 }
 else trust.forget(name,uuid);
-Bukkit.getScheduler().runTask(this,()->player.sendMessage(action.equals("on")?(rememberPasswordSkip?"IP запомнен. Общая сеть не является уникальным устройством.":"IP запомнен. PIN и пароль обязательны."):"Запоминание IP отключено."));
+Bukkit.getScheduler().runTask(this,()->player.sendMessage(action.equals("on")?"IP запомнен. Пароль и PIN обязательны.":"Запоминание IP отключено."));
 }catch(IOException failure){
 getLogger().warning("Trust database update failed: "+failure.getMessage());
 Bukkit.getScheduler().runTask(this,()->player.sendMessage("Could not save this preference."));
@@ -565,7 +575,7 @@ Bukkit.getScheduler().runTask(this,()->player.sendMessage("Could not save this p
 return true;
 }
 if(sender.hasPermission("unifiedauth.admin")){
-sender.sendMessage("UnifiedAuth 1.5.1: v2Accounts="+(accounts==null?0:accounts.count())+" legacy="+(legacy==null?0:legacy.count())+" pending="+sessions.size()+" successes="+successes+" created="+registered+" migrated="+migrations+" trustedLogins="+trustedLogins+" rateDenied="+rateDenied+" rememberEnabled="+rememberEnabled+" passwordSkip="+rememberPasswordSkip);
+sender.sendMessage("UnifiedAuth 1.6.0: v2Accounts="+(accounts==null?0:accounts.count())+" legacy="+(legacy==null?0:legacy.count())+" pending="+sessions.size()+" successes="+successes+" created="+registered+" migrated="+migrations+" trustedLogins="+trustedLogins+" rateDenied="+rateDenied+" rememberEnabled="+rememberEnabled+" passwordSkip=false");
 }else sender.sendMessage("Usage: /ua remember [on|off|status]");
 return true;
 }

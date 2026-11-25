@@ -49,9 +49,19 @@ return fields!=null && verify(password,fields[3],fields[4],fields[5]);
 
 synchronized boolean register(String name,String pin,String password) throws Exception {
 if(records.containsKey(name))return false;
-if(pin==null || !pin.matches("[0-9]{4}"))throw new IllegalArgumentException("PIN must have 4 digits");
+return registerPrepared(name,pin,preparePassword(password));
+}
+
+String preparePassword(String password) throws Exception {
 if(password==null || password.length()<10 || password.length()>64)throw new IllegalArgumentException("Password must be 10-64 characters");
-String value=hash(pin)+":"+hash(password);
+return hash(password);
+}
+
+synchronized boolean registerPrepared(String name,String pin,String prepared) throws Exception {
+if(records.containsKey(name))return false;
+if(pin==null || !pin.matches("[0-9]{4}"))throw new IllegalArgumentException("PIN must have 4 digits");
+if(prepared==null || prepared.split(":",-1).length!=3)throw new IllegalArgumentException("Invalid prepared password");
+String value=hash(pin)+":"+prepared;
 records.setProperty(name,value);
 try{persist();}
 catch(IOException io){records.remove(name);throw io;}
