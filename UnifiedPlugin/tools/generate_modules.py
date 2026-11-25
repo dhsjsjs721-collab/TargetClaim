@@ -17,12 +17,10 @@ resources=base/"generated-resources"/"module-defaults"
 
 MODULES=[
 ("origin/main","src/main/java/dev/targetclaim/TargetClaimPlugin.java","targetclaim","TargetClaim"),
-("origin/talismanforge-v2","TalismanForge/src/main/java/dev/talismanforge/TalismanForgePlugin.java","talismanforge","TalismanForge"),
 ("origin/feature/enchantmentforge-soulbound-triple-shot","EnchantmentForge/src/main/java/dev/enchantmentforge/EnchantmentForgePlugin.java","enchantmentforge","EnchantmentForge"),
 ("origin/feature/swampsky-creatures","SwampSky/src/main/java/dev/swampsky/SwampSkyPlugin.java","swampsky","SwampSky"),
 ("origin/main","ImageMaps/src/main/java/dev/imagemaps/ImageMapsPlugin.java","imagemaps","ImageMaps"),
 ("origin/talismanforge-v2","TalismanForge/src/main/java/dev/talismanforge/GrapplingHookListener.java","talismanforge","GrapplingHookListener"),
-("origin/talismanforge-v2","TalismanForge/src/main/java/dev/talismanforge/FiveTalismanService.java","talismanforge","FiveTalismanService"),
 ("origin/feature/enchantmentforge-soulbound-triple-shot","EnchantmentForge/src/main/java/dev/enchantmentforge/WanderingTraderFeature.java","enchantmentforge","WanderingTraderFeature"),
 ]
 
@@ -39,10 +37,6 @@ def swap(code,old,new,label,required=True):
 
 def convert(code,namespace,name,path):
     plugin_class=name+"Plugin"
-    if name=="FiveTalismanService":
-        # Already a plain Bukkit listener: only the original plugin context
-        # is passed through TalismanForgePlugin(host()).
-        return code
     if name in ("GrapplingHookListener","WanderingTraderFeature"):
         if name=="GrapplingHookListener":
             code=code.replace("import org.bukkit.plugin.java.JavaPlugin;","import org.bukkit.plugin.Plugin;")
@@ -67,8 +61,6 @@ def convert(code,namespace,name,path):
     code=code.replace("registerEvents(hookListener,this)","registerEvents(hookListener,host())")
     code=re.sub(r"runTask(Later|Timer|Asynchronously)?\(this,",r"runTask\1(host(),",code)
     code=code.replace("new GrapplingHookListener(this)","new GrapplingHookListener(host())")
-    code=code.replace("new FiveTalismanService(this)","new FiveTalismanService(host())")
-    code=code.replace("registerEvents(five,this)","registerEvents(five,host())")
     if name=="ImageMaps":
         # If storage initialization fails, throw into the unified module
         # loader instead of disabling the entire host plugin.
@@ -76,11 +68,17 @@ def convert(code,namespace,name,path):
             'getLogger().severe("ImageMaps storage unavailable");throw new IllegalStateException("ImageMaps storage initialization failed",ex);')
     code=code.replace("getPluginManager().disablePlugin(this)","getPluginManager().disablePlugin(host())")
 
+    if name=="TargetClaim":
+        code=re.sub(r'org\.bukkit\.plugin\.Plugin tf=Bukkit\.getPluginManager\(\)\.getPlugin\("TalismanForge"\);\nif\(tf!=null.*?catch\(ReflectiveOperationException ignored\)\{\}', 'Location egg=((dev.unified.UnifiedPlugin)host()).getKoscheiEggLocation();\\nif(egg!=null&&egg.getWorld()!=null&&egg.getWorld().getUID().equals(c.world)&&egg.getBlockX()>=left&&egg.getBlockX()<=right&&egg.getBlockY()>=bottom&&egg.getBlockY()<=top&&egg.getBlockZ()>=front&&egg.getBlockZ()<=back)return true;', code, count=1)
+        if 'getKoscheiEggLocation();' not in code:raise ValueError("Missing hosted egg/claim integration")
+
     # TalismanForge's previous shield and item state keys already use the
     # original namespace, via the explicit Keys above. No data migration.
     return code
 
 def main():
+    import shutil
+    if src.exists():shutil.rmtree(src)
     src.mkdir(parents=True,exist_ok=True)
     resources.mkdir(parents=True,exist_ok=True)
     for ref,path,ns,name in MODULES:
@@ -93,7 +91,7 @@ def main():
         target.write_text(patched,encoding="utf8")
         print(f"{name}: {len(source)} -> {len(patched)} bytes ({ref})")
     for ref,config,name in [
-        ("origin/talismanforge-v2","TalismanForge/src/main/resources/config.yml","TalismanForge"),
+        ("origin/main","TalismanForge/src/main/resources/config.yml","TalismanForge"),
         ("origin/feature/swampsky-creatures","SwampSky/src/main/resources/config.yml","SwampSky"),
         ("origin/feature/enchantmentforge-soulbound-triple-shot","EnchantmentForge/src/main/resources/config.yml","EnchantmentForge")
     ]:

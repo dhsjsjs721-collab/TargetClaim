@@ -1,3 +1,9 @@
+# MinecraftUnified 1.1.8 — five mythic relics
+
+One JAR with Thor, Anubis, Koschei, Kitsune, Medusa. Replaces all older talisman mechanics and removes retired custom tagged items on access. Keeps TargetClaim, EnchantmentForge, SwampSky, ImageMaps, grappling hook, custom shields, traps, the existing three-minute reliquary and other recipes. Hosted claim APIs enforce Koschei placement and team damage rules. The unified resource pack is packaged from main. Use allow-flight=true. Stop server and back up existing plugin data, then replace the old MinecraftUnified JAR; do not install standalone TargetClaim/TalismanForge alongside it.
+
+Commands: /u tf give <player> thor|anubis|koschei|kitsune|medusa|all|reliquary|hook; /u tf awaken; /u tf restore; /u tf status. World-unique relics cannot be reissued with give. Paper 26.3 / Java 25. Runtime test required.
+
 ## Final integration adjustments
 Cerberus chains critical hits A-B-A-B for two enemies and A-B-C-A for three; Hydra lost heads regenerate in a consecutive two-minute queue and reject negative potion effects at application; a Cerberus ghost cannot pass through solid blocks or descend below rescue Y; Phoenix displays armor-adjacent heat particles proportional to stored damage. Active JAR build includes these updates and grounded-only pigs.
 

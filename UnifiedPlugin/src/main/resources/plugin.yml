@@ -1,5 +1,5 @@
 name: MinecraftUnified
-version: 1.1.7
+version: 1.1.8
 main: dev.unified.UnifiedPlugin
 api-version: '26.3'
 author: MinecraftUnified
@@ -21,6 +21,7 @@ commands:
   talismanforge:
     description: Talismans and reliquaries
     usage: /u talisman give <player> <type>
+    aliases: [tf, talismans]
   enchantmentforge:
     description: Custom enchantments and trader
     usage: /u enchant [trader|give|apply|help]

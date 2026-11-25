@@ -30,9 +30,26 @@ jobs:
         run: python3 UnifiedPlugin/tools/generate_modules.py
       - name: Compile one fully-integrated plugin JAR
         run: gradle -p UnifiedPlugin build --no-daemon
+      - name: Package one JAR with current unified resource pack
+        run: |
+          mkdir -p dist/plugins dist/resourcepacks
+          cp UnifiedPlugin/build/libs/MinecraftUnified-1.1.8.jar dist/plugins/
+          git show origin/main:resourcepacks/TalismanForge-2.0.0-ResourcePack.zip > dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.zip
+          git show origin/main:resourcepacks/TalismanForge-2.0.0-ResourcePack.sha1 > dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.sha1
+          python -m zipfile -t dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.zip
+          test "$(sha1sum dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.zip | cut -d ' ' -f 1)" = "$(cat dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.sha1)"
+          python -c "import zipfile; z=zipfile.ZipFile('UnifiedPlugin/build/libs/MinecraftUnified-1.1.8.jar'); assert 'dev/talismanforge/MythicTalismans.class' in z.namelist(); assert not any('FiveTalismanService' in n for n in z.namelist())"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MinecraftUnified-1.1.8-Full
+          path: dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MinecraftUnified-1.1.8-JAR
+          path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.8.jar
       - name: Start real Purpur 26.3 and verify all modules
         run: python3 UnifiedPlugin/tools/smoke_purpur.py
       - uses: actions/upload-artifact@v4
         with:
           name: MinecraftUnified-One-JAR
-          path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.7.jar
+          path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.8.jar
