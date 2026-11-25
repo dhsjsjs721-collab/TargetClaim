@@ -174,7 +174,7 @@ timing.reset();
 check(timing.horizon()==6);
 check(CombatEngine.adaptivePlan(half,0,false,true,false,false,true,false,20,0,10)==CombatEngine.Action.JUMP);
 check(CombatEngine.adaptivePlan(half,0,false,true,false,false,true,false,20,0,3)==CombatEngine.Action.WAIT_COOLDOWN);
-var shortPath=CombatAI.choosePath(0,5,0,0,0,0,0,0,2.3,3,.1,null,(x,z)->Math.abs(x)<.15 && z>=0 && z<.15);
+var shortPath=CombatAI.choosePath(0,5,0,0,0,0,0,0,2.3,3,.1,null,(x,z)->Math.abs(x)<.015 && z>.10 && z<.15);
 check(shortPath.movement().forward() && Double.isFinite(shortPath.cost()));
 var rng=new java.util.Random(2026);
 for(int i=0;i<500;i++) {
