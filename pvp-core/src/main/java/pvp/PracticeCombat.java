@@ -15,6 +15,10 @@ private static boolean hitThisFall;
 private static long trackingTick;
 private static int attackDelay;
 private static LocalPlayer lastPlayer;
+private static Object lastLevel;
+private static LivingEntity jumpTarget;
+private static Object jumpItem;
+private static int jumpAge;
 private static LivingEntity aimTarget;
 private static float lastHealth;
 private static int responseWindow;
@@ -36,6 +40,8 @@ static void tick(Minecraft mc, CombatSettings settings) {
 if(mc.player==null || mc.level==null || mc.gameMode==null || (!mc.hasSingleplayerServer() && !networkTest)) {
 status="Not in enabled world";
 lastPlayer=null;
+lastLevel=null;
+clearJump();
 aimTarget=null;
 angularError=Double.NaN;
 decision=CombatEngine.Decision.WAIT;
@@ -49,19 +55,20 @@ trackingTick=0;
 return;
 }
 var self=mc.player;
-if(lastPlayer!=self) { lastPlayer=self; aimTarget=null; lastHealth=self.getHealth(); responseWindow=0; readyTicks=0; jumpDelay=0; attackDelay=0; descendingTicks=0; hitThisFall=false; trackingTick=0; }
+if(lastPlayer!=self || lastLevel!=mc.level) { lastPlayer=self; lastLevel=mc.level; clearJump(); aimTarget=null; lastHealth=self.getHealth(); responseWindow=0; readyTicks=0; jumpDelay=0; attackDelay=0; descendingTicks=0; hitThisFall=false; trackingTick=0; }
 if(self.getHealth()<lastHealth) responseWindow=12;
 else if(responseWindow>0) responseWindow--;
 lastHealth=self.getHealth();
 if(jumpDelay>0) jumpDelay--;
 if(attackDelay>0) attackDelay--;
 trackingTick++;
-if(mc.gui.screen()!=null || mc.isPaused()) { aimTarget=null; return; }
+if(mc.gui.screen()!=null || mc.isPaused()) { aimTarget=null; clearJump(); descendingTicks=0; return; }
 angularError=Double.NaN;
 decision=CombatEngine.Decision.WAIT;
-if(!self.isAlive() || self.isSpectator() || self.isCreative() || self.isUsingItem() || self.isHandsBusy()) { aimTarget=null; status="Player busy"; return; }
+if(!self.isAlive() || self.isSpectator() || self.isCreative() || self.isUsingItem() || self.isHandsBusy()) { aimTarget=null; clearJump(); descendingTicks=0; status="Player busy"; return; }
 boolean falling=!self.onGround() && self.getDeltaMovement().y<0 && self.fallDistance>0;
-if(self.onGround()) hitThisFall=false;
+if(self.onGround()) { hitThisFall=false; if(jumpAge>2) clearJump(); }
+if(!settings.triggerEnabled() || (jumpTarget!=null && (++jumpAge>24 || !valid(self,jumpTarget) || jumpItem!=self.getMainHandItem().getItem()))) clearJump();
 descendingTicks=falling?Math.min(descendingTicks+1,20):0;
 status=settings.triggerEnabled()?"No valid target":"AutoCritical off";
 if(settings.triggerEnabled() && mc.hitResult instanceof EntityHitResult hit && hit.getEntity() instanceof LivingEntity target && valid(self,target)) {
@@ -73,8 +80,12 @@ if(!restricted && self.onGround() && attackDelay==0 && jumpDelay==0 && self.getA
 self.setSprinting(false);
 self.jumpFromGround();
 jumpDelay=5;
+jumpTarget=target;
+jumpItem=self.getMainHandItem().getItem();
+jumpAge=0;
 status="Auto jump";
 }
+else if(jumpTarget!=null && jumpTarget!=target) { status="Waiting for jump target"; }
 else if(!restricted && !self.onGround() && !hitThisFall && self.isSprinting()) {
 self.setSprinting(false);
 status="Stopping sprint";
@@ -88,6 +99,7 @@ if(decision!=CombatEngine.Decision.WAIT) {
 ((MinecraftAttackInvoker)mc).pvp$startAttack();
 hitThisFall=true;
 attackDelay=3;
+clearJump();
 readyTicks++;
 status=counter?"Counter attempt":"Critical attempt";
 responseWindow=0;
@@ -125,5 +137,6 @@ self.setXRot((float)next.pitch());
 }
 
 }
+private static void clearJump() { jumpTarget=null; jumpItem=null; jumpAge=0; }
 private PracticeCombat() {}
 }
