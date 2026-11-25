@@ -101,6 +101,9 @@ getLogger().severe("Deepslate recipe failed to register: "+ex.getMessage());
 if(deepslateCrafts!=null)deepslateCrafts.disable();
 deepslateCrafts=null;
 }
+if(Bukkit.getPluginManager().getPlugin("TalismanForge")!=null){
+getLogger().severe("WARNING: standalone TalismanForge detected. Remove its old JAR from plugins to prevent duplicate abilities or command conflicts.");
+}
 getLogger().info("MinecraftUnified 1.1.7 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
@@ -138,7 +141,8 @@ sender.sendMessage("§e/u team colors §7— доступные цвета");
 sender.sendMessage("§e/u team invite <ник> §7— пригласить");
 sender.sendMessage("§e/u team accept §7— принять приглашение");
 sender.sendMessage("§e/u talisman §7— реликварий и мифические талисманы");
-sender.sendMessage("§e/u talisman give <ник> <cerberus|kraken|gorgon|phoenix|hydra|reliquary> §7— админ");
+sender.sendMessage("§e/u talisman list §7— список пяти новых талисманов");
+sender.sendMessage("§e/u talisman give <ник> all §7— выдать все пять сразу");
 sender.sendMessage("§e/u enchant §7— зачарования; §e/u trader §7— торговец");
 sender.sendMessage("§e/u wildlife §7— лягушки и экипировка; §e/u frog §7— гигантская лягушка");
 sender.sendMessage("§e/u map §7— карты; §e/u shield §7— щиты; §e/u trap §7— обсидиановая ловушка");
@@ -181,6 +185,14 @@ if(!enabled(owner)){sender.sendMessage("§c"+owner+" не запущен. Про
 String forward=forwarded(action,args);
 if(forward==null)return true;
 try{
+// Dispatch the talisman module directly. A leftover standalone TalismanForge
+// can otherwise own /talismanforge and silently receive /u talisman commands.
+if(target.equals("talismanforge")){
+TalismanForgePlugin module=null;
+for(ModuleBridge loaded:enabledModules)if(loaded instanceof TalismanForgePlugin mythic){module=mythic;break;}
+if(module==null){sender.sendMessage("§cМодуль пяти талисманов не запущен.");return true;}
+return module.onCommand(sender,getCommand("talismanforge"),"talismanforge",Arrays.copyOfRange(args,1,args.length));
+}
 if(!Bukkit.dispatchCommand(sender,forward))sender.sendMessage("§cКоманда не выполнена: "+forward);
 }catch(Exception ex){
 getLogger().warning("Unified command '"+forward+"' failed: "+ex.getMessage());
@@ -209,9 +221,14 @@ return List.of();
 String target=route(action);
 if(target==null||!enabled(OWNERS.get(target)))return List.of();
 try{
+String[] rest=Arrays.copyOfRange(args,1,args.length);
+if(target.equals("talismanforge")){
+for(ModuleBridge loaded:enabledModules)if(loaded instanceof TalismanForgePlugin mythic)
+return mythic.onTabComplete(sender,getCommand("talismanforge"),target,rest);
+return List.of();
+}
 PluginCommand sub=getCommand(target);
 if(sub==null)return List.of();
-String[] rest=Arrays.copyOfRange(args,1,args.length);
 return sub.tabComplete(sender,target,rest);
 }catch(Exception ex){return List.of();}
 }
