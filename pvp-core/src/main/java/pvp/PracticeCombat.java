@@ -21,7 +21,7 @@ private static boolean valid(LocalPlayer self,LivingEntity target) {
 return target!=self && (target instanceof Player || (golemTest && "entity.minecraft.iron_golem".equals(target.getType().getDescriptionId()))) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && self.distanceToSqr(target)<=9;
 }
 static void tick(Minecraft mc, CombatSettings settings, CombatEngine.Mode mode) {
-if(mc.player==null || mc.level==null || mc.gameMode==null || (!mc.hasSingleplayerServer() && (!networkTest || mc.level.getScoreboard().getObjective("pvp_practice") == null))) {
+if(mc.player==null || mc.level==null || mc.gameMode==null || (!mc.hasSingleplayerServer() && !networkTest)) {
 lastPlayer=null;
 angularError=Double.NaN;
 decision=CombatEngine.Decision.WAIT;
