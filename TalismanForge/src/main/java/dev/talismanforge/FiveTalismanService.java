@@ -384,41 +384,63 @@ return false;
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void defended(EntityDamageEvent e){
-if(!(e.getEntity() instanceof Player p) || e.getFinalDamage()<=0)return;
+if(!(e.getEntity() instanceof Player p)||e.getDamage()<=0)return;
 Kind k=carried(p);
 if(k==null||!pvpDamage(e))return;
-if(e.getCause()!=EntityDamageEvent.DamageCause.VOID &&
-e.getCause()!=EntityDamageEvent.DamageCause.KILL &&
-e.getFinalDamage()>=p.getHealth()){
+if(k==Kind.PHOENIX){
+double stored=Math.min(e.getDamage(),p.getAbsorptionAmount());
+if(stored>0){
+double total=fireStored.getOrDefault(p.getUniqueId(),0.0)+stored;
+fireStored.put(p.getUniqueId(),total);
+if(stored>=p.getAbsorptionAmount()-.01){
+fireStored.put(p.getUniqueId(),0.0);
+fireWave(p,total);
+}
+}
+}
+if(e.getFinalDamage()<p.getHealth()||e.getCause()==EntityDamageEvent.DamageCause.VOID
+||e.getCause()==EntityDamageEvent.DamageCause.KILL)return;
 e.setCancelled(true);
-consume(p);
-p.setHealth(Math.min(p.getMaxHealth(),Math.max(5.0,p.getHealth())));
 p.setNoDamageTicks(Math.max(p.getNoDamageTicks(),45));
-p.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION,100,1));
 p.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING,p.getLocation().add(0,1,0),40,.4,.7,.4,.12);
-p.sendMessage("§a✦ "+k.title+" спас тебя и исчез.");
 rescued++;
-if(k==Kind.ZEUS){
-p.getWorld().strikeLightningEffect(p.getLocation());
+ItemStack carried=item(p);
+switch(k){
+case CERBERUS->{consume(p);heal(p,5);ghostStart(p);}
+case KRAKEN->{
+int left=count(carried,lives,2)-1;
+if(left<=0)consume(p);else count(carried,lives,left);
+heal(p,5);
+p.sendMessage("§3Кракен спас тебя. Осталось спасений: "+left);
 }
-if(k==Kind.ARES)add(p,PotionEffectType.STRENGTH,120,1);
-if(k==Kind.HERMES)add(p,PotionEffectType.RESISTANCE,100,1);
-return;
-}
-if(k==Kind.ATHENA&&ready(defensiveCooldown,p.getUniqueId(),8*SEC)){
-p.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE,80,1));
-}
-if(k==Kind.HERMES&&ready(defensiveCooldown,p.getUniqueId(),8*SEC)
-&&e instanceof EntityDamageByEntityEvent hit){
-Entity source=hit.getDamager();
-if(source instanceof Player enemy && enemy!=p){
-enemy.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,60,0));
-}else if(source instanceof org.bukkit.entity.Projectile projectile
-&&projectile.getShooter() instanceof Player enemy && enemy!=p){
-enemy.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,60,0));
+case GORGON->{
+consume(p);heal(p,5);
+if(e instanceof EntityDamageByEntityEvent hit){
+Entity damager=hit.getDamager();
+if(damager instanceof Player target)stone(target,60);
+else if(damager instanceof Projectile arrow&&arrow.getShooter() instanceof Player target)stone(target,60);
 }
 }
+case PHOENIX->{
+consume(p);heal(p,6);
+add(p,PotionEffectType.RESISTANCE,60,4);
+add(p,PotionEffectType.SLOWNESS,60,9);
+p.getWorld().spawnParticle(Particle.FLAME,p.getLocation().add(0,1,0),100,.6,.8,.6,.05);
 }
+case HYDRA->{
+int left=count(carried,heads,3)-1;
+if(left<=0){consume(p);p.sendMessage("§cПоследняя голова Гидры уничтожена.");}
+else{
+List<Long> times=scheduledHeads(carried);
+times.add(System.currentTimeMillis()+120000L);
+count(carried,heads,left);scheduledHeads(carried,times);
+p.sendMessage("§aГидра спасла тебя! Осталось "+left+" головы; восстановление через 2 минуты.");
+}
+heal(p,4);
+}
+}
+}
+
 private void consume(Player player){
 ItemStack off=player.getInventory().getItemInOffHand();
 if(kind(off)!=null){
@@ -444,7 +466,14 @@ if(state instanceof org.bukkit.block.Container container)cleanse(container.getIn
 }
 }
 void shutdown(){
-offensiveCooldown.clear();defensiveCooldown.clear();
+for(Player p:Bukkit.getOnlinePlayers()){
+if(p.getPersistentDataContainer().has(ghostTag,PersistentDataType.STRING))ghostRestore(p);
+health(p,0);
 }
+offensiveCooldown.clear();defensiveCooldown.clear();inCombat.clear();gazeStart.clear();stoneImmunity.clear();ghostEnds.clear();
+lastCrit.clear();markedEnds.clear();critTarget.clear();markedBy.clear();critCount.clear();fireStored.clear();phoenixRecharge.clear();
+ghostModes.clear();ghostFloors.clear();chained.clear();angryMobs.clear();
+}
+
 String status(){return "5 mythic talismans, awarded="+awarded+", removedLegacy="+converted+", rescues="+rescued;}
 }
