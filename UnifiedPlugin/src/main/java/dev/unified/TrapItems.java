@@ -48,13 +48,14 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * A compact and reversible 3x3 obsidian cage inspired by the basic
- * fifteen-second FunTime trap. Independent from the other five modules.
- * Only air is replaced. Existing floors are locked but not modified.
+ * Reversible seven-by-seven PvP arena centered next to a target player.
+ * Three blocks extend in every horizontal direction. Generated walls can
+ * be mined without drops; original world blocks are never destroyed.
  */
 public final class TrapItems implements Listener {
 private static final long DURATION_MS=15_000L,COOLDOWN_MS=25_000L;
 private static final int MAX_ACTIVE=40;
+private static final int RADIUS=3, WALL_HEIGHT=4;
 private final UnifiedPlugin plugin;
 private final TargetClaimPlugin claims;
 private final NamespacedKey itemKey,recipeKey;
@@ -105,8 +106,9 @@ ItemStack stack=new ItemStack(Material.ECHO_SHARD);
 ItemMeta meta=stack.getItemMeta();
 meta.setDisplayName("§5§lОбсидиановая трапка");
 meta.setLore(List.of(
-"§7ПКМ: заключить противника",
-"§7в клетку из обсидиана 3×3.",
+"§7ПКМ рядом с игроком: PvP-зона",
+"§7из обсидиана 7×7 (по 3 блока в стороны).",
+"§7Стены можно сломать, но без дропа.",
 "§7Действует 15 секунд.",
 "§8Одноразовая, перезарядка 25 секунд.",
 "§8Не работает в чужих приватах."
@@ -139,8 +141,8 @@ if(traps.size()>=MAX_ACTIVE){send(caster,"§cСлишком много акти�
 for(Trap t:traps.values())if(t.owner.equals(caster.getUniqueId())&&t.until>now){
 send(caster,"§cТвоя предыдущая трапка ещё действует.");return;
 }
-Player victim=findTarget(caster);
-if(victim==null){send(caster,"§cПосмотри на игрока не дальше пяти блоков.");return;}
+Player victim=findTarget(caster,event.getClickedBlock());
+if(victim==null){send(caster,"§cНажми рядом с игроком (до 6 блоков) или наведи на него взгляд.");return;}
 if(!prepare(caster,victim)){send(caster,"§cНевозможно поставить трапку: препятствие, приват или другая ловушка.");return;}
 if(caster.getGameMode()!=GameMode.CREATIVE){
 ItemStack inHand=event.getHand()==EquipmentSlot.HAND?caster.getInventory().getItemInMainHand():caster.getInventory().getItemInOffHand();
@@ -151,24 +153,29 @@ else caster.getInventory().setItemInOffHand(null);
 }else inHand.setAmount(inHand.getAmount()-1);
 }
 cooldown.put(caster.getUniqueId(),now+COOLDOWN_MS);
-send(caster,"§aПротивник пойман на 15 секунд!");
-send(victim,"§cТы попал в обсидиановую ловушку на 15 секунд!");
+send(caster,"§aPvP-зона 7×7 создана на 15 секунд. Обсидиан ломается без дропа.");
+send(victim,"§cВокруг тебя PvP-зона на 15 секунд. Обсидиан можно сломать.");
 caster.getWorld().playSound(victim.getLocation(),Sound.BLOCK_ANVIL_PLACE,.9f,.8f);
 }
-private Player findTarget(Player player){
+private Player findTarget(Player player,Block clicked){
 if(!player.getWorld().getPVP()||player.getGameMode()==GameMode.SPECTATOR)return null;
 Player closest=null;
-double best=5.5*5.5;
+double best=Double.MAX_VALUE;
 Vector forward=player.getEyeLocation().getDirection().normalize();
-for(Entity e:player.getNearbyEntities(5.5,3.5,5.5)){
-if(!(e instanceof Player other)||other==player||other.isDead()
+for(Entity entity:player.getNearbyEntities(6.5,4.5,6.5)){
+if(!(entity instanceof Player other)||other==player||other.isDead()
 ||other.getGameMode()==GameMode.CREATIVE||other.getGameMode()==GameMode.SPECTATOR)continue;
 if(other.getWorld()!=player.getWorld()||sameTeam(player,other))continue;
+if(!player.hasLineOfSight(other))continue;
 Vector to=other.getEyeLocation().toVector().subtract(player.getEyeLocation().toVector());
-double distance=to.lengthSquared();
-if(distance<best&&distance>0.01&&forward.dot(to.clone().normalize())>.78&&player.hasLineOfSight(other)){
-closest=other;best=distance;
-}
+if(to.lengthSquared()<.01||to.lengthSquared()>6.5*6.5)continue;
+boolean nearClick=clicked!=null
+&&clicked.getWorld().equals(other.getWorld())
+&&clicked.getLocation().clone().add(.5,.5,.5).distanceSquared(other.getLocation())<=3.5*3.5;
+boolean looking=forward.dot(to.normalize())>.83;
+if(!nearClick&&!looking)continue;
+double ranking=nearClick?clicked.getLocation().distanceSquared(other.getLocation()):player.getLocation().distanceSquared(other.getLocation())+100;
+if(ranking<best){closest=other;best=ranking;}
 }
 return closest;
 }
@@ -181,12 +188,16 @@ Location feet=victim.getLocation();
 World w=feet.getWorld();
 if(w==null||!w.equals(caster.getWorld()))return false;
 int x=feet.getBlockX(),y=feet.getBlockY(),z=feet.getBlockZ();
-if(y<w.getMinHeight()+2||y>w.getMaxHeight()-5)return false;
+if(y<w.getMinHeight()+2||y>w.getMaxHeight()-WALL_HEIGHT-1)return false;
 Trap t=new Trap();
 t.id=UUID.randomUUID();t.owner=caster.getUniqueId();t.world=w.getUID();
 t.until=System.currentTimeMillis()+DURATION_MS;
-for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++)for(int dy=-1;dy<=3;dy++){
-if(dy>=0&&dy<=2&&Math.abs(dx)<1&&Math.abs(dz)<1)continue;
+for(int dx=-RADIUS;dx<=RADIUS;dx++)
+for(int dz=-RADIUS;dz<=RADIUS;dz++)
+for(int dy=-1;dy<=WALL_HEIGHT;dy++){
+boolean side=Math.abs(dx)==RADIUS||Math.abs(dz)==RADIUS;
+boolean roof=dy==WALL_HEIGHT;
+if(dy>=0&&!side&&!roof)continue;
 int xx=x+dx,yy=y+dy,zz=z+dz;
 BlockKey key=new BlockKey(w.getUID(),xx,yy,zz);
 if(occupied.containsKey(key))return false;
@@ -195,7 +206,7 @@ Block block=w.getBlockAt(xx,yy,zz);
 if(!w.getWorldBorder().isInside(block.getLocation()))return false;
 if(claims==null||!claims.allowsTemporaryStructure(caster,block.getLocation()))return false;
 if(dy==-1){
-if(block.isLiquid()||!block.getType().isSolid()&&!block.getType().isAir())return false;
+if(block.isLiquid()||(!block.getType().isSolid()&&!block.getType().isAir()))return false;
 t.protectedFloor.add(key);
 if(block.getType().isAir())t.original.put(key,block.getBlockData().getAsString());
 }else{
@@ -203,6 +214,7 @@ if(!block.getType().isAir())return false;
 t.original.put(key,block.getBlockData().getAsString());
 }
 }
+
 // No changes are made until every block passes all checks.
 for(BlockKey key:t.original.keySet()){
 w.getBlockAt(key.x,key.y,key.z).setType(Material.OBSIDIAN,false);
@@ -215,10 +227,20 @@ return true;
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void noBreak(BlockBreakEvent e){
-if(occupied.containsKey(BlockKey.of(e.getBlock()))){
+BlockKey key=BlockKey.of(e.getBlock());
+UUID trapId=occupied.get(key);
+if(trapId==null)return;
+Trap trap=traps.get(trapId);
+if(trap==null||trap.protectedFloor.contains(key)){
 e.setCancelled(true);
-e.getPlayer().sendMessage("§cЭтот блок защищён временной трапкой.");
+return;
 }
+if(trap.original.containsKey(key)&&e.getBlock().getType()==Material.OBSIDIAN){
+e.setDropItems(false);
+e.setExpToDrop(0);
+return;
+}
+e.setCancelled(true);
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void noPlace(org.bukkit.event.block.BlockPlaceEvent e){
@@ -327,9 +349,10 @@ sweep();
 }
 public boolean handleCommand(CommandSender sender,String[] args){
 if(args.length==0){
-sender.sendMessage("§5Трапка §7| 3×3, 15 сек. | обсидиан + железо + алмаз.");
+sender.sendMessage("§5Трапка §7| PvP-зона 7×7 (по 3 блока), высота 4, 15 сек.");
+sender.sendMessage("§7Стенки обсидиана ломаются без дропа; исходные блоки сохраняются.");
 sender.sendMessage("§7Рецепт: OIO / IDI / OIO (O — обсидиан, I — железо, D — алмаз).");
-sender.sendMessage("§7Используй ПКМ с трапкой в руке, глядя на противника.");
+sender.sendMessage("§7ПКМ по блоку рядом с игроком или наведи на игрока в радиусе 6 блоков.");
 if(sender.hasPermission("minecraftunified.trap.admin"))sender.sendMessage("§7/u trap give <ник> [количество]");
 return true;
 }
