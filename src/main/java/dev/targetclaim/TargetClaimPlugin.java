@@ -30,6 +30,14 @@ private static final int[] HEIGHT = {48,64,96,144,210};
 private static final Material[] COST = {Material.AMETHYST_SHARD,Material.AMETHYST_SHARD,Material.NETHERITE_SCRAP,Material.DRAGON_EGG};
 private static final int[] AMOUNT = {23,64,3,1};
 private static final ChatColor[] COLORS = {ChatColor.AQUA,ChatColor.BLUE,ChatColor.GOLD,ChatColor.GREEN,ChatColor.LIGHT_PURPLE,ChatColor.RED,ChatColor.YELLOW,ChatColor.DARK_AQUA,ChatColor.DARK_GREEN,ChatColor.DARK_PURPLE,ChatColor.DARK_RED,ChatColor.WHITE,ChatColor.GRAY};
+private static final Map<String,ChatColor> TEAM_COLORS=Map.ofEntries(
+Map.entry("red",ChatColor.RED),Map.entry("blue",ChatColor.BLUE),Map.entry("green",ChatColor.GREEN),Map.entry("yellow",ChatColor.YELLOW),
+Map.entry("aqua",ChatColor.AQUA),Map.entry("gold",ChatColor.GOLD),Map.entry("purple",ChatColor.LIGHT_PURPLE),
+Map.entry("white",ChatColor.WHITE),Map.entry("gray",ChatColor.GRAY),Map.entry("dark_red",ChatColor.DARK_RED),
+Map.entry("dark_blue",ChatColor.DARK_BLUE),Map.entry("dark_green",ChatColor.DARK_GREEN),
+Map.entry("dark_aqua",ChatColor.DARK_AQUA),Map.entry("dark_purple",ChatColor.DARK_PURPLE));
+private static final List<String> COLOR_NAMES=List.of("red","blue","green","yellow","aqua","gold","purple","white","gray","dark_red","dark_blue","dark_green","dark_aqua","dark_purple");
+private static ChatColor teamColor(String input){return TEAM_COLORS.get(input.toLowerCase(Locale.ROOT));}
 private static final String PREFIX = "§5§lTargetClaim §8» §r";
 private final Map<UUID,Claim> claims = new HashMap<>();
 private final Map<UUID,Map<Long,Set<Claim>>> spatialIndex = new HashMap<>();
@@ -353,7 +361,9 @@ default -> showClaimDialog(p,c);
 return true;
 }
 @Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] args){
-if(args.length==1)return starts(cmd.getName().equalsIgnoreCase("p")?List.of("list","1","2","3","4","5","6","7","8","9","upgrade","border","remove","cancel","info","give","givekey"):List.of("create","invite","accept","deny","leave","kick","disband","pvp","info","menu"),args[0]);
+if(args.length==1)return starts(cmd.getName().equalsIgnoreCase("p")?List.of("list","1","2","3","4","5","6","7","8","9","upgrade","border","remove","cancel","info","give","givekey"):List.of("create","color","colors","invite","accept","deny","leave","kick","disband","pvp","info","menu"),args[0]);
+if(args.length==3&&cmd.getName().equalsIgnoreCase("team")&&args[0].equalsIgnoreCase("create"))return starts(COLOR_NAMES,args[2]);
+if(args.length==2&&cmd.getName().equalsIgnoreCase("team")&&args[0].equalsIgnoreCase("color"))return starts(COLOR_NAMES,args[1]);
 if(args.length==2&&cmd.getName().equalsIgnoreCase("team")&&(args[0].equalsIgnoreCase("invite")||args[0].equalsIgnoreCase("kick")))return starts(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(),args[1]);
 if(args.length==2&&args[0].equalsIgnoreCase("pvp"))return starts(List.of("on","off"),args[1]);
 if(args.length==2&&args[0].equalsIgnoreCase("border"))return starts(List.of("on","off"),args[1]);
@@ -367,25 +377,39 @@ if(args.length==0||args[0].equalsIgnoreCase("menu")){showTeamDialog(p);return tr
 switch(args[0].toLowerCase(Locale.ROOT)){
 case "create" -> {
 if(g!=null){tell(p,"§cТы уже в команде.");break;}
-if(args.length<2){tell(p,"§eИспользуй: /team create <название>");break;}
+if(args.length<2){tell(p,"§eИспользуй: /u team create <название>");break;}
 String name=args[1];
 if(!name.matches("[\\p{L}\\p{N}_-]{3,16}")){tell(p,"§cНазвание: 3–16 букв/цифр, _ или -.");break;}
 if(groups.values().stream().anyMatch(t->t.name.equalsIgnoreCase(name))){tell(p,"§cТакое название уже занято.");break;}
 List<ChatColor> available=new ArrayList<>(Arrays.asList(COLORS));for(Group t:groups.values())available.remove(t.color);
 if(available.isEmpty())available.addAll(Arrays.asList(COLORS));
-Group newGroup=new Group(UUID.randomUUID(),p.getUniqueId(),name,available.get(random.nextInt(available.size())));
+ChatColor chosen=args.length>=3?teamColor(args[2]):available.get(random.nextInt(available.size()));
+if(chosen==null){tell(p,"§cНеизвестный цвет. /u team colors");break;}
+Group newGroup=new Group(UUID.randomUUID(),p.getUniqueId(),name,chosen);
 groups.put(newGroup.id,newGroup);membership.put(p.getUniqueId(),newGroup.id);
-updateScoreboard(newGroup);saveAll();tell(p,"§aКоманда §r"+newGroup.color+name+" §aсоздана. Лимит 3 игрока. Приглашай: /team invite <ник>.");
+updateScoreboard(newGroup);saveAll();tell(p,"§aКоманда §r"+newGroup.color+name+" §aсоздана. Лимит 3 игрока. Приглашай: /u team invite <ник>.");
+}
+case "colors" -> {
+tell(p,"§eДоступные цвета: §f"+String.join(", ",COLOR_NAMES));
+tell(p,"§7Выбор: /u team create <название> <цвет> или /u team color <цвет>");
+}
+case "color" -> {
+if(g==null||!g.leader.equals(p.getUniqueId())){tell(p,"§cМенять цвет может только лидер.");break;}
+if(args.length<2){tell(p,"§e/u team color <цвет> §7— /u team colors");break;}
+ChatColor color=teamColor(args[1]);
+if(color==null){tell(p,"§cНеизвестный цвет. /u team colors");break;}
+g.color=color;updateScoreboard(g);saveAll();
+broadcast(g,"§aЦвет команды изменён: "+g.color+g.name);
 }
 case "invite" -> {
 if(g==null||!g.leader.equals(p.getUniqueId())){tell(p,"§cПриглашать может только лидер.");break;}
 if(g.members.size()>=3){tell(p,"§cВ команде уже 3 игрока.");break;}
-if(args.length<2){tell(p,"§e/team invite <ник>");break;}
+if(args.length<2){tell(p,"§e/u team invite <ник>");break;}
 Player target=Bukkit.getPlayerExact(args[1]);
 if(target==null||target.equals(p)){tell(p,"§cИгрок не найден.");break;}
 if(groupOf(target.getUniqueId())!=null){tell(p,"§cИгрок уже состоит в команде.");break;}
 invites.put(target.getUniqueId(),new Invite(g.id,System.currentTimeMillis()+120000));
-tell(target,"§dПриглашение в команду §r"+g.color+g.name+"§d. Принять: §f/team accept §7(2 минуты)");
+tell(target,"§dПриглашение в команду §r"+g.color+g.name+"§d. Принять: §f/u team accept §7(2 минуты)");
 tell(p,"§aПриглашение отправлено.");
 }
 case "accept" -> {
@@ -404,7 +428,7 @@ leave(p.getUniqueId(),g);tell(p,"§aТы вышел из команды.");
 }
 case "kick" -> {
 if(g==null||!g.leader.equals(p.getUniqueId())){tell(p,"§cИсключать может только лидер.");break;}
-if(args.length<2){tell(p,"§e/team kick <ник>");break;}
+if(args.length<2){tell(p,"§e/u team kick <ник>");break;}
 UUID target=null;for(UUID uid:g.members){OfflinePlayer off=Bukkit.getOfflinePlayer(uid);if(off.getName()!=null&&off.getName().equalsIgnoreCase(args[1]))target=uid;}
 if(target==null||target.equals(p.getUniqueId())){tell(p,"§cИгрок не найден или это лидер.");break;}
 leave(target,g);tell(p,"§aИгрок исключён.");Player other=Bukkit.getPlayer(target);if(other!=null)tell(other,"§cТы исключён из команды.");
@@ -419,16 +443,16 @@ boolean newValue;
 if(args.length<2)newValue=!g.pvpOn.contains(p.getUniqueId());
 else if(args[1].equalsIgnoreCase("on"))newValue=true;
 else if(args[1].equalsIgnoreCase("off"))newValue=false;
-else{tell(p,"§e/team pvp on|off");break;}
+else{tell(p,"§e/u team pvp on|off");break;}
 if(newValue)g.pvpOn.add(p.getUniqueId());else g.pvpOn.remove(p.getUniqueId());
 saveAll();tell(p,"§eТвой PvP с союзниками: "+(newValue?"§aВКЛ":"§cВЫКЛ")+"§7. Урон проходит только если оба включили.");
 }
 case "info" -> {
 if(g==null){tell(p,"§cТы не в команде.");break;}
-tell(p,"§eКоманда: "+g.color+g.name+"§7, игроков "+g.members.size()+"/3");
+tell(p,"§eКоманда: "+g.color+g.name+"§7, цвет: "+g.color.name().toLowerCase(Locale.ROOT)+"§7, игроков "+g.members.size()+"/3");
 for(UUID id:g.members){OfflinePlayer off=Bukkit.getOfflinePlayer(id);tell(p,"§7- §f"+(off.getName()==null?id:off.getName())+(id.equals(g.leader)?" §6(лидер)":"")+(g.pvpOn.contains(id)?" §aPvP ON":" §cPvP OFF"));}
 }
-default -> tell(p,"§e/team create|invite|accept|leave|kick|disband|pvp|info|menu");
+default -> tell(p,"§e/u team create|invite|accept|leave|kick|disband|pvp|info|menu");
 }
 return true;
 }
@@ -896,14 +920,14 @@ inv.setItem(18,guiItem(Material.ARROW,"§7Назад"));
 }
 private void fillTeamMenu(Inventory inv,Player player){
 Group group=groupOf(player.getUniqueId());
-inv.setItem(4,guiItem(Material.NAME_TAG,"§dКоманда",group==null?"§7Нет команды":"§7"+group.name+" • "+group.members.size()+"/3"));
+inv.setItem(4,guiItem(Material.NAME_TAG,"§dКоманда",group==null?"§7Нет команды":group.color+group.name+" §7• "+group.members.size()+"/3"));
 for(int slot=10;slot<=12;slot++)inv.setItem(slot,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
 inv.setItem(15,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
 inv.setItem(20,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
 inv.setItem(22,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
 if(group==null){
-inv.setItem(13,guiItem(Material.BOOK,"§fСоздать команду","§7/team create Название"));
-inv.setItem(15,guiItem(Material.LIME_DYE,"§aПринять приглашение","§7/team accept"));
+inv.setItem(13,guiItem(Material.BOOK,"§fСоздать команду","§7/u team create Название Цвет","§7Цвета: /u team colors"));
+inv.setItem(15,guiItem(Material.LIME_DYE,"§aПринять приглашение","§7/u team accept"));
 }else{
 inv.setItem(13,guiItem(Material.BLACK_STAINED_GLASS_PANE," "));
 int index=10;
@@ -913,8 +937,10 @@ String nick=Bukkit.getOfflinePlayer(member).getName();
 inv.setItem(index++,guiItem(Material.PLAYER_HEAD,"§f"+(nick==null?member:nick),member.equals(group.leader)?"§6Лидер":"§7Участник","§7PvP: "+(group.pvpOn.contains(member)?"§aВКЛ":"§cВЫКЛ")));
 }
 inv.setItem(15,guiItem(group.pvpOn.contains(player.getUniqueId())?Material.LIME_DYE:Material.RED_DYE,"§fМой PvP: "+(group.pvpOn.contains(player.getUniqueId())?"§aВКЛ":"§cВЫКЛ"),"§7Урон только при взаимном согласии"));
-inv.setItem(20,guiItem(Material.BOOK,"§fУправление командой","§7/team invite Ник","§7/team kick Ник","§7/team disband"));
+inv.setItem(20,guiItem(Material.BOOK,"§fУправление командой","§7/u team invite Ник","§7/u team kick Ник","§7/u team disband","§7/u team color <цвет>"));
 inv.setItem(22,guiItem(Material.BARRIER,"§cВыйти из команды"));
+inv.setItem(24,guiItem(Material.CYAN_DYE,"§bЦвет команды: "+group.color+group.color.name().toLowerCase(Locale.ROOT),
+group.leader.equals(player.getUniqueId())?"§7Нажми для переключения цвета":"§7Цвет меняет только лидер"));
 }
 inv.setItem(18,guiItem(Material.ARROW,"§7Назад"));
 }
@@ -944,6 +970,15 @@ if(slot==15){
 Group group=groupOf(player.getUniqueId());
 if(group==null)Bukkit.getScheduler().runTask(this,()->{teamCommand(player,new String[]{"accept"});fillTeamMenu(inv,player);});
 else{teamCommand(player,new String[]{"pvp"});fillTeamMenu(inv,player);}
+}
+if(slot==24){
+Group group=groupOf(player.getUniqueId());
+if(group!=null&&group.leader.equals(player.getUniqueId())){
+int n=COLOR_NAMES.indexOf(group.color.name().toLowerCase(Locale.ROOT));
+String next=COLOR_NAMES.get((n+1+COLOR_NAMES.size())%COLOR_NAMES.size());
+teamCommand(player,new String[]{"color",next});
+fillTeamMenu(inv,player);
+}
 }
 if(slot==22){
 Group group=groupOf(player.getUniqueId());
