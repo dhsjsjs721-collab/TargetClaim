@@ -32,6 +32,11 @@ check(Math.abs(AimModel.step(front,rear,new CombatSettings(true,false,.35,.25,36
 check(CombatSettings.defaults().fov()==150);
 var nearFull=new CombatEngine.Frame(.96,false,.2,false,false,true,true,false,false,t);
 check(CombatEngine.evaluate(CombatEngine.Mode.CRITICAL,nearFull)==CombatEngine.Decision.CRITICAL_WINDOW);
+check(CombatEngine.reason(CombatEngine.Mode.CRITICAL,normal).equals("Waiting for descent"));
+check(CombatEngine.reason(CombatEngine.Mode.CRITICAL,weak).equals("Cooldown"));
+check(CombatEngine.reason(CombatEngine.Mode.COMBO,normal).equals("Waiting for sprint"));
+check(CombatEngine.reason(CombatEngine.Mode.CRITICAL,crit).equals("Attack ready"));
+check(AimModel.wrap(181-179)==2);
 System.out.println("Combat tests passed");
 }
 }
