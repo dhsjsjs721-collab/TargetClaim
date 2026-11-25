@@ -1,6 +1,13 @@
 name: Build TalismanForge JAR
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "TalismanForge/**"
+      - "src/main/java/dev/targetclaim/TargetClaimPlugin.java"
+      - "resourcepacks/TalismanForge-2.0.0-ResourcePack.zip"
+      - ".github/workflows/talismanforge-build.yml"
   push:
     branches: [main]
     paths:
@@ -21,6 +28,11 @@ jobs:
         with:
           gradle-version: '9.2.1'
       - run: gradle -p TalismanForge build --no-daemon
+      - run: gradle build --no-daemon
+      - name: Verify shared resource pack
+        run: |
+          python -m zipfile -t resourcepacks/TalismanForge-2.0.0-ResourcePack.zip
+          test "$(sha1sum resourcepacks/TalismanForge-2.0.0-ResourcePack.zip | cut -d ' ' -f 1)" = "$(cat resourcepacks/TalismanForge-2.0.0-ResourcePack.sha1)"
       - uses: actions/upload-artifact@v4
         with:
           name: TalismanForge-JAR
