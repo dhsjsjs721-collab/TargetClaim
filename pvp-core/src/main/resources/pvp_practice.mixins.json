@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "pvp.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "MinecraftAttackInvoker"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
