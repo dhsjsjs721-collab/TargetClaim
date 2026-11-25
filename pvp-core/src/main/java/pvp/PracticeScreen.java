@@ -30,7 +30,7 @@ PracticeClient.settings=new CombatSettings(s.aimEnabled(),s.triggerEnabled(),s.h
 button.setMessage(Component.literal("FOV: "+(int)fov));
 }).bounds(x,y+72,220,20).build());
 addRenderableWidget(Checkbox.builder(Component.literal("Iron Golem Test"),font).pos(x,y+96).selected(PracticeCombat.golemTest).onValueChange((checkbox,value)->PracticeCombat.golemTest=value).build());
-addRenderableWidget(Checkbox.builder(Component.literal("Network Test (admin opt-in)"),font).pos(x,y+120).selected(PracticeCombat.networkTest).onValueChange((checkbox,value)->PracticeCombat.networkTest=value).build());
+addRenderableWidget(Checkbox.builder(Component.literal("Network Test (allowed servers)"),font).pos(x,y+120).selected(PracticeCombat.networkTest).onValueChange((checkbox,value)->PracticeCombat.networkTest=value).build());
 addRenderableWidget(Button.builder(Component.literal("Lock GUI (until restart)"),button -> {
 PracticeClient.guiLocked=true;
 onClose();
