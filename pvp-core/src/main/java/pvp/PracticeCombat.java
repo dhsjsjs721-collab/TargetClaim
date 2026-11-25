@@ -36,7 +36,8 @@ private static Object jumpItem;
 private static int jumpAge;
 private static LivingEntity aimTarget;
 private static LivingEntity sampledTarget;
-private static AimModel.Vec previousRelative;
+private static AimModel.Vec previousRelative,previousEye;
+private static AimModel.Vec targetMotion=new AimModel.Vec(0,0,0);
 private static AimModel.Vec relativeMotion=new AimModel.Vec(0,0,0);
 private static double motionAngle;
 private static final CombatAI.Tracker tracker=new CombatAI.Tracker();
@@ -79,7 +80,7 @@ static void tick(Minecraft mc,CombatSettings settings) {
 if(!enabled(mc)) { status="Not in enabled world"; resetWorld(mc); return; }
 var self=mc.player;
 if(lastPlayer!=self || lastLevel!=mc.level) resetWorld(mc);
-if(!available(mc,self)) { clearJump(); descendingTicks=0; return; }
+if(!available(mc,self)) { clearJump(); descendingTicks=0; readyWait=0; waitingTarget=null; return; }
 if(self.getHealth()<lastHealth) responseWindow=12;
 else if(responseWindow>0) responseWindow--;
 lastHealth=self.getHealth();
@@ -107,7 +108,8 @@ float cooldown=self.getAttackStrengthScale(.5f);
 boolean itemReady=!self.cannotAttackWithItem(self.getMainHandItem(),0);
 if(waitingTarget!=target) { waitingTarget=target; readyWait=0; }
 if(crosshair==target && cooldown>.90 && itemReady) readyWait=Math.min(20,readyWait+1);
-else readyWait=0;
+else if(cooldown<=.90 || !itemReady) readyWait=0;
+else readyWait=Math.max(0,readyWait-1);
 var eye=self.getEyePosition();
 var bounds=target.getBoundingBox();
 var box=new AimModel.Box(new AimModel.Vec(bounds.minX,bounds.minY,bounds.minZ),new AimModel.Vec(bounds.maxX,bounds.maxY,bounds.maxZ));
@@ -169,12 +171,14 @@ var origin=new AimModel.Vec(eye.x,eye.y,eye.z);
 var center=AimModel.point(box,.65);
 var relative=new AimModel.Vec(center.x()-eye.x,center.y()-eye.y,center.z()-eye.z);
 if(sampledTarget==selected && previousRelative!=null) {
-relativeMotion=tracker.update(relative);
+targetMotion=tracker.update(center);
+if(previousEye!=null) relativeMotion=new AimModel.Vec(targetMotion.x()-(eye.x-previousEye.x()),targetMotion.y()-(eye.y-previousEye.y()),targetMotion.z()-(eye.z-previousEye.z()));
 var zero=new AimModel.Vec(0,0,0);
 motionAngle=AimModel.error(AimModel.direction(zero,previousRelative),AimModel.direction(zero,relative));
-} else { resetTracking(); tracker.update(relative); }
+} else { resetTracking(); tracker.update(center); }
 sampledTarget=selected;
 previousRelative=relative;
+previousEye=origin;
 best=AimModel.direction(origin,AimModel.movingPoint(AimModel.trackingPoint(origin,current,box,trackingTick),box,relativeMotion));
 bestError=AimModel.error(current,best);
 angularError=bestError;
@@ -187,7 +191,7 @@ angularError=AimModel.error(new AimModel.Angles(self.getYRot(),self.getXRot()),b
 } else resetTracking();
 }
 }
-private static void resetTracking() { tracker.reset(); lastMovement=new AimModel.Movement(false,false,false,false); sampledTarget=null; previousRelative=null; relativeMotion=new AimModel.Vec(0,0,0); motionAngle=0; turn=new AimModel.Turn(0,0); angularError=Double.NaN; }
+private static void resetTracking() { tracker.reset(); lastMovement=new AimModel.Movement(false,false,false,false); sampledTarget=null; previousRelative=null; previousEye=null; targetMotion=new AimModel.Vec(0,0,0); relativeMotion=new AimModel.Vec(0,0,0); motionAngle=0; turn=new AimModel.Turn(0,0); angularError=Double.NaN; }
 static void startTick(Minecraft mc,CombatSettings settings) {
 if(!enabled(mc)) { resetWorld(mc); return; }
 var self=mc.player;
@@ -212,10 +216,10 @@ double dx=aimTarget.getX()-self.getX(),dz=aimTarget.getZ()-self.getZ();
 if(Math.abs(aimTarget.getY()-self.getY())<1.5 && !self.isInWater() && !self.isPassenger()) {
 var velocity=self.getDeltaMovement();
 var other=aimTarget.getDeltaMovement();
-double targetX=aimTarget==sampledTarget?relativeMotion.x()+velocity.x:other.x;
-double targetZ=aimTarget==sampledTarget?relativeMotion.z()+velocity.z:other.z;
+double targetX=aimTarget==sampledTarget?targetMotion.x():other.x;
+double targetZ=aimTarget==sampledTarget?targetMotion.z():other.z;
 double reach=self.getAttackRangeWith(self.getMainHandItem()).effectiveMaxRange(self);
-var choice=CombatAI.chooseMovement(dx,dz,aimTarget.getYRot(),self.getYRot(),velocity.x,velocity.z,targetX,targetZ,reach-.65,lastMovement,(mx,mz)->{
+var choice=CombatAI.choosePath(dx,dz,aimTarget.getYRot(),self.getYRot(),velocity.x,velocity.z,targetX,targetZ,reach-.65,lastMovement,(mx,mz)->{
 var next=self.getBoundingBox().move(mx,0,mz);
 return mc.level.noCollision(self,next) && !mc.level.noCollision(self,next.move(0,-.7,0));
 });

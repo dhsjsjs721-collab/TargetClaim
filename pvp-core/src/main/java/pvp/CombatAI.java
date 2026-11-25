@@ -9,15 +9,23 @@ private static AimModel.Vec scale(AimModel.Vec a,double s) { return new AimModel
 private static double norm(AimModel.Vec v) { return Math.sqrt(v.x()*v.x()+v.y()*v.y()+v.z()*v.z()); }
 private static AimModel.Vec limit(AimModel.Vec v,double max) { double n=norm(v); return n>max?scale(v,max/n):v; }
 public static final class Tracker {
-private AimModel.Vec position,velocity=new AimModel.Vec(0,0,0);
+private AimModel.Vec position,previousObservation,velocity=new AimModel.Vec(0,0,0);
 private double noise=.05;
-public void reset() { position=null; velocity=new AimModel.Vec(0,0,0); noise=.05; }
+public void reset() { position=null; previousObservation=null; velocity=new AimModel.Vec(0,0,0); noise=.05; }
 public AimModel.Vec update(AimModel.Vec observed) {
 if(!Double.isFinite(norm(observed))) { reset(); return velocity; }
-if(position==null) { position=observed; return velocity; }
+if(position==null) { position=observed; previousObservation=observed; return velocity; }
 var residual=sub(observed,add(position,velocity));
 double error=norm(residual);
-if(error>2.0) { reset(); position=observed; return velocity; }
+if(error>2.0) { reset(); position=observed; previousObservation=observed; return velocity; }
+var measured=limit(sub(observed,previousObservation),.85);
+previousObservation=observed;
+double speed=norm(velocity),sampleSpeed=norm(measured);
+double dot=velocity.x()*measured.x()+velocity.y()*measured.y()+velocity.z()*measured.z();
+if(speed>.09 && sampleSpeed>.09 && dot<-.25*speed*sampleSpeed) {
+position=observed; velocity=scale(measured,.70); noise=Math.min(.35,noise+.08); return velocity;
+}
+if(sampleSpeed<.025 && speed>.08) { velocity=scale(velocity,.55); }
 noise=.8*noise+.2*error;
 double gain=clamp(.45+noise*.9,.45,.85);
 position=add(add(position,velocity),scale(residual,gain));
@@ -60,6 +68,56 @@ if(forward==0 && right==0 && initial>ideal+.35) score+=.25;
 if(score<best) { best=score; chosen=move; }
 }
 return new MovementChoice(chosen,best);
+}
+/** A short receding-horizon search over two sequential input choices. */
+public static MovementChoice choosePath(double dx,double dz,double targetYaw,double viewYaw,double ownX,double ownZ,double targetX,double targetZ,double ideal,AimModel.Movement last,BiPredicate<Double,Double> safe) {
+double y=Math.toRadians(viewYaw),o=Math.toRadians(targetYaw);
+double fx=-Math.sin(y),fz=Math.cos(y),rx=-Math.cos(y),rz=-Math.sin(y);
+double rearX=Math.sin(o),rearZ=-Math.cos(o);
+double initial=Math.hypot(dx,dz);
+ideal=clamp(ideal,1.6,2.8);
+var moves=new AimModel.Movement[9];
+var xs=new double[9]; var zs=new double[9];
+int index=0;
+for(int f=-1;f<=1;f++) for(int right=-1;right<=1;right++) {
+double mag=Math.max(1,Math.hypot(f,right));
+moves[index]=new AimModel.Movement(f>0,f<0,right<0,right>0);
+xs[index]=(fx*f+rx*right)/mag*.22;
+zs[index]=(fz*f+rz*right)/mag*.22;
+index++;
+}
+double best=Double.POSITIVE_INFINITY;
+var chosen=moves[4];
+for(int first=0;first<9;first++) {
+double px=0,pz=0,vx=clamp(ownX,-.5,.5),vz=clamp(ownZ,-.5,.5),cost=0;
+boolean ok=true;
+for(int tick=1;tick<=2;tick++) {
+vx=.45*vx+.55*xs[first]; vz=.45*vz+.55*zs[first]; px+=vx; pz+=vz;
+if(!safe.test(px,pz)) { ok=false; break; }
+cost+=pathCost(dx,dz,targetX,targetZ,tick,px,pz,ideal,initial,rearX,rearZ);
+}
+if(!ok) continue;
+if(last!=null && !moves[first].equals(last)) cost+=.22;
+for(int second=0;second<9;second++) {
+double x=px,z=pz,u=vx,v=vz,s=cost+(second==first?0:.16);
+boolean valid=true;
+for(int tick=3;tick<=4;tick++) {
+u=.45*u+.55*xs[second]; v=.45*v+.55*zs[second]; x+=u; z+=v;
+if(!safe.test(x,z)) { valid=false; break; }
+s+=pathCost(dx,dz,targetX,targetZ,tick,x,z,ideal,initial,rearX,rearZ)*(tick==4?1.2:1);
+}
+if(valid && s<best) { best=s; chosen=moves[first]; }
+}
+}
+if(!Double.isFinite(best)) return chooseMovement(dx,dz,targetYaw,viewYaw,ownX,ownZ,targetX,targetZ,ideal,last,safe);
+return new MovementChoice(chosen,best);
+}
+private static double pathCost(double dx,double dz,double tx,double tz,int tick,double x,double z,double ideal,double initial,double rearX,double rearZ) {
+double a=dx+clamp(tx,-.35,.35)*tick-x,b=dz+clamp(tz,-.35,.35)*tick-z;
+double dist=Math.hypot(a,b),delta=dist-ideal;
+double cost=delta*delta*(delta>0?1.6:2)+Math.max(0,dist-3)*2.2;
+if(initial<3.4 && dist<3.1 && dist>.01) cost+=.38*(1-(-a*rearX-b*rearZ)/dist);
+return cost;
 }
 private CombatAI() {}
 }

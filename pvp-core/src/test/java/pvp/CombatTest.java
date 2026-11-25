@@ -150,6 +150,18 @@ var blockedMove=CombatAI.chooseMovement(0,5,0,0,0,0,0,0,2.3,null,(x,z)->false);
 check(!Double.isFinite(blockedMove.cost()));
 var retreat=CombatAI.chooseMovement(0,1,0,0,0,0,0,0,2.3,null,(x,z)->true);
 check(retreat.movement().back());
+var reverseTracker=new CombatAI.Tracker();
+for(int i=0;i<30;i++) reverseTracker.update(new AimModel.Vec(i*.2,0,0));
+reverseTracker.update(new AimModel.Vec(5.6,0,0));
+check(reverseTracker.velocity().x()<0);
+for(int i=1;i<=15;i++) reverseTracker.update(new AimModel.Vec(5.6-i*.2,0,0));
+check(Math.abs(reverseTracker.velocity().x()+.2)<.05);
+var path=CombatAI.choosePath(0,5,0,0,0,0,0,0,2.3,null,(x,z)->true);
+check(path.movement().forward() && Double.isFinite(path.cost()));
+var pathBlocked=CombatAI.choosePath(0,5,0,0,0,0,0,0,2.3,null,(x,z)->false);
+check(!Double.isFinite(pathBlocked.cost()));
+var pathStop=CombatAI.choosePath(0,5,0,0,0,0,0,0,2.3,null,(x,z)->Math.abs(x)<1e-8 && Math.abs(z)<1e-8);
+check(pathStop.movement().equals(new AimModel.Movement(false,false,false,false)));
 System.out.println("Combat tests passed");
 }
 }
