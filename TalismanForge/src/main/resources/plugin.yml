@@ -12,3 +12,5 @@ permissions:
   talismanforge.admin:
     default: op
     description: Gives magic talismans and altar chests
+
+softdepend: [TargetClaim]
