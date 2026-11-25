@@ -167,7 +167,7 @@ private static int clamp(int value,int min,int max){return Math.max(min,Math.min
 @EventHandler(priority=EventPriority.LOWEST)
 public void prelogin(AsyncPlayerPreLoginEvent event){
 if(!ready){
-event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,Component.text("Authentication service unavailable",NamedTextColor.RED));
+event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,branded("Сервис авторизации недоступен",DANGER));
 return;
 }
 if(!antiBot)return;
@@ -176,7 +176,7 @@ if(remote==null)return;
 String key=remote.getHostAddress();
 if(ips.size()>=maxTracked && !ips.containsKey(key)){
 rateDenied++;
-event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,Component.text("Too many active connection sources",NamedTextColor.RED));
+event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,branded("Слишком много подключений",DANGER));
 return;
 }
 long now=System.currentTimeMillis();
@@ -189,7 +189,7 @@ synchronized(window){
 window.count++;
 if(window.count>ipLimit){
 rateDenied++;
-event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,Component.text("Too many connections. Try later.",NamedTextColor.RED));
+event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,branded("Слишком много подключений. Попробуйте позже.",DANGER));
 }
 }
 }
@@ -197,15 +197,15 @@ event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER,Component.text("Too ma
 @EventHandler
 public void configure(AsyncPlayerConnectionConfigureEvent event){
 PlayerConfigurationConnection connection=event.getConnection();
-if(!ready){connection.disconnect(Component.text("Authentication unavailable",NamedTextColor.RED));return;}
+if(!ready){connection.disconnect(branded("Авторизация недоступна",DANGER));return;}
 UUID uuid=connection.getProfile().getId();
 String username=connection.getProfile().getName();
 if(uuid==null || username==null || !username.matches("[A-Za-z0-9_]{3,16}")){
-connection.disconnect(Component.text("Invalid player identity",NamedTextColor.RED));return;
+connection.disconnect(branded("Недопустимое имя игрока",DANGER));return;
 }
 String name=username.toLowerCase(Locale.ROOT);
 if(sessions.containsKey(uuid)){
-connection.disconnect(Component.text("Authentication session already exists",NamedTextColor.RED));return;
+connection.disconnect(branded("Сессия авторизации уже существует",DANGER));return;
 }
 InetSocketAddress address=connection.getClientAddress();
 String ip=address==null||address.getAddress()==null?null:address.getAddress().getHostAddress();
@@ -215,12 +215,12 @@ trust.isTrusted(name,uuid,ip,System.currentTimeMillis());
 boolean trustedConnection=knownNetwork && rememberPasswordSkip;
 if(isLocked(name,ip)){
 denied++;
-connection.disconnect(Component.text("Too many failed logins. Try later.",NamedTextColor.RED));
+connection.disconnect(branded("Слишком много попыток входа. Попробуйте позже.",DANGER));
 return;
 }
 if(sessions.size()>=maxPending){
 denied++;
-connection.disconnect(Component.text("Login queue busy",NamedTextColor.RED));return;
+connection.disconnect(branded("Очередь входа заполнена",DANGER));return;
 }
 Stage initial=accounts.exists(name)?Stage.LOGIN_PIN:legacy.exists(name)?Stage.LEGACY_PIN:Stage.CREATE_PIN;
 Session s=new Session(uuid,name,connection,ip,initial);
@@ -228,18 +228,18 @@ s.trusted=trustedConnection;
 s.knownNetwork=knownNetwork;
 s.remember=knownNetwork;
 if(sessions.putIfAbsent(uuid,s)!=null){
-connection.disconnect(Component.text("Authentication session already active",NamedTextColor.RED));return;
+connection.disconnect(branded("Сессия авторизации уже активна",DANGER));return;
 }
 s.result.completeOnTimeout(false,timeoutSeconds,TimeUnit.SECONDS);
 try{
 render(s,null);
 if(!s.result.join()){
 denied++;
-connection.disconnect(Component.text("PIN/password failed or timed out",NamedTextColor.RED));
+connection.disconnect(branded("Неверные данные или время входа истекло",DANGER));
 }
 }catch(Exception error){
 denied++;
-connection.disconnect(Component.text("Authentication could not be completed",NamedTextColor.RED));
+connection.disconnect(branded("Не удалось завершить авторизацию",DANGER));
 }finally{
 sessions.remove(uuid,s);
 s.erase();
@@ -248,14 +248,34 @@ s.erase();
 
 private static final TextColor GOLD=TextColor.color(0xF5C875);
 private static final TextColor MINT=TextColor.color(0x68E5B1);
-private static final TextColor ICE=TextColor.color(0x75CFFF);
+private static final TextColor ICE=TextColor.color(0xA88BFF);
+private static final TextColor ROSE=TextColor.color(0xF1C6FF);
 private static final TextColor MUTED=TextColor.color(0xA7B7CB);
 private static final TextColor DANGER=TextColor.color(0xFF7979);
 private static Component accent(String value,TextColor color){
 return Component.text(value,color).decorate(TextDecoration.BOLD);
 }
+private String brandName(){
+return getConfig().getString("branding.name","Land of Losers");
+}
+private Component brand(){
+String name=brandName();
+Component result=Component.empty();
+int[] chars=name.codePoints().toArray();
+for(int i=0;i<chars.length;i++){
+float t=chars.length<=1?0f:(float)i/(chars.length-1);
+int red=Math.round(168+(241-168)*t);
+int green=Math.round(139+(198-139)*t);
+int blue=255;
+result=result.append(accent(new String(Character.toChars(chars[i])),TextColor.color(red,green,blue)));
+}
+return result;
+}
+private Component branded(String message,TextColor color){
+return brand().append(Component.text(" · ",MUTED)).append(Component.text(message,color));
+}
 private ActionButton button(String caption,String id){
-return button(caption,id,ICE,80,"UnifiedAuth");
+return button(caption,id,ICE,80,brandName());
 }
 private ActionButton button(String caption,String id,TextColor color,int width,String hint){
 return ActionButton.create(accent(caption,color),Component.text(hint,MUTED),width,
@@ -268,14 +288,15 @@ case LEGACY_PIN -> "Обновление аккаунта";
 case CREATE_PIN -> "Создание аккаунта";
 case LOGIN_PIN -> s.trusted?"Быстрый вход":"Вход в аккаунт";
 };
-DialogBase.Builder base=DialogBase.builder(accent(getConfig().getString("messages.title","UnifiedAuth"),GOLD)
+DialogBase.Builder base=DialogBase.builder(brand()
 .append(Component.text("  •  ",MUTED)).append(Component.text(label,ICE)))
 .canCloseWithEscape(false);
 List<DialogInput> inputs=new ArrayList<>();
 List<ActionButton> buttons=new ArrayList<>();
 List<DialogBody> body=new ArrayList<>();
-body.add(DialogBody.plainMessage(accent("ЗАЩИЩЁННЫЙ ВХОД",ICE)));
-body.add(DialogBody.plainMessage(Component.text(getConfig().getString("messages.subtitle","Безопасность вашего аккаунта"),MUTED)));
+body.add(DialogBody.plainMessage(brand().append(Component.text("  ·  ",MUTED)).append(accent(getConfig().getString("branding.edition","Vanilla+"),GOLD))));
+body.add(DialogBody.plainMessage(accent("ЗАЩИЩЁННЫЙ ВХОД",ROSE)));
+body.add(DialogBody.plainMessage(Component.text(getConfig().getString("branding.auth-subtitle","Твой мир. Твоя история."),MUTED)));
 if(notice!=null)body.add(DialogBody.plainMessage(Component.text(notice,DANGER)));
 if(s.stage==Stage.LEGACY_PIN){
 body.add(DialogBody.plainMessage(Component.text("Введите старый PIN, чтобы обновить аккаунт.",NamedTextColor.WHITE)));
@@ -487,17 +508,21 @@ Boolean first=verifiedJoins.remove(player.getUniqueId());
 if(first==null || !getConfig().getBoolean("welcome.enabled",true))return;
 Bukkit.getScheduler().runTaskLater(this,()->{
 if(!player.isOnline() || Bukkit.getPlayer(player.getUniqueId())!=player)return;
-String brand=getConfig().getString("welcome.server-name","UNIFIED");
+String edition=getConfig().getString("branding.edition","Vanilla+");
 String greeting=first?"Аккаунт создан":"С возвращением";
-player.showTitle(Title.title(accent(brand,GOLD),
+player.showTitle(Title.title(brand(),
 Component.text(greeting+", ",MUTED).append(accent(player.getName(),MINT)),
 Title.Times.times(Duration.ofMillis(450),Duration.ofSeconds(3),Duration.ofMillis(850))));
-player.sendActionBar(accent("✓ Авторизация успешна",MINT));
+player.sendActionBar(branded("✓ Авторизация успешна",MINT));
 player.sendMessage(Component.text("━━━━━━━━━━━━━━━━━━━━━━━━━━━━",MUTED));
-player.sendMessage(accent("  "+brand+"  •  "+greeting, GOLD));
-player.sendMessage(Component.text("  Добро пожаловать, ",MUTED).append(accent(player.getName(),ICE)));
+player.sendMessage(Component.text("  ").append(brand()).append(Component.text("  ·  "+edition,GOLD)));
+player.sendMessage(Component.text("  "+greeting+", ",MUTED).append(accent(player.getName(),ROSE)));
 player.sendMessage(Component.text("  Ваш аккаунт защищён. Приятной игры!",MINT));
 player.sendMessage(Component.text("━━━━━━━━━━━━━━━━━━━━━━━━━━━━",MUTED));
+if(getConfig().getBoolean("branding.tab-header-enabled",true)){
+player.sendPlayerListHeaderAndFooter(brand().append(Component.text(" · "+edition,GOLD)),
+Component.text("Твой мир. Твоя история.",MUTED));
+}
 if(getConfig().getBoolean("welcome.sound",true))
 player.playSound(Sound.sound(Key.key("minecraft:entity.player.levelup"),Sound.Source.MASTER,0.45f,1.25f));
 },10L);
@@ -540,7 +565,7 @@ Bukkit.getScheduler().runTask(this,()->player.sendMessage("Could not save this p
 return true;
 }
 if(sender.hasPermission("unifiedauth.admin")){
-sender.sendMessage("UnifiedAuth 1.5: v2Accounts="+(accounts==null?0:accounts.count())+" legacy="+(legacy==null?0:legacy.count())+" pending="+sessions.size()+" successes="+successes+" created="+registered+" migrated="+migrations+" trustedLogins="+trustedLogins+" rateDenied="+rateDenied+" rememberEnabled="+rememberEnabled+" passwordSkip="+rememberPasswordSkip);
+sender.sendMessage("UnifiedAuth 1.5.1: v2Accounts="+(accounts==null?0:accounts.count())+" legacy="+(legacy==null?0:legacy.count())+" pending="+sessions.size()+" successes="+successes+" created="+registered+" migrated="+migrations+" trustedLogins="+trustedLogins+" rateDenied="+rateDenied+" rememberEnabled="+rememberEnabled+" passwordSkip="+rememberPasswordSkip);
 }else sender.sendMessage("Usage: /ua remember [on|off|status]");
 return true;
 }

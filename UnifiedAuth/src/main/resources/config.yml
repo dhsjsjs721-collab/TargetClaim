@@ -1,4 +1,4 @@
-# UnifiedAuth 1.5 — Paper 26.3 / Java 25
+# UnifiedAuth 1.5.1 — Paper 26.3 / Java 25
 authentication:
   enabled: true
   pin-length: 4
@@ -23,8 +23,9 @@ remember-ip:
   allow-verified-proxy-offline-mode: false
 welcome:
   enabled: true
-  server-name: "UNIFIED"
   sound: true
-messages:
-  title: "UnifiedAuth"
-  subtitle: "Безопасность вашего аккаунта"
+branding:
+  name: "Land of Losers"
+  edition: "Vanilla+"
+  auth-subtitle: "Твой мир. Твоя история."
+  tab-header-enabled: true
