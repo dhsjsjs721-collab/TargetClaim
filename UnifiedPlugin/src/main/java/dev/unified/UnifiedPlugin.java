@@ -111,7 +111,7 @@ deepslateCrafts=null;
 if(Bukkit.getPluginManager().getPlugin("TalismanForge")!=null){
 getLogger().severe("WARNING: standalone TalismanForge detected. Remove its old JAR from plugins to prevent duplicate abilities or command conflicts.");
 }
-getLogger().info("MinecraftUnified 1.1.20 started modules "+enabledModules.size()+"/"+modules.size()+
+getLogger().info("MinecraftUnified 1.1.21 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
 @EventHandler public void unifiedCommandList(PlayerCommandSendEvent event){
@@ -132,7 +132,7 @@ for(ModuleBridge m:enabledModules)if(m.getName().equals(module))return true;
 return false;
 }
 private void status(CommandSender sender){
-sender.sendMessage("§aMinecraftUnified 1.1.20 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
+sender.sendMessage("§aMinecraftUnified 1.1.21 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
 sender.sendMessage(trapItems!=null?"§a✓ PvP-трапки §7активны":"§c✗ PvP-трапки §7не активны");
 sender.sendMessage(deepslateCrafts!=null?"§a✓ Крафт сланца §7активен":"§c✗ Крафт сланца §7не запущен");
 for(String name:List.of("TargetClaim","TalismanForge","EnchantmentForge","SwampSky","ImageMaps")){
@@ -159,7 +159,9 @@ sender.sendMessage("§e/u talisman list §7— способности пяти �
 sender.sendMessage("§e/u talisman status §7— состояние активной реликвии; §e/u vfx <тип> §7— предпросмотр (админ)");
 sender.sendMessage("§e/u talisman give <ник> all §7— выдать все пять сразу");
 sender.sendMessage("§e/u enchant §7— зачарования; §e/u trader §7— торговец");
-sender.sendMessage("§e/u wildlife §7— лягушки и экипировка; §e/u frog §7— гигантская лягушка");
+sender.sendMessage("§e/u spawn §7— список мобов; §e/u spawn frog §7— гигантская жаба");
+sender.sendMessage("§e/u spawn goblin 5 forest §7— гоблины; §e/u spawn goblin 7 mushroom §7— грибные гоблины");
+sender.sendMessage("§e/u talisman link §7— получить Душу Кощея рядом с установленным яйцом");
 sender.sendMessage("§e/u goblin [число] [forest|mushroom] §7— вызвать гоблинов (админ)");
 sender.sendMessage("§e/u map §7— карты; §e/u trap §7— обсидиановая ловушка");
 sender.sendMessage("§e/u mining §7— шахтёрская экипировка и метательные факелы");
@@ -213,6 +215,15 @@ sender.sendMessage("§72. Поставь мишень в выбранном ме
 sender.sendMessage("§73. §e/u claim §7— управление; §e/u claim border on §7— границы; §e/u claim upgrade §7— улучшение.");
 sender.sendMessage("§74. §e/u claim list §7— список, §e/u claim <номер> §7— выбрать.");
 }
+private boolean spawnMob(CommandSender sender,String[] args){
+if(args.length==0||args[0].equalsIgnoreCase("help")){sender.sendMessage("§6Мобы: §e/u spawn frog §7— гигантская жаба; §e/u spawn goblin [1-12] [forest|mushroom]");sender.sendMessage("§e/u spawn trader §7— странствующий торговец. Нужны права администратора; в мирной зоне враждебные мобы запрещены.");return true;}
+switch(args[0].toLowerCase(Locale.ROOT)){
+case "frog","giant_frog" -> {return enabled("SwampSky")?runModule(sender,"swampsky","spawn","giant_frog"):unavailable(sender);}
+case "goblin","goblins" -> {return goblins==null?unavailable(sender):goblins.command(sender,Arrays.copyOfRange(args,1,args.length));}
+case "trader" -> {return enabled("EnchantmentForge")?runModule(sender,"enchantmentforge","trader"):unavailable(sender);}
+default -> {sender.sendMessage("§cНеизвестный моб. /u spawn");return true;}
+}
+}
 private String route(String input){
 return switch(input){
 case "frog","repair","trader" -> input.equals("trader")?"enchantmentforge":"swampsky";
@@ -234,6 +245,7 @@ yield command==null?null:command+(args.length==1?"":" "+String.join(" ",Arrays.c
 if(command.getName().equals("unifiedmsg")||command.getName().equals("unifiedreply")){var claims=claimModule();return claims==null?unavailable(sender):claims.privateChat(sender,args,command.getName().equals("unifiedreply"));}
 if(args.length==0||args[0].equalsIgnoreCase("help")){help(sender);return true;}
 String action=args[0].toLowerCase(Locale.ROOT);
+if(action.equals("spawn")||action.equals("mobs"))return spawnMob(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("goblin")||action.equals("goblins"))return goblins==null?unavailable(sender):goblins.command(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("give"))return giveShortcut(sender,args);
 if(action.equals("recipes")){recipes(sender);return true;}
@@ -273,11 +285,13 @@ if(command.getName().equals("unifiedmsg")){var claims=claimModule();return claim
 if(command.getName().equals("unifiedreply"))return List.of();
 if(args.length<=1){
 String prefix=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-return List.of("help","guide","recipes","give","vfx","status","claim","team","clan","talisman","enchant","wildlife","frog","goblin","trader","map","trap","mining")
+return List.of("help","guide","recipes","give","vfx","status","claim","team","clan","talisman","enchant","wildlife","spawn","frog","goblin","trader","map","trap","mining")
 .stream().filter(x->x.startsWith(prefix)).toList();
 }
 String action=args[0].toLowerCase(Locale.ROOT);
 if(action.equals("give")){if(args.length==2)return GIVE_ITEMS.stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();if(args.length==3)return Bukkit.getOnlinePlayers().stream().map(org.bukkit.entity.Player::getName).filter(x->x.toLowerCase(Locale.ROOT).startsWith(args[2].toLowerCase(Locale.ROOT))).toList();return List.of();}
+if(action.equals("spawn")||action.equals("mobs")){if(args.length==2)return List.of("frog","goblin","trader").stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();if(args[1].equalsIgnoreCase("goblin")){if(args.length==3)return List.of("1","3","5","7","12").stream().filter(x->x.startsWith(args[2])).toList();if(args.length==4)return List.of("forest","mushroom").stream().filter(x->x.startsWith(args[3].toLowerCase(Locale.ROOT))).toList();}return List.of();}
+if(action.equals("goblin")){if(args.length==2)return List.of("1","3","5","7","12").stream().filter(x->x.startsWith(args[1])).toList();if(args.length==3)return List.of("forest","mushroom").stream().filter(x->x.startsWith(args[2].toLowerCase(Locale.ROOT))).toList();return List.of();}
 if(action.equals("vfx")&&args.length==2)return List.of("thor","anubis","koschei","kitsune","medusa").stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
 if(action.equals("mining")){if(args.length==2)return List.of("give");if(args.length==3)return Bukkit.getOnlinePlayers().stream().map(org.bukkit.entity.Player::getName).toList();if(args.length==4)return List.of("helmet");return List.of();}
 if("p".equals(ROUTES.get(action))&&args.length==2)return List.of("create","help","list","info","border","upgrade","remove","cancel","give","givekey").stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();

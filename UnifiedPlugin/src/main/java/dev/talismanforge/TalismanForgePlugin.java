@@ -248,7 +248,7 @@ for(ItemStack i:rest.values())p.getWorld().dropItemNaturally(p.getLocation(),i);
 if(myths!=null&&myths.command(sender,args))return true;
 if(args.length==0||!args[0].equalsIgnoreCase("give")){
 sender.sendMessage("§dTalismanForge §7| /tf give <ник> <thor|anubis|koschei|kitsune|medusa|reliquary|hook|all>");
-sender.sendMessage("§7Пробуждение: брось реликвию и яйцо дракона рядом · /tf status · /tf restore");
+sender.sendMessage("§7Пробуждение: брось реликвию и яйцо дракона рядом · /tf status · /tf link · /tf restore");
 sender.sendMessage("§7Рецепт сундука: 7 аметистов + тотем по центру + обсидиан снизу.");return true;
 }
 if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
@@ -262,7 +262,7 @@ else{sender.sendMessage("§cНеизвестный талисман.");return tr
 give(p,item);sender.sendMessage("§aВыдано игроку "+p.getName());return true;
 }
 @Override public List<String> onTabComplete(CommandSender sender,Command cmd,String alias,String[] args){
-if(args.length==1)return List.of("list","give","awaken","restore","status","vfx").stream().filter(x->x.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();
+if(args.length==1)return List.of("list","give","awaken","restore","link","status","vfx").stream().filter(x->x.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();
 if(args.length==2&&args[0].equalsIgnoreCase("give"))return Bukkit.getOnlinePlayers().stream().map(Player::getName).filter(x->x.toLowerCase(Locale.ROOT).startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
 if(args.length==2&&args[0].equalsIgnoreCase("vfx"))return List.of("thor","anubis","koschei","kitsune","medusa").stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
 if(args.length==3&&args[0].equalsIgnoreCase("give"))return List.of("thor","anubis","koschei","kitsune","medusa","reliquary","hook","all").stream().filter(x->x.startsWith(args[2].toLowerCase(Locale.ROOT))).toList();

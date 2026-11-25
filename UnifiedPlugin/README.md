@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.21
+
+All active relic abilities require the relic in either hand (offhand priority). Koschei placement creates a bound Soul of Koschei token; old placed eggs automatically receive a token once, /u talisman link reissues it only near the bound egg and invalidates earlier tokens. Egg takes three manual left clicks, with short debounce, environment remains blocked. Active minions require the same held Anubis. Thor landing grace intentionally survives unequipping. /u spawn [frog|goblin [count] [forest|mushroom]|trader] and tab completion; existing commands preserved.
+
 # MinecraftUnified 1.1.20
 
 Yellow Verity block and particles, a single line of local dialogue. Mirror chestplate default display name changed to Зеркальная броня; legacy default names upgraded on inventory access without altering enchants or damage. Auth art overlay retained in resource pack. No changes to damage balance or other gameplay.

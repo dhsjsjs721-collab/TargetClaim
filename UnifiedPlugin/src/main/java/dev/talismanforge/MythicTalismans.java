@@ -40,11 +40,11 @@ final class MythicTalismans implements Listener {
         static Kind parse(String s){try{return valueOf(s.toUpperCase(Locale.ROOT));}catch(Exception ex){return null;}}
     }
     private static final class State {
-        final Kind kind; State(Kind kind){this.kind=kind;} String serial; UUID display; int charges,progress,eggHp=3; boolean awakened,broken;
+        final Kind kind; State(Kind kind){this.kind=kind;} String serial; UUID display; int charges,progress,eggHp=3; boolean awakened,broken,linkIssued;
         UUID owner; Location egg,store; UUID enderOwner,ritualResult; String ritualOldSerial; long storedAt,lastEggHit,gazeReady;
     }
     private record Mark(Location loc,long time,String name){}
-    private record Minion(UUID owner,long until){}
+    private record Minion(UUID owner,State state,long until){}
     private record Gaze(UUID victim,long since){}
     private record Credit(UUID owner,State state,long until){}
     private record Clone(UUID owner,State state,long until,Vector direction){}
@@ -107,7 +107,7 @@ final class MythicTalismans implements Listener {
         State s=new State(k);
             s.serial=serial; s.charges=Math.max(0,y.getInt(p+"charges",k==Kind.ANUBIS?0:k.initial));
             s.awakened=y.getBoolean(p+"awakened");s.charges=Math.min(s.charges,cap(k,s));s.progress=y.getInt(p+"progress");
-            s.owner=id(y.getString(p+"owner"));s.egg=y.getLocation(p+"egg");s.eggHp=y.getInt(p+"egg-health",3);s.broken=y.getBoolean(p+"broken");s.lastEggHit=y.getLong(p+"egg-hit");
+            s.owner=id(y.getString(p+"owner"));s.egg=y.getLocation(p+"egg");s.eggHp=y.getInt(p+"egg-health",3);s.broken=y.getBoolean(p+"broken");s.linkIssued=y.getBoolean(p+"link-issued",false);s.lastEggHit=y.getLong(p+"egg-hit");
             s.ritualResult=id(y.getString(p+"ritual-result"));s.ritualOldSerial=y.getString(p+"ritual-old-serial");
             s.gazeReady=y.getLong(p+"gaze-ready");s.store=y.getLocation(p+"storage");s.enderOwner=id(y.getString(p+"ender-owner"));s.storedAt=y.getLong(p+"stored-at");
         states.put(serial,s);if(k==Kind.KOSCHEI&&s.owner!=null)boundEggs.putIfAbsent(s.owner,s);
@@ -117,7 +117,7 @@ final class MythicTalismans implements Listener {
         for(State s:states.values()){
             String p="instances."+s.serial+".";y.set(p+"kind",s.kind.key());
             y.set(p+"serial",s.serial);y.set(p+"charges",s.charges);y.set(p+"awakened",s.awakened);y.set(p+"progress",s.progress);
-            y.set(p+"owner",s.owner==null?null:s.owner.toString());y.set(p+"egg",s.egg);y.set(p+"egg-health",s.eggHp);y.set(p+"broken",s.broken);y.set(p+"egg-hit",s.lastEggHit);
+            y.set(p+"owner",s.owner==null?null:s.owner.toString());y.set(p+"egg",s.egg);y.set(p+"egg-health",s.eggHp);y.set(p+"broken",s.broken);y.set(p+"link-issued",s.linkIssued);y.set(p+"egg-hit",s.lastEggHit);
             y.set(p+"ritual-result",s.ritualResult==null?null:s.ritualResult.toString());y.set(p+"ritual-old-serial",s.ritualOldSerial);
             y.set(p+"gaze-ready",s.gazeReady);y.set(p+"storage",s.store);y.set(p+"ender-owner",s.enderOwner==null?null:s.enderOwner.toString());y.set(p+"stored-at",s.storedAt);
         }
@@ -135,8 +135,8 @@ final class MythicTalismans implements Listener {
     private Component title(Kind k,String value){return Component.text(value,TextColor.color(k.color));}
     private void message(Player p,Kind k,String text){p.sendMessage(title(k,"✦ "+text));}
     private ItemStack item(State s){
-        Kind k=s.kind;ItemStack i=new ItemStack(k.icon);ItemMeta m=i.getItemMeta();
-        m.displayName(title(k,k==Kind.KOSCHEI?(s.awakened?"Пробуждённое яйцо Кощея":"Яйцо Кощея"):s.awakened?k.awakening:k.title));
+        Kind k=s.kind;boolean link=k==Kind.KOSCHEI&&s.egg!=null;ItemStack i=new ItemStack(link?Material.ECHO_SHARD:k.icon);ItemMeta m=i.getItemMeta();
+        m.displayName(title(k,k==Kind.KOSCHEI?(link?"Душа Кощея":s.awakened?"Пробуждённое яйцо Кощея":"Яйцо Кощея"):s.awakened?k.awakening:k.title));
         m.setMaxStackSize(1);m.setEnchantmentGlintOverride(s.awakened);
         m.getPersistentDataContainer().set(typeKey,PersistentDataType.STRING,k.key());
         m.getPersistentDataContainer().set(serialKey,PersistentDataType.STRING,s.serial);
@@ -145,19 +145,21 @@ final class MythicTalismans implements Listener {
         switch(k){
             case THOR -> {lore.add("§bМолния · +13% некритического урона");lore.add("§7Естественная молния восстанавливает заряд");lore.add("§cВ Незере: Слабость I");}
             case ANUBIS -> {lore.add("§6Души любых мобов · 200 за спасение");lore.add("§7Видит места гибели");lore.add("§cПод дождём: −15% скорости");}
-            case KOSCHEI -> {lore.add("§aУстанови вне любого привата");lore.add("§7Мембрана фантома восстанавливает заряд");lore.add("§c−1 сердце, −25% питания");}
+            case KOSCHEI -> {lore.add(link?"§aСвязана с установленным яйцом. Держи в руке.":"§aУстанови вне любого привата, чтобы получить Душу Кощея");lore.add("§7Мембрана фантома восстанавливает заряд");lore.add("§c−1 сердце, −25% питания");}
             case KITSUNE -> {lore.add("§6Невидимость · 180с / Shift 30с");lore.add("§730 минут в хранилище за заряд");lore.add("§cВне маскировки: +10% входящего урона");}
             case MEDUSA -> {lore.add("§dКаменный взгляд · 20 убитых статуй за заряд");lore.add("§7ПКМ-щит отражает взгляд");}
         }
-        if(k!=Kind.KOSCHEI)lore.add("§7Активна в любой руке (вторая в приоритете)");
-        if(!s.awakened)lore.add("§8Брось реликвию и яйцо дракона рядом");
+        if(k!=Kind.KOSCHEI||link)lore.add("§7Активна только в руках (вторая в приоритете)");
+        if(!s.awakened)lore.add(link?"§8Для пробуждения брось яйцо дракона рядом с установленным яйцом":"§8Брось реликвию и яйцо дракона рядом");
         m.setLore(lore);i.setItemMeta(m);return i;
     }
     private State state(ItemStack i){
         if(i==null||!i.hasItemMeta()||i.getAmount()!=1)return null;
         var p=i.getItemMeta().getPersistentDataContainer();String serial=p.get(serialKey,PersistentDataType.STRING),v=p.get(typeKey,PersistentDataType.STRING);
         State s=serial==null?null:states.get(serial);
-        if(s==null||!s.kind.key().equals(v)||(i.getType()!=s.kind.icon&&!(s.kind==Kind.KOSCHEI&&i.getType()==Material.DRAGON_EGG)))return null;
+        if(s==null||!s.kind.key().equals(v))return null;
+        if(s.kind==Kind.KOSCHEI){if(s.broken)return null;if(s.egg!=null){if(i.getType()!=Material.ECHO_SHARD)return null;}else if(i.getType()!=s.kind.icon&&i.getType()!=Material.DRAGON_EGG)return null;}
+        else if(i.getType()!=s.kind.icon)return null;
         return s;
     }
     private Kind kind(ItemStack i){State s=state(i);return s==null?null:s.kind;}
@@ -166,19 +168,20 @@ final class MythicTalismans implements Listener {
     private boolean canRitual(Player p){return usable(p)||p.getGameMode()==GameMode.CREATIVE&&p.hasPermission("talismanforge.admin");}
     private boolean peace(Location l){return ((dev.unified.UnifiedPlugin)plugin.host()).isPeace(l);}
     private State heldState(Player p){
-        State s=state(p.getInventory().getItemInOffHand());if(s!=null&&s.kind!=Kind.KOSCHEI)return s;
-        s=state(p.getInventory().getItemInMainHand());return s!=null&&s.kind!=Kind.KOSCHEI?s:null;
+        State s=state(p.getInventory().getItemInOffHand());if(validHeld(p,s))return s;
+        s=state(p.getInventory().getItemInMainHand());return validHeld(p,s)?s:null;
     }
+    private boolean validHeld(Player p,State s){return s!=null&&(s.kind!=Kind.KOSCHEI||!s.broken&&s.egg!=null&&p.getUniqueId().equals(s.owner)&&boundEggs.get(s.owner)==s);}
     private State activeState(Player p){
         if(!usable(p))return null;
         State s=heldState(p);
         if(s!=null){for(Player other:Bukkit.getOnlinePlayers())if(other!=p&&usable(other)&&!other.isDead()&&other.getUniqueId().compareTo(p.getUniqueId())<0&&heldState(other)==s)return null;return s;}
-        return boundEggs.get(p.getUniqueId());
+        return null;
     }
     private Kind active(Player p){State s=activeState(p);return s==null?null:s.kind;}
     boolean hasActive(Player p){return active(p)!=null;}
     private void refreshItem(Player p,Kind k){
-        State s=activeState(p);if(s==null||s.kind!=k||k==Kind.KOSCHEI)return;
+        State s=activeState(p);if(s==null||s.kind!=k)return;
         var inv=p.getInventory();ItemStack replacement=item(s);
         if(state(inv.getItemInOffHand())==s){if(!replacement.equals(inv.getItemInOffHand()))inv.setItemInOffHand(replacement);}
         else if(state(inv.getItemInMainHand())==s&&!replacement.equals(inv.getItemInMainHand()))inv.setItemInMainHand(replacement);
@@ -198,7 +201,7 @@ final class MythicTalismans implements Listener {
             if(!sender.hasPermission("talismanforge.admin")){sender.sendMessage("§cНет прав.");return true;}
             registrySelfTest(sender);return true;
         }
-        if(args[0].equalsIgnoreCase("list")){sender.sendMessage("§6Пять мифических реликвий — количество экземпляров не ограничено.");for(Kind kind:Kind.values())sender.sendMessage(title(kind,kind.key()+" · "+kind.title+" → "+kind.awakening));sender.sendMessage("§7Реликвии активны в любой руке. Кощей — установленное яйцо. На спавне нет боевых эффектов.");return true;}
+        if(args[0].equalsIgnoreCase("list")){sender.sendMessage("§6Пять мифических реликвий — количество экземпляров не ограничено.");for(Kind kind:Kind.values())sender.sendMessage(title(kind,kind.key()+" · "+kind.title+" → "+kind.awakening));sender.sendMessage("§7Реликвии активны только в руках. Кощей — Душа Кощея в руке + установленное яйцо. На спавне нет боевых эффектов.");return true;}
         if(args[0].equalsIgnoreCase("vfx")){if(!(sender instanceof Player p)||!p.hasPermission("talismanforge.admin")){sender.sendMessage("§cТолько администратор в игре.");return true;}Kind kind=args.length>=2?Kind.parse(args[1]):null;if(kind==null){sender.sendMessage("§e/u vfx thor|anubis|koschei|kitsune|medusa");return true;}burst(p.getLocation(),kind,24);rescueVfx(p.getLocation().clone(),kind);return true;}
         if(args[0].equalsIgnoreCase("give")&&args.length>=3){
             Kind k=Kind.parse(args[2]);if(k==null)return false;
@@ -206,7 +209,7 @@ final class MythicTalismans implements Listener {
             Player p=Bukkit.getPlayerExact(args[1]);if(p==null){sender.sendMessage("§cИгрок не найден.");return true;}
             sender.sendMessage(issue(p,k)?"§aРеликвия выдана.":"§cНе удалось сохранить реликвию.");return true;
         }
-        if(!Set.of("awaken","restore","status").contains(args[0].toLowerCase(Locale.ROOT)))return false;
+        if(!Set.of("awaken","restore","status","link").contains(args[0].toLowerCase(Locale.ROOT)))return false;
         if(!(sender instanceof Player p)||!usable(p)){sender.sendMessage("§cТолько игрок в режиме выживания.");return true;}
         Kind k=active(p);
         if(args[0].equalsIgnoreCase("status")){
@@ -214,12 +217,19 @@ final class MythicTalismans implements Listener {
             else message(p,k,k.title+" · "+chargeText(k,activeState(p)));
             return true;
         }
+        if(args[0].equalsIgnoreCase("link")){
+            State s=boundEggs.get(p.getUniqueId());if(s==null||s.egg==null||s.broken){message(p,Kind.KOSCHEI,"Нет действующего установленного яйца.");return true;}
+            if(rituals.containsKey(s)){message(p,Kind.KOSCHEI,"Дождись завершения ритуала.");return true;}
+            if(s.egg.getWorld()==null||!s.egg.getWorld().isChunkLoaded(s.egg.getBlockX()>>4,s.egg.getBlockZ()>>4)||!eggBlock(s.egg.getBlock())){message(p,Kind.KOSCHEI,"Подойди к своему установленному яйцу.");return true;}
+            if(!closeTo(p.getLocation(),s.egg,6)){message(p,Kind.KOSCHEI,"Подойди к своему яйцу на 6 блоков.");return true;}
+            issueLink(p,s,true);return true;
+        }
         if(args[0].equalsIgnoreCase("restore")){
             State s=boundEggs.get(p.getUniqueId());
             if(s==null||!s.broken){p.sendMessage("§cНет разрушенного привязанного яйца.");return true;}
             if(!take(p,Material.PHANTOM_MEMBRANE,16)){p.sendMessage("§cТребуется 16 мембран фантома.");return true;}
-            String previous=s.serial;int oldCharges=s.charges,oldHp=s.eggHp;changeSerial(s,UUID.randomUUID().toString());s.charges=3;s.eggHp=3;s.broken=false;
-            if(!save()){changeSerial(s,previous);s.charges=oldCharges;s.eggHp=oldHp;s.broken=true;give(p,new ItemStack(Material.PHANTOM_MEMBRANE,16));return true;}
+            String previous=s.serial;int oldCharges=s.charges,oldHp=s.eggHp;changeSerial(s,UUID.randomUUID().toString());s.charges=3;s.eggHp=3;s.broken=false;boolean oldLink=s.linkIssued;s.linkIssued=false;
+            if(!save()){changeSerial(s,previous);s.charges=oldCharges;s.eggHp=oldHp;s.broken=true;s.linkIssued=oldLink;give(p,new ItemStack(Material.PHANTOM_MEMBRANE,16));return true;}
             give(p,item(s));message(p,Kind.KOSCHEI,"Душа возвращена в яйцо.");return true;
         }
         p.sendMessage("§6✦ Пробуждение: выбрось одну реликвию и одно обычное яйцо дракона рядом на твёрдый блок. Стой рядом 6 секунд.");
@@ -346,14 +356,14 @@ final class MythicTalismans implements Listener {
     }
     private void finishRitual(Ritual r,Item relic,Item egg,Player p){
         State st=r.state();String old=st.serial;UUID previousResult=st.ritualResult;String previousOld=st.ritualOldSerial;
-        st.awakened=true;changeSerial(st,UUID.randomUUID().toString());st.ritualResult=r.relic();st.ritualOldSerial=old;
+        st.awakened=true;if(relic!=null)changeSerial(st,UUID.randomUUID().toString());st.ritualResult=r.relic();st.ritualOldSerial=old;
         spentEggs.add(r.egg());
         // The same atomic registry write commits the awakening, new serial and spent egg UUID.
         // On a restart, the exact old item entity is repaired and a still-saved egg is removed.
         if(!save()){st.awakened=false;changeSerial(st,old);st.ritualResult=previousResult;st.ritualOldSerial=previousOld;spentEggs.remove(r.egg());abortRitual(r,"ошибка сохранения");return;}
         rituals.remove(r.state());clearRitualDisplays(r.state());egg.remove();
         if(relic!=null){relic.setItemStack(item(st));unlockItem(relic);}
-        else if(st.egg!=null)renderEgg(st);
+        else if(st.egg!=null){renderEgg(st);refreshItem(p,Kind.KOSCHEI);}
         p.showTitle(net.kyori.adventure.title.Title.title(title(r.kind(),r.kind().awakening),Component.text("Реликвия пробуждена")));
         p.playSound(r.center(),Sound.BLOCK_END_PORTAL_SPAWN,1,1.1f);p.playSound(r.center(),Sound.ENTITY_PLAYER_LEVELUP,.8f,.8f);
         burst(r.center(),r.kind(),64);rescueVfx(r.center(),r.kind());
@@ -471,7 +481,7 @@ final class MythicTalismans implements Listener {
         if(clones.containsKey(e.getDamager().getUniqueId())){e.setCancelled(true);return;}
         Minion m=minions.get(e.getDamager().getUniqueId());
         if(m==null&&e.getDamager() instanceof Projectile q&&q.getShooter() instanceof LivingEntity shooter)m=minions.get(shooter.getUniqueId());
-        if(m!=null&&e.getEntity() instanceof LivingEntity target){Player owner=Bukkit.getPlayer(m.owner());if(owner==null||!enemy(owner,target)){e.setCancelled(true);return;}if(e.getDamager() instanceof Mob mob&&maxHealth(mob)<=1)e.setDamage(1); }
+        if(m!=null&&e.getEntity() instanceof LivingEntity target){Player owner=Bukkit.getPlayer(m.owner());if(owner==null||activeState(owner)!=m.state()||!enemy(owner,target)){e.setCancelled(true);return;}if(e.getDamager() instanceof Mob mob&&maxHealth(mob)<=1)e.setDamage(1); }
         Player p=attacker(e.getDamager());if(p==null||!(e.getEntity() instanceof LivingEntity target))return;
         Kind k=active(p);
         if(k==Kind.THOR&&!peace(p.getLocation())&&!peace(target.getLocation())&&e.getDamager()==p&&!internalDamage.contains(p.getUniqueId())){
@@ -634,7 +644,7 @@ final class MythicTalismans implements Listener {
             EntityEquipment eq=m.getEquipment();
             if(eq!=null){eq.setItemInMainHand(new ItemStack(elite?Material.NETHERITE_AXE:Material.STONE_SWORD));if(elite){eq.setItemInOffHand(new ItemStack(Material.SHIELD));eq.setHelmet(new ItemStack(Material.NETHERITE_HELMET));eq.setChestplate(new ItemStack(Material.NETHERITE_CHESTPLATE));eq.setLeggings(new ItemStack(Material.NETHERITE_LEGGINGS));eq.setBoots(new ItemStack(Material.NETHERITE_BOOTS));}}
             m.customName(title(Kind.ANUBIS,elite?"Страж Дуата":"Душа Анубиса"));m.setCustomNameVisible(true);
-            minions.put(m.getUniqueId(),new Minion(p.getUniqueId(),now()+30000));burst(l,Kind.ANUBIS,12);
+            minions.put(m.getUniqueId(),new Minion(p.getUniqueId(),activeState(p),now()+30000));burst(l,Kind.ANUBIS,12);
         }
     }
     private boolean claimed(Location loc){
@@ -659,18 +669,37 @@ final class MythicTalismans implements Listener {
     }
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void eggPlaced(BlockPlaceEvent e){
         State s=state(e.getItemInHand());if(s==null||s.kind!=Kind.KOSCHEI)return;
-        s.egg=e.getBlockPlaced().getLocation();s.owner=e.getPlayer().getUniqueId();boundEggs.put(s.owner,s);s.eggHp=3;s.lastEggHit=now();save();burst(s.egg,Kind.KOSCHEI,36);message(e.getPlayer(),Kind.KOSCHEI,"Душа привязана.");
+        s.egg=e.getBlockPlaced().getLocation();s.owner=e.getPlayer().getUniqueId();boundEggs.put(s.owner,s);s.eggHp=3;s.lastEggHit=now();s.linkIssued=false;save();burst(s.egg,Kind.KOSCHEI,36);issueLink(e.getPlayer(),s,true);
         Bukkit.getScheduler().runTask(plugin.host(),()->{if(s.egg!=null&&eggBlock(s.egg.getBlock()))renderEgg(s);});
     }
+    private void issueLink(Player p,State s,boolean rotate){
+        String old=s.serial;boolean issued=s.linkIssued;
+        if(rotate)changeSerial(s,UUID.randomUUID().toString());
+        s.linkIssued=true;
+        if(!save()){changeSerial(s,old);s.linkIssued=issued;message(p,Kind.KOSCHEI,"Ошибка сохранения. /u talisman link возле яйца.");return;}
+        give(p,item(s));message(p,Kind.KOSCHEI,"Душа Кощея выдана. Спасение только пока она в руке.");
+    }
+    private void hitEgg(Player p,State s,Block b){
+        if(!canRitual(p)||isStone(p)||claimed(b.getLocation()))return;
+        if(rituals.containsKey(s))abortRitual(rituals.get(s),"яйцо атаковано");
+        long time=now();if(time-s.lastEggHit<350)return;
+        int previous=s.eggHp;long last=s.lastEggHit;s.eggHp--;s.lastEggHit=time;
+        burst(b.getLocation(),Kind.KOSCHEI,12);
+        b.getWorld().playSound(b.getLocation(),Sound.BLOCK_GLASS_HIT,1,.8f);
+        if(s.eggHp<=0){destroyEgg(s);message(p,Kind.KOSCHEI,"Яйцо разрушено.");}
+        else if(!save()){s.eggHp=previous;s.lastEggHit=last;}
+        else {message(p,Kind.KOSCHEI,"Прочность яйца: "+s.eggHp+"/3");}
+    }
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void eggDamage(BlockDamageEvent e){
+        State s=eggAt(e.getBlock());if(s==null)return;e.setCancelled(true);hitEgg(e.getPlayer(),s,e.getBlock());
+    }
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void eggBreak(BlockBreakEvent e){
-        State s=eggAt(e.getBlock());if(s==null)return;e.setCancelled(true);if(rituals.containsKey(s))return;s.eggHp--;s.lastEggHit=now();
-        burst(e.getBlock().getLocation(),Kind.KOSCHEI,12);
-        if(s.eggHp<=0)destroyEgg(s);else{save();message(e.getPlayer(),Kind.KOSCHEI,"Прочность яйца: "+s.eggHp+"/3");}
+        State s=eggAt(e.getBlock());if(s==null)return;e.setCancelled(true);hitEgg(e.getPlayer(),s,e.getBlock());
     }
     private void destroyEgg(State s){
         removeEggDisplay(s);
         Location l=s.egg;if(l!=null&&eggBlock(l.getBlock())){l.getBlock().setType(Material.AIR,false);burst(l,Kind.KOSCHEI,50);l.getWorld().playSound(l,Sound.BLOCK_GLASS_BREAK,1,.7f);}
-        s.egg=null;s.broken=true;s.eggHp=0;save();Player p=s.owner==null?null:Bukkit.getPlayer(s.owner);
+        s.egg=null;s.broken=true;s.eggHp=0;s.linkIssued=false;save();Player p=s.owner==null?null:Bukkit.getPlayer(s.owner);
         if(p!=null)message(p,Kind.KOSCHEI,"Яйцо уничтожено. /tf restore — 16 мембран.");
     }
     private void removeEggDisplay(State s){
@@ -712,7 +741,8 @@ final class MythicTalismans implements Listener {
     }
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void useEgg(PlayerInteractEvent e){
         if(e.getClickedBlock()==null||!isEgg(e.getClickedBlock()))return;
-        e.setCancelled(true);if(e.getHand()!=EquipmentSlot.HAND||e.getAction()!=Action.RIGHT_CLICK_BLOCK)return;
+        if(e.getAction()==Action.LEFT_CLICK_BLOCK){if(e.getHand()==EquipmentSlot.HAND&&e.useInteractedBlock()!=Event.Result.DENY){State hit=eggAt(e.getClickedBlock());if(hit!=null){e.setCancelled(true);hitEgg(e.getPlayer(),hit,e.getClickedBlock());}}return;}
+        if(e.getAction()!=Action.RIGHT_CLICK_BLOCK)return;e.setCancelled(true);if(e.getHand()!=EquipmentSlot.HAND)return;
         State s=eggAt(e.getClickedBlock());Player p=e.getPlayer();if(s==null)return;
         if(!p.getUniqueId().equals(s.owner)||!usable(p))return;
         if(!s.awakened&&s.charges<3&&p.getInventory().getItemInMainHand().getType()==Material.PHANTOM_MEMBRANE&&take(p,Material.PHANTOM_MEMBRANE,1)){int before=s.charges;charge(s,1,p);if(s.charges==before)give(p,new ItemStack(Material.PHANTOM_MEMBRANE));}
@@ -872,7 +902,7 @@ final class MythicTalismans implements Listener {
         boolean raining=raining(p);
         modifier(p,Attribute.MAX_HEALTH,healthKey,-2,AttributeModifier.Operation.ADD_NUMBER,k==Kind.KOSCHEI);
         modifier(p,Attribute.MOVEMENT_SPEED,rainKey,-.15,AttributeModifier.Operation.ADD_SCALAR,k==Kind.ANUBIS&&raining);
-        if(k==Kind.THOR&&p.getWorld().getEnvironment()==World.Environment.NETHER)p.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,45,0,true,false,true));
+        if(k==Kind.THOR&&p.getWorld().getEnvironment()==World.Environment.NETHER)p.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,10,0,true,false,true));
         boolean fly=k==Kind.THOR&&activeState(p).awakened&&raining;
         var data=p.getPersistentDataContainer();
         if(fly){
@@ -903,7 +933,8 @@ final class MythicTalismans implements Listener {
         ticks+=5;long time=now();
         tickRituals();if(ticks%10==0)detectRituals();
         for(Player p:Bukkit.getOnlinePlayers()){
-            UUID id=p.getUniqueId();Kind k=active(p);
+            UUID id=p.getUniqueId();State bound=boundEggs.get(id);if(bound!=null&&bound.egg!=null&&!bound.broken&&!bound.linkIssued){issueLink(p,bound,true);}
+            Kind k=active(p);
             if(stonePlayers.containsKey(id)&&(stonePlayers.get(id)<=time||peace(p.getLocation())))thaw(p);
             if(k==Kind.KITSUNE&&!peace(p.getLocation())){
                 State storage=activeState(p);
@@ -942,7 +973,7 @@ final class MythicTalismans implements Listener {
         }
         for(var entry:new ArrayList<>(minions.entrySet())){
             Entity entity=Bukkit.getEntity(entry.getKey());Minion m=entry.getValue();Player owner=Bukkit.getPlayer(m.owner());
-            if(!(entity instanceof Mob mob)||m.until()<=time||owner==null||owner.isDead()||peace(owner.getLocation())||peace(entity.getLocation())||owner.getWorld()!=entity.getWorld()){if(entity!=null)entity.remove();minions.remove(entry.getKey());continue;}
+            if(!(entity instanceof Mob mob)||m.until()<=time||owner==null||owner.isDead()||activeState(owner)!=m.state()||peace(owner.getLocation())||peace(entity.getLocation())||owner.getWorld()!=entity.getWorld()){if(entity!=null)entity.remove();minions.remove(entry.getKey());continue;}
             LivingEntity nearest=null;double distance=16*16;
             for(Entity e:mob.getNearbyEntities(16,8,16))if(e instanceof LivingEntity l&&enemy(owner,l)&&(l instanceof Player||l instanceof Monster||l instanceof Slime)){
                 double d=l.getLocation().distanceSquared(mob.getLocation());if(d<distance){nearest=l;distance=d;}
