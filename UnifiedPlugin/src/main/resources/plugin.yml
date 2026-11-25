@@ -1,5 +1,5 @@
 name: MinecraftUnified
-version: 1.1.17
+version: 1.1.18
 main: dev.unified.UnifiedPlugin
 api-version: '26.3'
 author: MinecraftUnified
@@ -47,6 +47,8 @@ commands:
     description: Edit a map using an HTTPS image
     usage: /u map
 permissions:
+  minecraftunified.goblin.admin:
+    default: op
   minecraftunified.mirror.admin:
     default: op
   minecraftunified.mining.admin:

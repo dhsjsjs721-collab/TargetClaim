@@ -33,6 +33,7 @@ private PeaceZone peace;
 private MiningGear mining;
 private MediaItems media;
 private MirrorArmor mirrorArmor;
+private Goblins goblins;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("claims","p"),Map.entry("p","p"),Map.entry("private","p"),
 Map.entry("team","team"),Map.entry("teams","team"),Map.entry("clan","team"),Map.entry("clans","team"),
@@ -46,7 +47,7 @@ private static final Map<String,String> OWNERS=Map.of(
 "enchantmentforge","EnchantmentForge","swampsky","SwampSky","imagemap","ImageMaps");
 @Override public void onEnable(){
 getDataFolder().mkdirs();
-getConfig().addDefault("peace.world","world");getConfig().addDefault("peace.radius",250);getConfig().addDefault("peace.containers-per-chunk",16);getConfig().addDefault("mining.dynamic-light",true);getConfig().options().copyDefaults(true);saveConfig();
+getConfig().addDefault("peace.world","world");getConfig().addDefault("peace.radius",250);getConfig().addDefault("peace.containers-per-chunk",16);getConfig().addDefault("mining.dynamic-light",true);getConfig().addDefault("goblins.world-cap",48);getConfig().options().copyDefaults(true);saveConfig();
 peace=new PeaceZone(this);peace.enable();
 Bukkit.getPluginManager().registerEvents(this,this);
 PluginCommand entry=getCommand("unified");
@@ -94,6 +95,7 @@ retiredShields.enable();
 mining=new MiningGear(this);mining.enable();
 media=new MediaItems(this);media.enable();
 mirrorArmor=new MirrorArmor(this);mirrorArmor.enable();
+goblins=new Goblins(this);goblins.enable();
 for(String name:List.of("skin","disc")){PluginCommand c=getCommand(name);if(c!=null)c.setExecutor((sender,command,label,args)->name.equals("skin")?media.skin(sender,args):media.disc(sender,args));}
 try{
 deepslateCrafts=new DeepslateCrafts(this);
@@ -107,7 +109,7 @@ deepslateCrafts=null;
 if(Bukkit.getPluginManager().getPlugin("TalismanForge")!=null){
 getLogger().severe("WARNING: standalone TalismanForge detected. Remove its old JAR from plugins to prevent duplicate abilities or command conflicts.");
 }
-getLogger().info("MinecraftUnified 1.1.17 started modules "+enabledModules.size()+"/"+modules.size()+
+getLogger().info("MinecraftUnified 1.1.18 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
 @EventHandler public void unifiedCommandList(PlayerCommandSendEvent event){
@@ -128,7 +130,7 @@ for(ModuleBridge m:enabledModules)if(m.getName().equals(module))return true;
 return false;
 }
 private void status(CommandSender sender){
-sender.sendMessage("§aMinecraftUnified 1.1.17 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
+sender.sendMessage("§aMinecraftUnified 1.1.18 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
 sender.sendMessage(trapItems!=null?"§a✓ PvP-трапки §7активны":"§c✗ PvP-трапки §7не активны");
 sender.sendMessage(deepslateCrafts!=null?"§a✓ Крафт сланца §7активен":"§c✗ Крафт сланца §7не запущен");
 for(String name:List.of("TargetClaim","TalismanForge","EnchantmentForge","SwampSky","ImageMaps")){
@@ -156,6 +158,7 @@ sender.sendMessage("§e/u talisman status §7— состояние активн
 sender.sendMessage("§e/u talisman give <ник> all §7— выдать все пять сразу");
 sender.sendMessage("§e/u enchant §7— зачарования; §e/u trader §7— торговец");
 sender.sendMessage("§e/u wildlife §7— лягушки и экипировка; §e/u frog §7— гигантская лягушка");
+sender.sendMessage("§e/u goblin [число] [forest|mushroom] §7— вызвать гоблинов (админ)");
 sender.sendMessage("§e/u map §7— карты; §e/u trap §7— обсидиановая ловушка");
 sender.sendMessage("§e/u mining §7— шахтёрская экипировка и метательные факелы");
 sender.sendMessage("§e/skin §7— смена скина; §e/disc §7— записать ссылку YouTube на пластинку");
@@ -227,6 +230,7 @@ yield command==null?null:command+(args.length==1?"":" "+String.join(" ",Arrays.c
 if(command.getName().equals("unifiedmsg")||command.getName().equals("unifiedreply")){var claims=claimModule();return claims==null?unavailable(sender):claims.privateChat(sender,args,command.getName().equals("unifiedreply"));}
 if(args.length==0||args[0].equalsIgnoreCase("help")){help(sender);return true;}
 String action=args[0].toLowerCase(Locale.ROOT);
+if(action.equals("goblin")||action.equals("goblins"))return goblins==null?unavailable(sender):goblins.command(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("give"))return giveShortcut(sender,args);
 if(action.equals("recipes")){recipes(sender);return true;}
 if(action.equals("guide")){claimGuide(sender);recipes(sender);return true;}
@@ -265,7 +269,7 @@ if(command.getName().equals("unifiedmsg")){var claims=claimModule();return claim
 if(command.getName().equals("unifiedreply"))return List.of();
 if(args.length<=1){
 String prefix=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-return List.of("help","guide","recipes","give","vfx","status","claim","team","clan","talisman","enchant","wildlife","frog","trader","map","trap","mining")
+return List.of("help","guide","recipes","give","vfx","status","claim","team","clan","talisman","enchant","wildlife","frog","goblin","trader","map","trap","mining")
 .stream().filter(x->x.startsWith(prefix)).toList();
 }
 String action=args[0].toLowerCase(Locale.ROOT);

@@ -1,3 +1,7 @@
+# MinecraftUnified 1.1.18 — goblins
+
+Custom small fast zombies, 14 HP, scale 0.68, movement 0.32, iron swords, zero base armor, no sunlight burning, no reinforcements, no equipment pickup, two resource-pack costumes. Surface packs of 2–4 in dark forest areas and 4–7 in mushroom fields even by day; near-player caps 8/18 and world loaded cap 48, no forced chunk generation, no spawn in claims or peaceful zone. Respects mob-spawn rules and Peaceful difficulty. `/u goblin [1–12] [forest|mushroom]` is admin-only. Goblins have normal zombie AI, not a new client entity. Custom costume does not drop; natural drops capped. Visual and live combat tests required.
+
 # MinecraftUnified 1.1.17
 
 Mirror chestplate: craft 8 tinted glass in chestplate shape. 7 armor, 1 toughness, 400 durability, 1/3 independent chance to cancel incoming damage and reflect final damage to the eligible attacker. Environmental damage is absorbed on proc, no recipient. Administrative kill excluded. Reflected hits cannot reflect again; claims and allied PvP rules remain effective. The item retains normal armor enchantments and ordinary durability. /u give mirror [player]. Live player combat verification required.
