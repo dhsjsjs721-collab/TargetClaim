@@ -4,6 +4,10 @@ import java.util.*;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.event.player.*;
+import org.bukkit.util.Vector;
 import org.bukkit.entity.*;
 import org.bukkit.event.*;
 import org.bukkit.event.entity.*;
@@ -19,28 +23,18 @@ import org.bukkit.potion.PotionEffectType;
 /** Five uniquely designed, one-use rescue talismans. Case-only survival source. */
 final class FiveTalismanService implements Listener {
 enum Kind {
-ZEUS("zeus","§eТалисман Зевса",NamedTextColor.YELLOW,
-"§7Каждый крит: молния, +3 урона, замедление",1),
-POSEIDON("olympus_poseidon","§3Талисман Посейдона",NamedTextColor.DARK_AQUA,
-"§7Лечение и поглощение при ударе по игроку (7 с)",1),
-ARES("ares","§cТалисман Ареса",NamedTextColor.RED,
-"§7Иссушение игрока и боевое лечение (5 с)",1),
-ATHENA("athena","§bТалисман Афины",NamedTextColor.AQUA,
-"§7Сопротивление I; слабость врага и защита при ударе",1),
-HERMES("hermes","§aТалисман Гермеса",NamedTextColor.GREEN,
-"§7Слепота и замедление врага, контрудар (5 с)",1);
+CERBERUS("cerberus","§4Талисман Цербера",NamedTextColor.DARK_RED,"§7Цепные криты и призрачное спасение",1),
+KRAKEN("kraken","§3Талисман Кракена",NamedTextColor.DARK_AQUA,"§7+3 сердца, морская метка и два спасения",1),
+GORGON("gorgon","§2Талисман Горгоны",NamedTextColor.DARK_GREEN,"§7Каменный взгляд и проклятый щит",1),
+PHOENIX("phoenix","§6Талисман Феникса",NamedTextColor.GOLD,"§7Золотые сердца и огненная волна",1),
+HYDRA("hydra","§aТалисман Гидры",NamedTextColor.GREEN,"§7Три головы, яд и иммунитет к зельям",1);
 final String key,title,lore;
 final NamedTextColor color;
 final int weight;
-Kind(String key,String title,NamedTextColor color,String lore,int weight){
-this.key=key;this.title=title;this.color=color;this.lore=lore;this.weight=weight;
+Kind(String key,String title,NamedTextColor color,String lore,int weight){this.key=key;this.title=title;this.color=color;this.lore=lore;this.weight=weight;}
+static Kind parse(String key){if(key==null)return null;for(Kind k:values())if(k.key.equalsIgnoreCase(key))return k;return null;}
 }
-static Kind parse(String key){
-if(key==null)return null;
-for(Kind k:values())if(k.key.equalsIgnoreCase(key))return k;
-return null;
-}
-}
+
 private static final long SEC=1000L;
 private final Plugin plugin;
 private final NamespacedKey type=new NamespacedKey("talismanforge","five_talisman");
@@ -48,20 +42,35 @@ private final NamespacedKey legacy=new NamespacedKey("talismanforge","talisman_t
 private final NamespacedKey legacyUses=new NamespacedKey("talismanforge","uses_left");
 private final Map<UUID,Long> offensiveCooldown=new HashMap<>();
 private final Map<UUID,Long> defensiveCooldown=new HashMap<>();
+private final NamespacedKey heads=new NamespacedKey("talismanforge","hydra_heads");
+private final NamespacedKey regens=new NamespacedKey("talismanforge","hydra_regens");
+private final NamespacedKey lives=new NamespacedKey("talismanforge","mythic_lives");
+private final NamespacedKey health=new NamespacedKey("talismanforge","mythic_health_bonus");
+private final NamespacedKey ghostTag=new NamespacedKey("talismanforge","cerberus_ghost_mode");
+private final NamespacedKey ghostY=new NamespacedKey("talismanforge","cerberus_ghost_y");
+private final Map<UUID,Long> inCombat=new HashMap<>(),gazeStart=new HashMap<>(),stoneImmunity=new HashMap<>(),ghostEnds=new HashMap<>(),lastCrit=new HashMap<>(),markedEnds=new HashMap<>(),phoenixRecharge=new HashMap<>();
+private final Map<UUID,UUID> critTarget=new HashMap<>(),markedBy=new HashMap<>();
+private final Map<UUID,Integer> critCount=new HashMap<>();
+private final Map<UUID,Double> fireStored=new HashMap<>();
+private final Map<UUID,GameMode> ghostModes=new HashMap<>();
+private final Map<UUID,Double> ghostFloors=new HashMap<>();
+private final Set<UUID> chained=new HashSet<>(),angryMobs=new HashSet<>();
 private long crafted,awarded,converted,rescued,caseDraws;
 FiveTalismanService(Plugin plugin){this.plugin=plugin;}
 ItemStack create(Kind kind){
 ItemStack item=new ItemStack(Material.TOTEM_OF_UNDYING);
 ItemMeta meta=item.getItemMeta();
 meta.setDisplayName(kind.title);
-meta.setLore(List.of("§dНаграда из реликвария","§7Гарантированное спасение от смертельного PvP-удара",
+meta.setLore(List.of("§dНаграда из реликвария","§7Уникальные PvP-способности и спасение от смерти",
 kind.lore,"§8Работает в любой руке","§8Только против игроков"));
 meta.getPersistentDataContainer().set(type,PersistentDataType.STRING,kind.key);
+if(kind==Kind.HYDRA)meta.getPersistentDataContainer().set(heads,PersistentDataType.INTEGER,3);
+if(kind==Kind.KRAKEN)meta.getPersistentDataContainer().set(lives,PersistentDataType.INTEGER,2);
 item.setItemMeta(meta);
 awarded++;
 return item;
 }
-// Deterministic rotation: all five Olympian talismans are equally accessible.
+// Guaranteed five-item rotation; no random chances.
 ItemStack newFromCase(){
 Kind[] order=Kind.values();
 Kind selected=order[(int)(caseDraws%order.length)];
@@ -253,5 +262,5 @@ if(state instanceof org.bukkit.block.Container container)cleanse(container.getIn
 void shutdown(){
 offensiveCooldown.clear();defensiveCooldown.clear();
 }
-String status(){return "5 Olympian talismans, awarded="+awarded+", removedLegacy="+converted+", rescues="+rescued;}
+String status(){return "5 mythic talismans, awarded="+awarded+", removedLegacy="+converted+", rescues="+rescued;}
 }
