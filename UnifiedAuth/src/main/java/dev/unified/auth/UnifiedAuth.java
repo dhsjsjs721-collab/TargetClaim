@@ -238,7 +238,7 @@ return ActionButton.create(Component.text(caption),Component.text("UnifiedAuth")
 DialogAction.customClick(Key.key("unifiedauth:"+id),null));
 }
 private boolean passwordStep(Stage stage){
-return stage==Stage.LOGIN_PASSWORD || stage==Stage.CREATE_PASSWORD || stage==Stage.CONFIRM_PASSWORD;
+return stage==Stage.LOGIN_PIN || stage==Stage.CREATE_PIN;
 }
 private void render(Session s,String notice){
 if(s.result.isDone() || !s.connection.isConnected())return;
@@ -415,8 +415,11 @@ private void failure(Session s,String message){
 s.failures++;
 recordFailure(s.name,s.ip);
 s.digits.setLength(0);
-if(s.failures>=maxAttempts){s.result.complete(false);return;}
-if(s.stage==Stage.LOGIN_PASSWORD)s.stage=Stage.LOGIN_PIN;
+if(s.failures>=maxAttempts){
+s.connection.disconnect(Component.text(message+" Превышено число попыток. Подключись снова.",NamedTextColor.RED));
+s.result.complete(false);return;
+}
+// Login remains on the single PIN + password form for retry.
 renderLater(s,message+" "+(maxAttempts-s.failures)+" attempts left.");
 }
 private String lockKey(String name,String ip){return name+"|"+(ip==null?"unknown":ip);}
