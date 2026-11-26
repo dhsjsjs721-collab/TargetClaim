@@ -86,7 +86,7 @@ final class MythicTalismans implements Listener {
         typeKey=key("mythic_kind");serialKey=key("mythic_serial");healthKey=key("koschei_health");rainKey=key("anubis_rain");
         naturalKey=key("mythic_natural");frozenKey=key("mythic_stone");aiKey=key("mythic_original_ai");despawnKey=key("mythic_original_despawn");gravityKey=key("mythic_original_gravity");summonKey=key("mythic_summon");
         
-        load(); Bukkit.getPluginManager().registerEvents(this,plugin.host());registerCrafts();
+        load(); Bukkit.getPluginManager().registerEvents(this,plugin.host());for(Kind k:Kind.values())Bukkit.removeRecipe(new NamespacedKey("talismanforge","craft_"+k.key()));
         for(World w:Bukkit.getWorlds()){for(Item i:w.getEntitiesByClass(Item.class))recoverItem(i);for(LivingEntity l:w.getLivingEntities())if(!(l instanceof Player)&&isStone(l)){long until=l.getPersistentDataContainer().getOrDefault(frozenUntil,PersistentDataType.LONG,0L);if(until<=now())thaw(l);else frozenMobs.put(l.getUniqueId(),until);}}
         Bukkit.getScheduler().runTaskTimer(plugin.host(),this::tick,5,5);
     }
@@ -133,21 +133,6 @@ final class MythicTalismans implements Listener {
             return true;
         }catch(IOException ex){plugin.getLogger().severe("Cannot save mythic artifacts: "+ex);return false;}
     }
-    private final NamespacedKey sealKey=new NamespacedKey("talismanforge","craft_seal");
-    private void registerCrafts(){
-        for(Kind k:Kind.values()){
-            ItemStack seal=new ItemStack(k.icon);var m=seal.getItemMeta();m.setDisplayName("§dПечать · "+k.title);m.setLore(List.of("§7ПКМ в воздухе — создать личную реликвию"));m.getPersistentDataContainer().set(sealKey,PersistentDataType.STRING,k.key());seal.setItemMeta(m);
-            Material core=switch(k){case THOR->Material.NETHER_STAR;case ANUBIS->Material.ECHO_SHARD;case KOSCHEI->Material.SNIFFER_EGG;case KITSUNE->Material.RABBIT_FOOT;case MEDUSA->Material.PRISMARINE_SHARD;};
-            ShapedRecipe recipe=new ShapedRecipe(new NamespacedKey("talismanforge","craft_"+k.key()),seal);
-            recipe.shape("ANA","DTD","ACA");recipe.setIngredient('A',Material.AMETHYST_BLOCK);recipe.setIngredient('N',Material.NETHERITE_INGOT);recipe.setIngredient('D',Material.DIAMOND_BLOCK);recipe.setIngredient('T',Material.TOTEM_OF_UNDYING);recipe.setIngredient('C',core);Bukkit.addRecipe(recipe);
-        }
-    }
-    @EventHandler(priority=EventPriority.HIGHEST) public void redeemSeal(PlayerInteractEvent e){
-        if(e.getHand()!=EquipmentSlot.HAND||e.getAction()!=Action.RIGHT_CLICK_AIR||!usable(e.getPlayer()))return;
-        Player p=e.getPlayer();ItemStack hand=p.getInventory().getItemInMainHand();if(!hand.hasItemMeta())return;String value=hand.getItemMeta().getPersistentDataContainer().get(sealKey,PersistentDataType.STRING);if(value==null)return;Kind kind=Kind.parse(value);if(kind==null)return;
-        e.setCancelled(true);if(isStone(p))return;ItemStack before=hand.clone();hand.setAmount(hand.getAmount()-1);p.getInventory().setItemInMainHand(hand.getAmount()==0?new ItemStack(Material.AIR):hand);if(!issue(p,kind))p.getInventory().setItemInMainHand(before);
-    }
-
     private int cap(Kind k,State s){return k==Kind.KITSUNE&&s.awakened?9:k.initial;}
     private String chargeText(Kind k,State s){return k==Kind.KOSCHEI&&s.awakened?"∞":s.charges+"/"+cap(k,s)+(k==Kind.ANUBIS?" заряда":"");}
     private Component title(Kind k,String value){return Component.text(value,TextColor.color(k.color));}
