@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "pvp_practice",
-  "version": "1.10.5",
+  "version": "1.10.6",
   "name": "Land of Losers",
   "environment": "client",
   "entrypoints": {
@@ -18,5 +18,5 @@
   "mixins": [
     "pvp_practice.mixins.json"
   ],
-  "description": "Local golem and explicitly selected server practice targets, hitbox geometry and local diagnostics."
+  "description": "Local Ghost NPC and explicitly selected server practice targets, hitbox geometry and local diagnostics."
 }

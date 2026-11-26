@@ -34,6 +34,12 @@ check(TargetFilter.nearer(4,9,false));
 check(!TargetFilter.nearer(9,9,false));
 check(!TargetFilter.nearer(Double.NaN,36,true));
 check(!CombatSettings.defaults().aimEnabled());
+check(TargetFilter.ghostPracticeTarget(true,true,false,false));
+check(TargetFilter.ghostPracticeTarget(true,true,true,true));
+check(!TargetFilter.ghostPracticeTarget(true,true,true,false));
+check(!TargetFilter.ghostPracticeTarget(true,false,true,true));
+check(!TargetFilter.ghostPracticeTarget(false,true,false,false));
+check(TargetFilter.ghostPracticeTarget(false,false,true,true));
 System.out.println("Core tests passed");
 }
 }

@@ -10,12 +10,11 @@ import net.minecraft.world.phys.EntityHitResult;
 import java.util.ArrayDeque;
 import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 public final class PracticeCombat {
-static boolean golemTest;
 static boolean autoMove=false;
 private record ServerTarget(Object world,LocalPlayer player,java.util.UUID id,String name,LivingEntity entity) {}
 private static ServerTarget serverTarget;
 private static boolean localPractice(Minecraft mc) {
-return mc.hasSingleplayerServer() && mc.getSingleplayerServer()!=null && !mc.getSingleplayerServer().isPublished();
+return PracticeGhost.local(mc);
 }
 private static ServerTarget currentServerTarget(Minecraft mc) {
 if(serverTarget!=null && (serverTarget.world()!=mc.level || serverTarget.player()!=mc.player || !serverTarget.entity().isAlive() || serverTarget.entity().isRemoved())) serverTarget=null;
@@ -47,7 +46,7 @@ var self=mc.player;
 boolean local=localPractice(mc);
 LivingEntity nearest=null;
 double best=AIM_RANGE*AIM_RANGE;
-for(var target:mc.level.getEntitiesOfClass(LivingEntity.class,self.getBoundingBox().inflate(AIM_RANGE),entity -> entity!=self && (local?isGolem(entity):entity instanceof Player))) {
+for(var target:mc.level.getEntitiesOfClass(LivingEntity.class,self.getBoundingBox().inflate(AIM_RANGE),entity -> entity!=self && (local?PracticeGhost.owns(mc,entity):entity instanceof Player))) {
 if(!target.isAlive() || target.isInvisible() || target.isSpectator() || !self.hasLineOfSight(target) || (target instanceof Player other && !self.canHarmPlayer(other))) continue;
 double distance=self.distanceToSqr(target);
 if(!TargetFilter.nearer(distance,best,nearest==null)) continue;
@@ -59,7 +58,7 @@ serverTarget=new ServerTarget(mc.level,self,nearest.getUUID(),nearest.getName().
 return nearest.getName().getString();
 }
 static String serverTargetLabel(Minecraft mc) {
-if(localPractice(mc)) return "Local practice only";
+if(localPractice(mc)) return "Remove Ghost NPC";
 var target=currentServerTarget(mc);
 return target==null?"Select server practice target":"Clear target: "+target.name();
 }
@@ -162,7 +161,7 @@ private static boolean aimValid(LocalPlayer self,LivingEntity target) {
 var mc=Minecraft.getInstance();
 var selected=currentServerTarget(mc);
 boolean chosen=selected!=null && selected.id().equals(target.getUUID());
-return target!=self && TargetFilter.lockedPracticeTarget(localPractice(mc),golemTest,isGolem(target),selected!=null,chosen) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && (!(target instanceof Player other) || self.canHarmPlayer(other)) && self.distanceToSqr(target)<=(chosen && autoMove?FOLLOW_RANGE*FOLLOW_RANGE:AIM_RANGE*AIM_RANGE);
+return target!=self && TargetFilter.ghostPracticeTarget(localPractice(mc),PracticeGhost.owns(mc,target),selected!=null,chosen) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && (!(target instanceof Player other) || self.canHarmPlayer(other)) && self.distanceToSqr(target)<=(chosen && autoMove?FOLLOW_RANGE*FOLLOW_RANGE:AIM_RANGE*AIM_RANGE);
 }
 private static boolean inRange(LocalPlayer self, LivingEntity target) {
 return self.getAttackRangeWith(self.getMainHandItem()).isInRange(self,target.getBoundingBox(),0.0);
@@ -237,7 +236,7 @@ decision=CombatEngine.Decision.WAIT;
 EntityHitResult hit=pickTarget(mc,self);
 LivingEntity crosshair=hit!=null && hit.getEntity() instanceof LivingEntity living && aimValid(self,living)?living:null;
 LivingEntity target=crosshair!=null?crosshair:settings.aimEnabled() && aimTarget!=null && aimValid(self,aimTarget)?aimTarget:null;
-if(target==null) { replayGate="NO_TARGET"; if(++consecutiveNoRay>=3) { readyWait=0; waitingTarget=null; } setStatus(localPractice(mc) && !golemTest && currentServerTarget(mc)==null?"Iron Golem Test off":aimTarget!=null?"Approach / align":"No valid target"); return; }
+if(target==null) { replayGate="NO_TARGET"; if(++consecutiveNoRay>=3) { readyWait=0; waitingTarget=null; } setStatus(localPractice(mc) && currentServerTarget(mc)==null?"Spawn Ghost NPC / align":aimTarget!=null?"Approach / align":"No valid target"); return; }
 consecutiveNoRay=0;
 boolean restricted=restricted(self);
 boolean canJump=!restricted && !self.isShiftKeyDown() && mc.level.noCollision(self,self.getBoundingBox().move(0,.35,0)) && blockedJumpTicks==0;

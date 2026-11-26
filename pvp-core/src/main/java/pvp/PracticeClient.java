@@ -55,7 +55,7 @@ if(hotkeyActive && ((!settings.aimEnabled() && !settings.triggerEnabled()) || mc
 }
 private static Path configFile() { return FabricLoader.getInstance().getConfigDir().resolve("land-of-losers.properties"); }
 static void savePreferences() {
-try { new ClientPreferences(settings.fov(),PracticeCombat.golemTest).write(configFile()); }
+try { new ClientPreferences(settings.fov(),false).write(configFile()); }
 catch(IOException | IllegalArgumentException | SecurityException ex) { System.err.println("Land of Losers preferences: "+ex.getMessage()); }
 }
 private static void loadPreferences() {
@@ -64,11 +64,11 @@ try { p=ClientPreferences.read(configFile()); }
 catch(IOException | IllegalArgumentException | SecurityException ex) { System.err.println("Land of Losers preferences: "+ex.getMessage()); }
 var s=CombatSettings.defaults();
 settings=new CombatSettings(false,false,s.horizontalSpeed(),s.verticalSpeed(),p.fov());
-PracticeCombat.golemTest=p.golemTest();
 PracticeCombat.autoMove=false;
 }
 public void onInitializeClient() {
 loadPreferences();
+PracticeGhost.register();
 var category=KeyMapping.Category.register(Identifier.fromNamespaceAndPath("pvp_practice","practice"));
 var key=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.pvp_practice.open",InputConstants.Type.KEYBOARD,InputConstants.KEY_DOWN,category));
 var toggle=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.pvp_practice.toggle",InputConstants.Type.KEYBOARD,InputConstants.KEY_R,category));

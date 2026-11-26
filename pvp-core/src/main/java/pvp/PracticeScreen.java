@@ -21,12 +21,12 @@ int x=width/2-110;
 int step=Math.max(16,Math.min(24,(height-34)/9)), h=step-2;
 int y=Math.max(30,(height-(9*step+30))/2+30);
 addRenderableOnly(new StringWidget(x,y-28,220,12,Component.literal("LAND OF LOSERS").withStyle(ChatFormatting.GOLD,ChatFormatting.BOLD),font));
-addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Body Practice | 1.10.5 | R / F6").withStyle(ChatFormatting.GRAY),font));
+addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Body Practice | 1.10.6 | R / F6").withStyle(ChatFormatting.GRAY),font));
 addRenderableWidget(Button.builder(status("AimAssist",PracticeClient.settings.aimEnabled()),button -> {
 var s=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(!s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
 button.setMessage(status("AimAssist",PracticeClient.settings.aimEnabled()));
-}).tooltip(Tooltip.create(Component.literal("Practice against local golems or a selected server bot. Keeps aim within the hitbox."))).bounds(x,y,220,h).build());
+}).tooltip(Tooltip.create(Component.literal("Practice against your Ghost NPC or a selected server bot. Keeps aim within the hitbox."))).bounds(x,y,220,h).build());
 addRenderableWidget(Button.builder(status("AutoCritical",PracticeClient.settings.triggerEnabled()),button -> {
 var s=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(s.aimEnabled(),!s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
@@ -39,12 +39,17 @@ PracticeClient.settings=new CombatSettings(s.aimEnabled(),s.triggerEnabled(),s.h
 button.setMessage(Component.literal("FOV: "+(int)fov));
 PracticeClient.savePreferences();
 }).tooltip(Tooltip.create(Component.literal("Field of view for target selection."))).bounds(x,y+2*step,220,h).build());
-addRenderableWidget(Checkbox.builder(Component.literal("Iron Golem Test"),font).pos(x,y+3*step).selected(PracticeCombat.golemTest).onValueChange((checkbox,value)->{ PracticeCombat.golemTest=value; PracticeClient.savePreferences(); }).build());
-addRenderableWidget(Checkbox.builder(Component.literal("Auto Move"),font).pos(x+120,y+3*step).selected(PracticeCombat.autoMove).onValueChange((checkbox,value)->PracticeCombat.autoMove=value).build());
 var mc=net.minecraft.client.Minecraft.getInstance();
+var spawn=Button.builder(Component.literal("Spawn Ghost"),button -> {
+if(PracticeGhost.request(mc,true)) onClose();
+}).tooltip(Tooltip.create(Component.literal("Create or replace a temporary damageable NPC in front of you. Local world only."))).bounds(x,y+3*step,112,h).build();
+spawn.active=PracticeGhost.local(mc);
+addRenderableWidget(spawn);
+addRenderableWidget(Checkbox.builder(Component.literal("Auto Move"),font).pos(x+120,y+3*step).selected(PracticeCombat.autoMove).onValueChange((checkbox,value)->PracticeCombat.autoMove=value).build());
 addRenderableWidget(Button.builder(Component.literal(PracticeCombat.serverTargetLabel(mc)),button -> {
-button.setMessage(Component.literal(PracticeCombat.toggleServerTarget(mc)));
-}).tooltip(Tooltip.create(Component.literal("For permitted server practice: aim at your bot before opening the menu. Select once per world; click again to clear."))).bounds(x,y+4*step,220,h).build());
+if(PracticeGhost.local(mc)) { if(PracticeGhost.request(mc,false)) onClose(); }
+else button.setMessage(Component.literal(PracticeCombat.toggleServerTarget(mc)));
+}).tooltip(Tooltip.create(Component.literal("Local: remove Ghost NPC. Permitted server practice: select your bot before opening the menu; click again to clear."))).bounds(x,y+4*step,220,h).build());
 addRenderableWidget(Button.builder(Component.literal("Disable all & close"),button -> {
 PracticeClient.stopPractice(net.minecraft.client.Minecraft.getInstance());
 onClose();
