@@ -7,6 +7,7 @@ import org.bukkit.event.*;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.inventory.*;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.event.player.*;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
