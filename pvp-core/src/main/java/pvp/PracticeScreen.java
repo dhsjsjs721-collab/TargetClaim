@@ -21,7 +21,7 @@ int x=width/2-110;
 int step=Math.max(16,Math.min(24,(height-34)/9)), h=step-2;
 int y=Math.max(30,(height-(9*step+30))/2+30);
 addRenderableOnly(new StringWidget(x,y-28,220,12,Component.literal("LAND OF LOSERS").withStyle(ChatFormatting.GOLD,ChatFormatting.BOLD),font));
-addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Body Practice | 1.10.0 | R").withStyle(ChatFormatting.GRAY),font));
+addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Body Practice | 1.10.1 | R").withStyle(ChatFormatting.GRAY),font));
 addRenderableWidget(Button.builder(status("AimAssist",PracticeClient.settings.aimEnabled()),button -> {
 var s=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(!s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
@@ -62,12 +62,13 @@ try {
 var logs=FabricLoader.getInstance().getGameDir().resolve("logs");
 Files.createDirectories(logs);
 Files.writeString(logs.resolve("land-of-losers-diagnostics.txt"),report);
+Files.writeString(logs.resolve("land-of-losers-replay.csv"),PracticeCombat.replayCsv());
 button.setMessage(Component.literal("Report saved").withStyle(ChatFormatting.GREEN));
 } catch(IOException | SecurityException e) {
 button.setMessage(Component.literal("Save failed").withStyle(ChatFormatting.RED));
 System.err.println("Land of Losers: "+e.getMessage());
 }
-}).tooltip(Tooltip.create(Component.literal("Save logs/land-of-losers-diagnostics.txt locally. No upload."))).bounds(x,y+8*step,136,h).build());
+}).tooltip(Tooltip.create(Component.literal("Save diagnostics and replay CSV locally. No upload."))).bounds(x,y+8*step,136,h).build());
 addRenderableWidget(Button.builder(Component.literal("Close"),button -> onClose()).bounds(x+140,y+8*step,80,h).build());
 }
 @Override public boolean isPauseScreen() { return false; }

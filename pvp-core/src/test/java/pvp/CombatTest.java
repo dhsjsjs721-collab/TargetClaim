@@ -352,6 +352,26 @@ var refineStep=AimModel.refinedTurn(refineEye,refineView,refineBox,new AimModel.
 check(AimModel.intersects(refineEye,new AimModel.Angles(refineView.yaw()+refineStep.yaw(),refineView.pitch()+refineStep.pitch()),refineBox));
 check(AimModel.refinedTurn(refineEye,front,refineBox,new AimModel.Turn(2,3),smoothSettings,0).equals(new AimModel.Turn(0,0)));
 trace.clear(); trace.support("Inventory mismatch"); check(trace.report().contains("Inventory mismatch=1"));
+var progressTest=new CombatAI.Progress();
+check(progressTest.observe(0,0,false)==0);
+for(int i=1;i<=5;i++) check(progressTest.observe(0,0,true)==i);
+check(progressTest.observe(.2,0,true)==0);
+check(progressTest.observe(.2,0,false)==0);
+var detourTest=CombatAI.chooseDetour(0,4,0,0,0,2,(x,z)->!(Math.abs(x)<.5 && z>.15 && z<1));
+check(Double.isFinite(detourTest.cost()));
+check(detourTest.movement().left() || detourTest.movement().right());
+check(!Double.isFinite(CombatAI.chooseDetour(0,4,0,0,0,2,(x,z)->false).cost()));
+var replayTest=new CombatReplay();
+replayTest.add(new CombatReplay.Frame(1,20,20,0,0,2,1,0,true,false,"READY_NO_RAY","WAIT_TARGET","test,quote\"","HOLD",0,0));
+replayTest.add(new CombatReplay.Frame(2,20,20,0,0,2,1,0,true,false,"READY_NO_RAY","WAIT_TARGET","test","HOLD",0,0));
+check(replayTest.summary().contains("longest consecutive charged/no-ray=2"));
+check(replayTest.csv().contains("test,quote"));
+replayTest.add(new CombatReplay.Frame(2,20,20,0,0,2,1,0,true,false,"READY","NORMAL","test","HOLD",1,0));
+check(replayTest.size()==2);
+for(int i=3;i<=2405;i++) replayTest.add(new CombatReplay.Frame(i,20,20,0,0,2,Double.NaN,0,true,false,"READY","NORMAL","test","HOLD",1,0));
+check(replayTest.size()==CombatReplay.CAPACITY);
+check(!replayTest.csv().contains("NaN"));
+replayTest.clear(); check(replayTest.size()==0);
 System.out.println("Combat tests passed");
 }
 }

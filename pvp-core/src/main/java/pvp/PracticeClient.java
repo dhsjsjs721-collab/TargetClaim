@@ -23,6 +23,7 @@ static void stopPractice(Minecraft mc) {
 var s=settings;
 settings=new CombatSettings(false,false,s.horizontalSpeed(),s.verticalSpeed(),s.fov());
 hotkeyActive=false; hotkeyWorld=null; hotkeyPlayer=null;
+PracticeCombat.finishPractice();
 PracticeSupport.reset(); supportBusy=false; hudTicks=0;
 PracticeCombat.autoMove=false;
 PracticeCombat.clearServerTarget();
@@ -44,6 +45,7 @@ var s=settings;
 settings=new CombatSettings(true,true,s.horizontalSpeed(),s.verticalSpeed(),s.fov());
 PracticeCombat.autoMove=true;
 hotkeyActive=true; hotkeyWorld=mc.level; hotkeyPlayer=mc.player;
+PracticeCombat.beginPractice(mc);
 mc.gui.hud.setOverlayMessage(Component.literal("Land of Losers: ON | "+name),false);
 }
 private static void checkHotkeySession(Minecraft mc) {
@@ -84,6 +86,7 @@ while(key.consumeClick()) {
 if(!guiLocked && client.player != null && client.gui.screen()==null) client.gui.setScreen(new PracticeScreen());
 }
 if(!supportBusy) PracticeCombat.tick(client,settings);
+PracticeCombat.captureFrame(client);
 if(hotkeyActive && client.gui.screen()==null && ++hudTicks>=20) {
 hudTicks=0;
 client.gui.hud.setOverlayMessage(Component.literal(PracticeCombat.targetSummary(client)+" | "+PracticeSupport.inventorySummary(client)),false);

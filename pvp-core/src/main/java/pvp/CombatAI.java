@@ -196,6 +196,65 @@ double cross=(-dx*rz+dz*rx)/length;
 if(Math.abs(cross)<.23) return previous==0?1:previous;
 return cross>0?1:-1;
 }
+/** Bounded flat-ground detour search, in view-relative coordinates.
+ * Each edge and its midpoint must be safe. The first step is rechecked
+ * against current velocity. It never plans block breaking or vertical jumps. */
+public static MovementChoice chooseDetour(double dx,double dz,double viewYaw,double ownX,double ownZ,double ideal,BiPredicate<Double,Double> safe) {
+var hold=new AimModel.Movement(false,false,false,false);
+if(!Double.isFinite(dx) || !Double.isFinite(dz) || !Double.isFinite(viewYaw) || !Double.isFinite(ideal) || !Double.isFinite(ownX) || !Double.isFinite(ownZ)) return new MovementChoice(hold,Double.POSITIVE_INFINITY);
+final int n=15,center=n/2,origin=center*n+center;
+final double step=.35;
+double yaw=Math.toRadians(viewYaw),fx=-Math.sin(yaw),fz=Math.cos(yaw),rx=-Math.cos(yaw),rz=-Math.sin(yaw);
+double[] cost=new double[n*n]; java.util.Arrays.fill(cost,Double.POSITIVE_INFINITY);
+int[] firstF=new int[n*n],firstR=new int[n*n];
+record Node(int index,double cost) {}
+var queue=new java.util.PriorityQueue<Node>(java.util.Comparator.comparingDouble(Node::cost).thenComparingInt(Node::index));
+cost[origin]=0; queue.add(new Node(origin,0));
+double initial=Math.max(0,Math.hypot(dx,dz)-ideal),best=initial*initial;
+int bestNode=-1,expanded=0;
+while(!queue.isEmpty() && expanded<180) {
+var node=queue.remove(); int idx=node.index();
+if(node.cost()!=cost[idx]) continue;
+expanded++;
+int f=idx/n-center,rr=idx%n-center;
+double x=(fx*f+rx*rr)*step,z=(fz*f+rz*rr)*step;
+double distance=Math.hypot(dx-x,dz-z),error=Math.max(0,distance-ideal);
+double score=error*error+.20*node.cost()+3*Math.pow(Math.max(0,1.05-distance),2);
+if(idx!=origin && score<best-.000001) { best=score; bestNode=idx; }
+for(int df=-1;df<=1;df++) for(int dr=-1;dr<=1;dr++) {
+if(df==0 && dr==0) continue;
+int nf=f+df,nr=rr+dr;
+if(Math.abs(nf)>center || Math.abs(nr)>center) continue;
+int next=(nf+center)*n+nr+center;
+double nx=(fx*nf+rx*nr)*step,nz=(fz*nf+rz*nr)*step;
+double nc=node.cost()+Math.hypot(df,dr)*step;
+if(nc>=cost[next] || !safe.test(nx,nz) || !safe.test((x+nx)*.5,(z+nz)*.5)) continue;
+if(df!=0 && dr!=0 && (!safe.test(x+fx*df*step,z+fz*df*step) || !safe.test(x+rx*dr*step,z+rz*dr*step))) continue;
+if(idx==origin) {
+double mag=Math.hypot(df,dr);
+double vx=.45*clamp(ownX,-.5,.5)+.55*(fx*df+rx*dr)/mag*.22;
+double vz=.45*clamp(ownZ,-.5,.5)+.55*(fz*df+rz*dr)/mag*.22;
+if(!safe.test(vx,vz) || !safe.test(vx*.5,vz*.5)) continue;
+}
+cost[next]=nc; firstF[next]=idx==origin?df:firstF[idx]; firstR[next]=idx==origin?dr:firstR[idx];
+queue.add(new Node(next,nc));
+}
+}
+if(bestNode<0) return new MovementChoice(hold,Double.POSITIVE_INFINITY);
+int f=firstF[bestNode],rr=firstR[bestNode];
+return new MovementChoice(new AimModel.Movement(f>0,f<0,rr<0,rr>0),best);
+}
+public static final class Progress {
+private double x,z;
+private boolean initialized;
+private int stalled;
+public void reset() { initialized=false; stalled=0; }
+public int observe(double px,double pz,boolean previouslyRequested) {
+if(!Double.isFinite(px) || !Double.isFinite(pz)) { reset(); return 0; }
+if(initialized && previouslyRequested && Math.hypot(px-x,pz-z)<.025) stalled=Math.min(100,stalled+1); else stalled=0;
+x=px; z=pz; initialized=true; return stalled;
+}
+}
 private static double pathCost(double dx,double dz,double tx,double tz,int tick,double x,double z,double ideal,double initial,double rearX,double rearZ,double reach,double uncertainty) {
 double a=dx+clamp(tx,-.35,.35)*tick-x,b=dz+clamp(tz,-.35,.35)*tick-z;
 double dist=Math.hypot(a,b),delta=dist-ideal;
