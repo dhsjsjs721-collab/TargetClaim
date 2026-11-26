@@ -22,6 +22,8 @@ if(serverTarget!=null && (serverTarget.world()!=mc.level || serverTarget.player(
 return serverTarget;
 }
 static boolean hasLockedTarget(Minecraft mc) { return currentServerTarget(mc)!=null; }
+static double supportDistance(Minecraft mc) { var target=currentServerTarget(mc); return target==null || mc.player==null?Double.NaN:Math.sqrt(mc.player.distanceToSqr(target.entity())); }
+static void supportPause(Minecraft mc,String reason) { clearJump(); readyWait=0; waitingTarget=null; releaseInput(mc); setStatus(reason); }
 static void clearServerTarget() { serverTarget=null; clearJump(); aimTarget=null; resetTracking(); resetStyle(); }
 static String selectNearestPracticeTarget(Minecraft mc) {
 if(mc.player==null || mc.level==null || mc.gameMode==null || !available(mc,mc.player)) return null;
@@ -298,7 +300,7 @@ best=locked?AimModel.lockDirection(origin,current,box):AimModel.bodyDirection(or
 bestError=AimModel.error(current,best);
 angularError=bestError;
 boolean onTarget=AimModel.intersects(origin,current,box);
-if(bestError>.12 && !onTarget) {
+if((locked || bestError>.12) && !onTarget) {
 turn=locked?AimModel.lockTurn(origin,current,box,turn,settings,motionAngle):AimModel.smoothTurn(current,best,turn,settings,motionAngle);
 trace.aimCorrection(turn.yaw(),turn.pitch());
 self.setYRot(self.getYRot()+(float)turn.yaw());

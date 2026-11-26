@@ -37,7 +37,7 @@ if(hi<lo) return false;
 return true;
 }
 public static Angles bodyDirection(Vec eye,Angles view,Box box) { return bodyDirection(eye,view,box,.035); }
-public static Angles lockDirection(Vec eye,Angles view,Box box) { return bodyDirection(eye,view,box,.12); }
+public static Angles lockDirection(Vec eye,Angles view,Box box) { return bodyDirection(eye,view,box,.22); }
 private static Angles bodyDirection(Vec eye,Angles view,Box box,double margin) {
 if(intersects(eye,view,box)) return view;
 Vec d=rayDirection(view);
@@ -100,11 +100,10 @@ var target=lockDirection(eye,current,box);
 double error=error(current,target);
 if(error>settings.fov()/2) return new Turn(0,0);
 double dy=wrap(target.yaw()-current.yaw()),dp=target.pitch()-current.pitch();
-double large=clamp(error/55,0,1),moving=clamp(motion/8,0,1);
-double capY=8+14*large+4*moving,capP=5+7*large+3*moving;
-double wantY=clamp(dy*(.42+.30*large+.15*moving),-capY,capY);
-double wantP=clamp(dp*(.38+.25*large+.12*moving),-capP,capP);
-return new Turn(slew(dy,wantY,previous.yaw(),3+4*large+moving),slew(dp,wantP,previous.pitch(),2+2*large+moving));
+double moving=clamp(motion/8,0,1);
+double yawLimit=32+12*moving,pitchLimit=20+8*moving;
+// Acquire the interior of the box directly when reachable within the bounded turn.
+return new Turn(clamp(dy,-yawLimit,yawLimit),clamp(dp,-pitchLimit,pitchLimit));
 }
 private static double slew(double error,double desired,double previous,double acceleration) {
 if(Math.abs(error)<.12) return 0;

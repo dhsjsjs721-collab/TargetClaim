@@ -16,12 +16,13 @@ public final class PracticeClient implements ClientModInitializer {
 static boolean guiLocked;
 static CombatSettings settings=CombatSettings.defaults();
 private static Object hotkeyWorld,hotkeyPlayer;
-private static boolean hotkeyActive,hotkeyHeld;
+private static boolean hotkeyActive,hotkeyHeld,supportBusy;
 static boolean hotkeyActive() { return hotkeyActive; }
 static void stopPractice(Minecraft mc) {
 var s=settings;
 settings=new CombatSettings(false,false,s.horizontalSpeed(),s.verticalSpeed(),s.fov());
 hotkeyActive=false; hotkeyWorld=null; hotkeyPlayer=null;
+PracticeSupport.reset(); supportBusy=false;
 PracticeCombat.autoMove=false;
 PracticeCombat.clearServerTarget();
 PracticeCombat.releaseInput(mc);
@@ -72,14 +73,16 @@ boolean pressed=false;
 while(toggle.consumeClick()) pressed=true;
 if(pressed && !hotkeyHeld && client.gui.screen()==null) togglePractice(client);
 hotkeyHeld=toggle.isDown();
-PracticeCombat.startTick(client,settings);
+supportBusy=hotkeyActive && PracticeSupport.tick(client,PracticeCombat.supportDistance(client));
+if(supportBusy) PracticeCombat.supportPause(client,PracticeSupport.status());
+else PracticeCombat.startTick(client,settings);
 });
 ClientTickEvents.END_CLIENT_TICK.register(client -> {
 PracticeCombat.releaseInput(client);
 while(key.consumeClick()) {
 if(!guiLocked && client.player != null && client.gui.screen()==null) client.gui.setScreen(new PracticeScreen());
 }
-PracticeCombat.tick(client,settings);
+if(!supportBusy) PracticeCombat.tick(client,settings);
 });
 ScreenEvents.BEFORE_INIT.register((client,screen,w,h) -> {
 if(screen instanceof PracticeScreen) ScreenKeyboardEvents.beforeKeyPress(screen).register((s,event) -> {

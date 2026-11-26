@@ -322,6 +322,21 @@ check(CombatEngine.practiceAction(normal,0,false,true,false,true,true,false,12,0
 check(CombatEngine.practiceAction(lostCrosshair,1,false,true,false,true,true,false,12,5,6,false,true,false)==CombatEngine.Action.WAIT_TARGET);
 trace.clear(); trace.attackGate(false,true,true,1,false); trace.attackGate(true,false,true,1,false);
 check(trace.report().contains("NO_RAY=1") && trace.report().contains("OUT_OF_RANGE=1"));
+check(SupportPlan.safeDistance(5,true));
+check(!SupportPlan.safeDistance(4.99,true));
+check(!SupportPlan.safeDistance(6,false));
+check(SupportPlan.needsHeal(12,20));
+check(!SupportPlan.needsHeal(13,20));
+check(SupportPlan.needsBuff(0,-1,0));
+check(SupportPlan.needsBuff(60,1,1));
+check(!SupportPlan.needsBuff(61,1,1));
+check(!SupportPlan.needsBuff(-1,1,2));
+check(!SupportPlan.needsBuff(30,2,1));
+var sharperEye=new AimModel.Vec(0,1.6,0);
+var sharperBox=new AimModel.Box(new AimModel.Vec(-.3,0,2),new AimModel.Vec(.3,1.8,2.6));
+var sharperView=new AimModel.Angles(18,5);
+var sharperTurn=AimModel.lockTurn(sharperEye,sharperView,sharperBox,new AimModel.Turn(0,0),new CombatSettings(true,true,.55,.4,360),0);
+check(AimModel.intersects(sharperEye,new AimModel.Angles(sharperView.yaw()+sharperTurn.yaw(),sharperView.pitch()+sharperTurn.pitch()),sharperBox));
 System.out.println("Combat tests passed");
 }
 }
