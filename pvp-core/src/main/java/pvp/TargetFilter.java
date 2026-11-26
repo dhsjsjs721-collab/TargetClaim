@@ -7,5 +7,11 @@ return c != null && c.player() && !c.self() && c.alive() && c.visible() && !c.sp
 public static boolean practiceTarget(boolean local,boolean golemEnabled,boolean golem,boolean selected) {
 return local ? golemEnabled && golem : selected;
 }
+public static boolean lockedPracticeTarget(boolean local,boolean golemEnabled,boolean golem,boolean locked,boolean chosen) {
+return locked ? chosen : practiceTarget(local,golemEnabled,golem,false);
+}
+public static boolean nearer(double distanceSquared,double bestSquared,boolean first) {
+return Double.isFinite(distanceSquared) && distanceSquared>=0 && (distanceSquared<bestSquared || first && distanceSquared==bestSquared);
+}
 private TargetFilter() {}
 }

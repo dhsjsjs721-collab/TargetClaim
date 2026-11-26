@@ -24,6 +24,15 @@ check(!TargetFilter.practiceTarget(false,true,true,false));
 check(!TargetFilter.practiceTarget(false,false,false,false));
 check(TargetFilter.practiceTarget(false,false,false,true));
 check(TargetFilter.practiceTarget(false,false,true,true));
+check(TargetFilter.lockedPracticeTarget(true,false,true,true,true));
+check(!TargetFilter.lockedPracticeTarget(true,true,true,true,false));
+check(TargetFilter.lockedPracticeTarget(false,false,false,true,true));
+check(!TargetFilter.lockedPracticeTarget(false,true,false,false,false));
+check(TargetFilter.nearer(36,36,true));
+check(!TargetFilter.nearer(36.01,36,true));
+check(TargetFilter.nearer(4,9,false));
+check(!TargetFilter.nearer(9,9,false));
+check(!TargetFilter.nearer(Double.NaN,36,true));
 check(!CombatSettings.defaults().aimEnabled());
 System.out.println("Core tests passed");
 }

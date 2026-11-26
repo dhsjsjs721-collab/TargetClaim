@@ -21,7 +21,7 @@ int x=width/2-110;
 int step=Math.max(16,Math.min(24,(height-34)/9)), h=step-2;
 int y=Math.max(30,(height-(9*step+30))/2+30);
 addRenderableOnly(new StringWidget(x,y-28,220,12,Component.literal("LAND OF LOSERS").withStyle(ChatFormatting.GOLD,ChatFormatting.BOLD),font));
-addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Body Practice | 1.9.2").withStyle(ChatFormatting.GRAY),font));
+addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Body Practice | 1.9.3 | R").withStyle(ChatFormatting.GRAY),font));
 addRenderableWidget(Button.builder(status("AimAssist",PracticeClient.settings.aimEnabled()),button -> {
 var s=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(!s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
@@ -46,12 +46,7 @@ addRenderableWidget(Button.builder(Component.literal(PracticeCombat.serverTarget
 button.setMessage(Component.literal(PracticeCombat.toggleServerTarget(mc)));
 }).tooltip(Tooltip.create(Component.literal("For permitted server practice: aim at your bot before opening the menu. Select once per world; click again to clear."))).bounds(x,y+4*step,220,h).build());
 addRenderableWidget(Button.builder(Component.literal("Disable all & close"),button -> {
-var defaults=CombatSettings.defaults();
-var current=PracticeClient.settings;
-PracticeClient.settings=new CombatSettings(false,false,defaults.horizontalSpeed(),defaults.verticalSpeed(),current.fov());
-PracticeCombat.autoMove=false;
-PracticeCombat.clearServerTarget();
-PracticeCombat.releaseInput(net.minecraft.client.Minecraft.getInstance());
+PracticeClient.stopPractice(net.minecraft.client.Minecraft.getInstance());
 onClose();
 }).bounds(x,y+5*step,220,h).build());
 hitStatus=Button.builder(hitLabel(),button -> {}).bounds(x,y+6*step,220,h).build();
