@@ -13,7 +13,8 @@ import org.bukkit.command.*;
 import org.bukkit.inventory.*;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.profile.PlayerTextures;
+import com.destroystokyo.paper.profile.ProfileProperty;
+import java.util.concurrent.*;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -31,23 +32,30 @@ private final Map<UUID,PlayerProfile> originals=new HashMap<>();
 private final Map<UUID,String> pending=new HashMap<>();
 private final File file;
 private YamlConfiguration skins;
+private SkinResolver resolver;
+private ExecutorService workers;
+private static final long WINDOW=36_000_000L, COOLDOWN=5000L;
 MediaItems(UnifiedPlugin host){this.host=host;file=new File(host.getDataFolder(),"skins.yml");}
 void enable(){
 skins=YamlConfiguration.loadConfiguration(file);
+String key=System.getenv("MINESKIN_API_KEY");if(key==null||key.isBlank())key=host.getConfig().getString("media.mineskin-api-key","");resolver=new SkinResolver(key);
+workers=new ThreadPoolExecutor(2,2,0L,TimeUnit.SECONDS,new ArrayBlockingQueue<>(16),r->{Thread t=new Thread(r,"Unified-skin");t.setDaemon(true);return t;});
+if(!selftest())throw new IllegalStateException("Media self-test failed");host.getLogger().info("SELFTEST media OK");
 Bukkit.getPluginManager().registerEvents(this,host);
 host.getLogger().info("MediaItems enabled: YouTube link records and persistent player skin profiles.");
 }
 private void tell(CommandSender s,String m){s.sendMessage("§6Media §8» §r"+m);}
-private String youtube(String s){
+private static String youtube(String s){
 try{URI u=URI.create(s);if(!"https".equalsIgnoreCase(u.getScheme())||u.getUserInfo()!=null||u.getPort()!=-1)return null;
 String h=u.getHost(),id=null;if(h==null)return null;
 h=h.toLowerCase(Locale.ROOT);
-if(h.equals("youtu.be"))id=u.getPath().replaceFirst("^/","");
+if(h.equals("youtu.be"))id=u.getPath().replaceFirst("^/","").replaceFirst("/$","");
 else if(Set.of("youtube.com","www.youtube.com","m.youtube.com").contains(h)){
 if(u.getPath().equals("/watch")&&u.getRawQuery()!=null)for(String q:u.getRawQuery().split("&"))if(q.startsWith("v="))id=q.substring(2);
 else {}
 if(u.getPath().startsWith("/shorts/"))id=u.getPath().substring(8);
 if(u.getPath().startsWith("/live/"))id=u.getPath().substring(6);
+if(u.getPath().startsWith("/embed/"))id=u.getPath().substring(7);
 }
 return id!=null&&id.matches("[A-Za-z0-9_-]{11}")?"https://www.youtube.com/watch?v="+id:null;
 }catch(Exception e){return null;}
@@ -72,6 +80,7 @@ e.setCancelled(true);link(e.getPlayer(),url,e.getItem().getItemMeta().hasDisplay
 }
 private void link(Player player,String url,String name){player.sendMessage(Component.text("[YouTube] "+name,NamedTextColor.GOLD).append(Component.text(" [Открыть]",NamedTextColor.AQUA).clickEvent(ClickEvent.openUrl(url))));}
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void jukebox(PlayerInteractEvent e){
+if(host.seasonLocked(e.getPlayer()))return;
 if(e.getHand()!=EquipmentSlot.HAND||e.getAction()!=Action.RIGHT_CLICK_BLOCK||e.getPlayer().isSneaking()||e.useInteractedBlock()==Event.Result.DENY||e.getClickedBlock()==null||!(e.getClickedBlock().getState() instanceof Jukebox box)||e.getItem()==null||!e.getItem().hasItemMeta())return;
 String url=e.getItem().getItemMeta().getPersistentDataContainer().get(discKey,PersistentDataType.STRING);if(url==null||youtube(url)==null||!box.getRecord().getType().isAir())return;
 var block=e.getClickedBlock();Bukkit.getScheduler().runTask(host,()->{if(!(block.getState() instanceof Jukebox j))return;ItemStack disc=j.getRecord();if(!disc.hasItemMeta()||!url.equals(disc.getItemMeta().getPersistentDataContainer().get(discKey,PersistentDataType.STRING)))return;
@@ -83,49 +92,73 @@ boolean video(CommandSender sender,String[] args){if(!(sender instanceof Player 
 private boolean persist(){
 try{File tmp=new File(file.getParentFile(),file.getName()+".tmp");skins.save(tmp);try{Files.move(tmp.toPath(),file.toPath(),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}catch(AtomicMoveNotSupportedException ex){Files.move(tmp.toPath(),file.toPath(),StandardCopyOption.REPLACE_EXISTING);}return true;}catch(IOException ex){host.getLogger().warning("Cannot save skins: "+ex.getMessage());return false;}
 }
-private String skinSource(String s){
-if(s.matches("[A-Za-z0-9_]{1,16}"))return s;
-try{URI u=URI.create(s);String h=u.getHost();if(!"https".equalsIgnoreCase(u.getScheme())||u.getUserInfo()!=null||u.getPort()!=-1||h==null)return null;
-if(h.equalsIgnoreCase("textures.minecraft.net")&&u.getPath().matches("/texture/[a-fA-F0-9]{32,128}"))return "https://textures.minecraft.net"+u.getPath();
-if(Set.of("namemc.com","www.namemc.com").contains(h.toLowerCase(Locale.ROOT))&&u.getPath().matches("/profile/[A-Za-z0-9_]{1,16}(\\.[0-9]+)?/?"))return u.getPath().substring(9).replaceFirst("[./].*$","");
-}catch(Exception ignored){}return null;
+private static List<Long> recent(List<Long> values,long now){return values.stream().filter(x->x>now-WINDOW&&x<=now).sorted().toList();}
+private List<Long> recent(UUID id,long now){return recent(skins.getLongList(id+".changes"),now);}
+private void status(Player p){
+long now=System.currentTimeMillis();List<Long> history=recent(p.getUniqueId(),now);tell(p,"§eДоступно смен: "+(3-Math.min(3,history.size()))+"/3 за последние 10 часов.");
+if(history.size()>=3){long min=Math.max(1,(history.getFirst()+WINDOW-now+59999)/60000);tell(p,"§7Следующая смена через "+min/60+"ч "+min%60+"м.");}
 }
 boolean skin(CommandSender sender,String[] args){
 if(!(sender instanceof Player p)){tell(sender,"§cТолько в игре.");return true;}
-if(args.length==0){tell(p,"§e/skin <ник лицензии | ссылка textures.minecraft.net | NameMC profile> [slim|classic]");tell(p,"§e/skin reset");return true;}
-UUID id=p.getUniqueId();
-if(args[0].equalsIgnoreCase("reset")){
-pending.remove(id);Object previous=skins.get(id.toString());skins.set(id.toString(),null);if(!persist()){skins.set(id.toString(),previous);tell(p,"§cОшибка сохранения.");return true;}
-PlayerProfile original=originals.remove(id);if(original!=null)p.setPlayerProfile(original);else{PlayerProfile profile=p.getPlayerProfile();profile.removeProperty("textures");p.setPlayerProfile(profile);}tell(p,"§aСкин сброшен.");return true;
-}
-String src=skinSource(args[0]);if(src==null){tell(p,"§cПоддерживаются ник лицензии, NameMC /profile/ник или textures.minecraft.net/texture/…");return true;}
-long time=System.currentTimeMillis();if(time-cooldown.getOrDefault(id,0L)<15000){tell(p,"§cПодожди 15 секунд.");return true;}cooldown.put(id,time);
-String model=args.length>1&&args[1].equalsIgnoreCase("slim")?"slim":"classic";
+if(host.seasonLocked(p)){tell(p,"§cСмена скина доступна после старта.");return true;}
+if(args.length==0){tell(p,"§e/skin <ник | NameMC | MineSkin | HTTPS PNG> [slim|classic]");tell(p,"§e/skin reset · /skin status");status(p);return true;}
+if(args[0].equalsIgnoreCase("status")){status(p);return true;}
+UUID id=p.getUniqueId();boolean reset=args[0].equalsIgnoreCase("reset");String src=reset?null:SkinResolver.source(args[0]);
+if(!reset&&src==null){tell(p,"§cНужен ник, ссылка NameMC/MineSkin или прямая публичная HTTPS-ссылка на PNG скин.");return true;}
+if(args.length>2||args.length==2&&!Set.of("slim","classic").contains(args[1].toLowerCase(Locale.ROOT))){tell(p,"§c/skin <источник> [slim|classic]");return true;}
+if(reset&&skins.getString(id+".source")==null&&skins.getString(id+".value")==null){tell(p,"§7У тебя нет установленного скина.");return true;}
+long now=System.currentTimeMillis();long last=Math.max(cooldown.getOrDefault(id,0L),skins.getLong(id+".last-change",0L));
+if(now-last<COOLDOWN){tell(p,"§cПодожди "+Math.max(1,(COOLDOWN-now+last+999)/1000)+" сек.");return true;}
+if(pending.containsKey(id)){tell(p,"§eПредыдущая смена ещё обрабатывается.");return true;}
+if(recent(id,now).size()>=3){status(p);return true;}
+cooldown.put(id,now);String model=args.length==2?args[1].toLowerCase(Locale.ROOT):"unknown";
+originals.putIfAbsent(id,p.getPlayerProfile().clone());
+if(reset){finish(p,null,null,"unknown",true);return true;}
 apply(p,src,model,true);return true;
 }
 private void apply(Player p,String src,String model,boolean save){
-UUID id=p.getUniqueId();String token=UUID.randomUUID().toString();pending.put(id,token);
-originals.putIfAbsent(id,p.getPlayerProfile().clone());
-if(src.startsWith("https://")){
-try{PlayerProfile profile=p.getPlayerProfile();var textures=profile.getTextures();textures.setSkin(URI.create(src).toURL(),model.equals("slim")?PlayerTextures.SkinModel.SLIM:PlayerTextures.SkinModel.CLASSIC);profile.setTextures(textures);finish(id,token,profile,src,model,save);}catch(Exception e){pending.remove(id,token);tell(p,"§cНекорректная текстура.");}
-}else{
-Bukkit.createProfile(src).update().orTimeout(15,java.util.concurrent.TimeUnit.SECONDS).whenComplete((profile,error)->{
+UUID id=p.getUniqueId();String token=UUID.randomUUID().toString();pending.put(id,token);originals.putIfAbsent(id,p.getPlayerProfile().clone());
+if(save)tell(p,"§7Получаю подписанный скин…");
+try{workers.execute(()->{
+ProfileProperty prop=null;String failure=null;
+try{prop=resolver.resolve(src,model);}catch(Exception ex){failure=ex instanceof IOException?ex.getMessage():"Не удалось получить корректную подписанную текстуру.";}
+ProfileProperty result=prop;String reason=failure;
 if(!host.isEnabled())return;
-Bukkit.getScheduler().runTask(host,()->{
-Player current=Bukkit.getPlayer(id);if(current==null||!token.equals(pending.get(id)))return;
-if(error!=null||profile==null||profile.getTextures().getSkin()==null){pending.remove(id,token);tell(current,"§cНе удалось получить скин Mojang.");return;}
-PlayerProfile target=current.getPlayerProfile();target.removeProperty("textures");
-for(var property:profile.getProperties())if(property.getName().equals("textures"))target.setProperty(property);
-finish(id,token,target,src,model,save);
+Bukkit.getScheduler().runTask(host,()->{Player current=Bukkit.getPlayer(id);if(!pending.remove(id,token)||current==null)return;
+if(result==null){if(save)tell(current,"§c"+reason);return;}if(save&&host.seasonLocked(current)){tell(current,"§cСмена отменена до начала сезона.");return;}
+finish(current,result,src,model,save);
 });
-});
+});}catch(RejectedExecutionException ex){pending.remove(id,token);tell(p,"§cОчередь скинов занята. Попробуй позже.");}
 }
+private void finish(Player p,ProfileProperty property,String src,String model,boolean save){
+UUID id=p.getUniqueId();String path=id.toString();PlayerProfile before=p.getPlayerProfile().clone(),profile=before.clone();
+profile.removeProperty("textures");
+if(property!=null)profile.setProperty(property);else{PlayerProfile original=originals.get(id);if(original!=null)for(ProfileProperty pr:original.getProperties())if(pr.getName().equals("textures"))profile.setProperty(pr);}
+List<Long> history=new ArrayList<>(recent(id,System.currentTimeMillis()));
+if(save&&history.size()>=3){status(p);return;}
+String old=skins.saveToString();
+try{p.setPlayerProfile(profile);p.updateInventory();}catch(RuntimeException ex){tell(p,"§cНе удалось обновить профиль.");host.getLogger().warning("Skin profile update failed: "+ex.getClass().getSimpleName());return;}
+if(save||property!=null){
+skins.set(path+".source",src);skins.set(path+".model",src==null?null:model);
+skins.set(path+".value",property==null?null:property.getValue());skins.set(path+".signature",property==null?null:property.getSignature());
+if(save){long now=System.currentTimeMillis();history.add(now);skins.set(path+".changes",history);skins.set(path+".last-change",now);cooldown.put(id,now);}
+if(!persist()){try{skins.loadFromString(old);}catch(Exception ignored){}try{p.setPlayerProfile(before);}catch(Exception ignored){}tell(p,"§cОшибка сохранения скина.");return;}
 }
-private void finish(UUID id,String token,PlayerProfile profile,String src,String model,boolean save){
-Player p=Bukkit.getPlayer(id);if(p==null||!pending.remove(id,token))return;
-if(save){String path=id.toString();Object old=skins.get(path);skins.set(path+".source",src);skins.set(path+".model",model);if(!persist()){skins.set(path,old);tell(p,"§cНе удалось сохранить скин.");return;}}
-p.setPlayerProfile(profile);p.updateInventory();if(save)tell(p,"§aСкин применён без переподключения. Если клиент ещё показывает старую текстуру, дождись загрузки.");
+if(save){tell(p,src==null?"§aСкин сброшен.":"§aПодписанный скин применён без перезахода.");status(p);}
 }
-@EventHandler public void join(PlayerJoinEvent e){UUID id=e.getPlayer().getUniqueId();Bukkit.getScheduler().runTaskLater(host,()->{Player p=Bukkit.getPlayer(id);String src=skins.getString(id+".source");if(p!=null&&src!=null&&skinSource(src)!=null)apply(p,src,skins.getString(id+".model","classic"),false);},60L);}
+@EventHandler public void join(PlayerJoinEvent e){UUID id=e.getPlayer().getUniqueId();originals.put(id,e.getPlayer().getPlayerProfile().clone());Bukkit.getScheduler().runTaskLater(host,()->{
+Player p=Bukkit.getPlayer(id);if(p==null||pending.containsKey(id))return;String src=skins.getString(id+".source"),value=skins.getString(id+".value"),sig=skins.getString(id+".signature");if(src==null)return;
+if(value!=null&&sig!=null&&!sig.isBlank()){PlayerProfile profile=p.getPlayerProfile();profile.removeProperty("textures");profile.setProperty(new ProfileProperty("textures",value,sig));try{p.setPlayerProfile(profile);}catch(RuntimeException ex){host.getLogger().warning("Cached skin update failed: "+ex.getClass().getSimpleName());}return;}
+String normalized=SkinResolver.source(src);if(src.startsWith("mineskin:"))normalized=src;if(normalized!=null)apply(p,normalized,skins.getString(id+".model","unknown"),false);
+},40L);}
 @EventHandler public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();pending.remove(id);originals.remove(id);cooldown.remove(id);}
+void disable(){if(workers!=null)workers.shutdownNow();pending.clear();}
+static boolean selftest(){
+long time=WINDOW*2;return recent(List.of(time-WINDOW,time-1000,time-1),time).size()==2
+&&"Notch".equals(SkinResolver.source("https://namemc.com/profile/Notch.1"))
+&&"https://texture.namemc.com/12/34/1234567890abcdef.png".equals(SkinResolver.source("https://namemc.com/skin/1234567890abcdef"))
+&&SkinResolver.source("https://127.0.0.1/skin.png")==null
+&&"https://www.youtube.com/watch?v=dQw4w9WgXcQ".equals(youtube("https://youtu.be/dQw4w9WgXcQ?t=10"))
+&&youtube("https://www.youtube.com/watch?v=dQw4w9WgXcQ&x=1")!=null&&youtube("https://evil.example/watch?v=dQw4w9WgXcQ")==null;
+}
 }

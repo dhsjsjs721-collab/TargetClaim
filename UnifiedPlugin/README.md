@@ -1,3 +1,7 @@
+# Media reliability
+
+`/skin <username|NameMC profile/skin|MineSkin skin page|public HTTPS PNG> [classic|slim]`, `/skin reset`, `/skin status`. A five-second cooldown and rolling limit of three successful changes in ten hours, including reset. Signed Mojang texture data and successful-change timestamps are saved to skins.yml; rejoin does not consume a change. Direct PNGs are passed to MineSkin's queue service, not fetched by the Minecraft server. API key may be set by administrator via MINESKIN_API_KEY or media.mineskin-api-key; external limits and failures remain possible. Live profile changes use Paper setPlayerProfile. Disc URL metadata and thumbnail maps remain supported; no actual YouTube streaming in vanilla Minecraft.
+
 # Season start and permissions
 
 Console `/s` (alias `/start`) enters WAITING; non-operators join and see a waiting title. Console `/a` enters a ten-minute global SCOUT phase (adventure, flight speed 0.25, clan creation, no combat, building, items, portals). At expiry players land and enter survival. The phase and deadline survive restart; operators are exempt. New installations begin WAITING. Public commands are allowlisted; admin roots and subcommands are hidden and blocked for non-OP, including module aliases. Public clan management remains available. `/u recipes` opens the live custom recipe menu.

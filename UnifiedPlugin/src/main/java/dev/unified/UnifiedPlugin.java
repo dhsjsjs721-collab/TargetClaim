@@ -347,6 +347,7 @@ return sub.tabComplete(sender,target,rest);
 }catch(Exception ex){return List.of();}
 }
 @Override public void onDisable(){
+if(media!=null)media.disable();
 if(dragons!=null){dragons.disable();dragons=null;}
 if(shops!=null){shops.disable();shops=null;}
 if(verity!=null){verity.disable();verity=null;}

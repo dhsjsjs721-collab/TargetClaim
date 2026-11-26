@@ -99,6 +99,7 @@ def main():
         output="\n".join(logs)
         if "SELFTEST koschei held-link OK" not in output:raise AssertionError("Koschei held-link test failed")
         if "Season phase -> WAITING" not in output or "Season phase -> SCOUT" not in output:raise AssertionError("Season commands failed")
+        if "SELFTEST media OK" not in output:raise AssertionError("Media policy self-test failed")
         if "SELFTEST command policy OK" not in output:raise AssertionError("Command policy self-test failed")
         if "SELFTEST relic policies OK" not in output:raise AssertionError("Relic policy regression failed")
         if "SELFTEST relic registry 5/5" not in output:raise AssertionError("Independent relic self-test did not pass")
