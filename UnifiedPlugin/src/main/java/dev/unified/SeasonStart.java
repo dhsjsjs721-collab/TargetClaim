@@ -41,7 +41,8 @@ boolean active(){return phase!=Phase.LIVE;}
 boolean allowCommand(Player p,String root,String[] args){
 if(!locked(p))return true;
 String a=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-if(Set.of("ua","msg","tell","w","pm","unifiedmsg","r","reply","unifiedreply","voicechat").contains(root))return true;
+if(Set.of("ua","msg","tell","w","pm","unifiedmsg","r","reply","unifiedreply","voicechat","skin").contains(root))return true;
+if(Set.of("u","unified").contains(root)&&a.equals("skin"))return true;
 if(phase==Phase.WAITING)return Set.of("u","unified").contains(root)&&(a.isEmpty()||a.equals("help"));
 if(Set.of("clan","clans","team").contains(root))return true;
 return Set.of("u","unified").contains(root)&&(a.isEmpty()||Set.of("help","team","clan","teams","clans","recipes","guide","dragon").contains(a));

@@ -100,7 +100,6 @@ if(history.size()>=3){long min=Math.max(1,(history.getFirst()+WINDOW-now+59999)/
 }
 boolean skin(CommandSender sender,String[] args){
 if(!(sender instanceof Player p)){tell(sender,"§cТолько в игре.");return true;}
-if(host.seasonLocked(p)){tell(p,"§cСмена скина доступна после старта.");return true;}
 if(args.length==0){tell(p,"§e/skin <ник | NameMC | MineSkin | HTTPS PNG> [slim|classic]");tell(p,"§e/skin reset · /skin status");status(p);return true;}
 if(args[0].equalsIgnoreCase("status")){status(p);return true;}
 UUID id=p.getUniqueId();boolean reset=args[0].equalsIgnoreCase("reset");String src=reset?null:SkinResolver.source(args[0]);
@@ -125,7 +124,7 @@ try{prop=resolver.resolve(src,model);}catch(Exception ex){failure=ex instanceof 
 ProfileProperty result=prop;String reason=failure;
 if(!host.isEnabled())return;
 Bukkit.getScheduler().runTask(host,()->{Player current=Bukkit.getPlayer(id);if(!pending.remove(id,token)||current==null)return;
-if(result==null){if(save)tell(current,"§c"+reason);return;}if(save&&host.seasonLocked(current)){tell(current,"§cСмена отменена до начала сезона.");return;}
+if(result==null){if(save)tell(current,"§c"+reason);return;}
 finish(current,result,src,model,save);
 });
 });}catch(RejectedExecutionException ex){pending.remove(id,token);tell(p,"§cОчередь скинов занята. Попробуй позже.");}
@@ -147,7 +146,7 @@ if(!persist()){try{skins.loadFromString(old);}catch(Exception ignored){}try{p.se
 if(save){tell(p,src==null?"§aСкин сброшен.":"§aПодписанный скин применён без перезахода.");status(p);}
 }
 @EventHandler public void join(PlayerJoinEvent e){UUID id=e.getPlayer().getUniqueId();originals.put(id,e.getPlayer().getPlayerProfile().clone());Bukkit.getScheduler().runTaskLater(host,()->{
-Player p=Bukkit.getPlayer(id);if(p==null||pending.containsKey(id))return;String src=skins.getString(id+".source"),value=skins.getString(id+".value"),sig=skins.getString(id+".signature");if(src==null)return;
+Player p=Bukkit.getPlayer(id);if(p==null||pending.containsKey(id)||cooldown.containsKey(id))return;String src=skins.getString(id+".source"),value=skins.getString(id+".value"),sig=skins.getString(id+".signature");if(src==null)return;
 if(value!=null&&sig!=null&&!sig.isBlank()){PlayerProfile profile=p.getPlayerProfile();profile.removeProperty("textures");profile.setProperty(new ProfileProperty("textures",value,sig));try{p.setPlayerProfile(profile);}catch(RuntimeException ex){host.getLogger().warning("Cached skin update failed: "+ex.getClass().getSimpleName());}return;}
 String normalized=SkinResolver.source(src);if(src.startsWith("mineskin:"))normalized=src;if(normalized!=null)apply(p,normalized,skins.getString(id+".model","unknown"),false);
 },40L);}
