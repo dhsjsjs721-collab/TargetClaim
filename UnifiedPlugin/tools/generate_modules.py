@@ -163,6 +163,7 @@ def convert(code,namespace,name,path):
         code=swap(code,"public boolean isClaimed(Location place){","public boolean ownsShopLocation(UUID owner,Location place){Claim c=claimAt(place);return c!=null&&c.owner.equals(owner);}\npublic boolean isClaimed(Location place){","shop chest ownership")
     if name=="EnchantmentForge" and path.endswith("WanderingTraderFeature.java"):
         code=swap(code,"return recipes;","recipes.add(dev.unified.Shopkeepers.offer());\nreturn recipes;","personal merchant offer")
+        code=swap(code,"if (trader.getPersistentDataContainer().has(traderKey,PersistentDataType.BYTE)) return;","if (trader.getPersistentDataContainer().has(traderKey,PersistentDataType.BYTE)) {\nvar existing=new java.util.ArrayList<>(trader.getRecipes());\nvar shopOffer=dev.unified.Shopkeepers.offer();\nif(existing.stream().noneMatch(r->r.getResult().isSimilar(shopOffer.getResult()))){existing.add(shopOffer);trader.setRecipes(existing);}\nreturn;\n}","personal merchant migration")
 
     # TalismanForge's previous shield and item state keys already use the
     # original namespace, via the explicit Keys above. No data migration.
