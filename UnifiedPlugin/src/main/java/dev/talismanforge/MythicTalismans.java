@@ -57,6 +57,8 @@ final class MythicTalismans implements Listener {
     private final Map<UUID,Gaze> gazes=new HashMap<>();
     private final Map<UUID,Credit> credits=new HashMap<>();
     private final Map<UUID,Minion> minions=new HashMap<>();
+    private final Map<UUID,Long> frozenMobs=new HashMap<>();
+    private final NamespacedKey frozenUntil=key("mythic_stone_until");
     private final Map<UUID,Clone> clones=new HashMap<>();
     private final Map<UUID,UUID> markDisplays=new HashMap<>();
     private final Map<UUID,Mark> marks=new LinkedHashMap<>();
@@ -85,7 +87,7 @@ final class MythicTalismans implements Listener {
         naturalKey=key("mythic_natural");frozenKey=key("mythic_stone");aiKey=key("mythic_original_ai");despawnKey=key("mythic_original_despawn");gravityKey=key("mythic_original_gravity");summonKey=key("mythic_summon");
         
         load(); Bukkit.getPluginManager().registerEvents(this,plugin.host());
-        for(World w:Bukkit.getWorlds())for(Item i:w.getEntitiesByClass(Item.class))recoverItem(i);
+        for(World w:Bukkit.getWorlds()){for(Item i:w.getEntitiesByClass(Item.class))recoverItem(i);for(LivingEntity l:w.getLivingEntities())if(!(l instanceof Player)&&isStone(l)){long until=l.getPersistentDataContainer().getOrDefault(frozenUntil,PersistentDataType.LONG,0L);if(until<=now())thaw(l);else frozenMobs.put(l.getUniqueId(),until);}}
         Bukkit.getScheduler().runTaskTimer(plugin.host(),this::tick,5,5);
     }
     private NamespacedKey key(String name){return new NamespacedKey("talismanforge",name);}
@@ -258,6 +260,24 @@ final class MythicTalismans implements Listener {
         }
         sender.sendMessage("SELFTEST relic registry "+passed+"/5");
         heldLinkSelfTest(sender);
+        policySelfTest(sender);
+    }
+    private static int rescueCost(Kind k,boolean awakened){return k==Kind.ANUBIS?200:k==Kind.KOSCHEI&&awakened?0:1;}
+    private static int armySize(int souls){return Math.min(10,Math.max(4,souls/50));}
+    private static int storageCharges(int current,int max,long elapsed){return Math.min(max,current+(int)Math.min(9,Math.max(0,elapsed)/RECHARGE));}
+    private static boolean naturalReason(String reason,boolean marked){return reason==null||reason.equals("DEFAULT")?marked:NATURAL_REASONS.contains(reason);}
+    private void policySelfTest(CommandSender sender){
+        try{
+            for(Kind k:Kind.values())for(boolean awakened:new boolean[]{false,true}){
+                int expected=k==Kind.ANUBIS?200:k==Kind.KOSCHEI&&awakened?0:1;
+                if(rescueCost(k,awakened)!=expected)throw new IllegalStateException("rescue cost "+k);
+            }
+            if(armySize(200)!=4||armySize(300)!=6||armySize(400)!=8||armySize(500)!=10||armySize(10000)!=10)throw new IllegalStateException("army scaling");
+            for(String reason:List.of("SPAWNER","SPAWNER_EGG","DISPENSE_EGG","BREEDING","CUSTOM","COMMAND"))if(naturalReason(reason,true))throw new IllegalStateException("forbidden soul origin "+reason);
+            if(!naturalReason("NATURAL",false)||!naturalReason("CHUNK_GEN",false)||naturalReason("DEFAULT",false)||!naturalReason("DEFAULT",true))throw new IllegalStateException("natural spawn classification");
+            if(storageCharges(0,3,RECHARGE-1)!=0||storageCharges(0,3,RECHARGE)!=1||storageCharges(2,3,RECHARGE*9)!=3||storageCharges(0,9,RECHARGE*10)!=9||storageCharges(1,3,-1)!=1)throw new IllegalStateException("storage timing");
+            sender.sendMessage("SELFTEST relic policies OK");
+        }catch(Exception e){sender.sendMessage("SELFTEST relic policies FAILED: "+e.getMessage());}
     }
     private void heldLinkSelfTest(CommandSender sender){
         UUID owner=UUID.randomUUID();State s=new State(Kind.KOSCHEI);s.serial=UUID.randomUUID().toString();s.charges=3;s.owner=owner;states.put(s.serial,s);
@@ -444,8 +464,7 @@ final class MythicTalismans implements Listener {
     private boolean natural(LivingEntity e){
         if(e instanceof ArmorStand||e instanceof Mannequin||e.getPersistentDataContainer().has(summonKey,PersistentDataType.STRING))return false;
         var reason=e.getEntitySpawnReason();
-        if(reason!=null&&!reason.name().equals("DEFAULT"))return NATURAL_REASONS.contains(reason.name());
-        return e.getPersistentDataContainer().has(naturalKey,PersistentDataType.BYTE);
+        return naturalReason(reason==null?null:reason.name(),e.getPersistentDataContainer().has(naturalKey,PersistentDataType.BYTE));
     }
     private int soulValue(LivingEntity e){
         return switch(e.getType().name()){
@@ -526,8 +545,7 @@ final class MythicTalismans implements Listener {
             reveal(p);
         }else combat.put(p.getUniqueId(),now());
         if(k==null||e.getFinalDamage()+1e-6<p.getHealth())return;
-        State s=activeState(p);int cost=k==Kind.ANUBIS?200:1;
-        if(k==Kind.KOSCHEI&&s.awakened)cost=0;
+        State s=activeState(p);int cost=rescueCost(k,s.awakened);
         if(s.charges<cost||k==Kind.KOSCHEI&&s.broken)return;
         Location destination=null;
         if(k==Kind.KOSCHEI){if(s.egg==null||claimed(s.egg)||!eggBlock(s.egg.getBlock()))return;destination=safeEgg(s.egg);if(destination==null)return;}
@@ -542,7 +560,7 @@ final class MythicTalismans implements Listener {
         Player p=e.getEntity();State s=activeState(p);if(s==null)return;Kind k=s.kind;
         var last=p.getLastDamageCause();
         if(last!=null&&last.getCause().name().equals("KILL"))return;
-        int cost=k==Kind.ANUBIS?200:k==Kind.KOSCHEI&&s.awakened?0:1;
+        int cost=rescueCost(k,s.awakened);
         if(s.charges<cost||k==Kind.KOSCHEI&&s.broken)return;
         Location destination=null;
         if(k==Kind.KOSCHEI){if(s.egg==null||claimed(s.egg)||!eggBlock(s.egg.getBlock()))return;destination=safeEgg(s.egg);if(destination==null)return;}
@@ -648,7 +666,7 @@ final class MythicTalismans implements Listener {
     }
     private void summonArmy(Player p,int souls,State source){
         if(activeState(p)!=source)return;boolean awakened=source.awakened;
-        int count=Math.min(10,Math.max(4,souls/50));
+        int count=armySize(souls);
         for(int i=0;i<count+(awakened?3:0);i++){
             boolean elite=i>=count;double a=i*Math.PI*2/(count+(awakened?3:0));
             Location l=p.getLocation().clone().add(Math.cos(a)*2,0,Math.sin(a)*2);if(!l.getBlock().isPassable())l=p.getLocation();
@@ -841,7 +859,7 @@ final class MythicTalismans implements Listener {
     private void applyStorage(State s){
         if(s.storedAt==0)return;int max=cap(Kind.KITSUNE,s);
         long n=(now()-s.storedAt)/RECHARGE;if(n<=0)return;
-        s.charges=Math.min(max,s.charges+(int)Math.min(n,9));s.storedAt=s.charges==max?now():s.storedAt+n*RECHARGE;save();
+        s.charges=storageCharges(s.charges,max,now()-s.storedAt);s.storedAt=s.charges==max?now():s.storedAt+n*RECHARGE;save();
     }
     private void validateStorage(){
         Set<UUID> checked=new HashSet<>();Set<Location> checkedChests=new HashSet<>();
@@ -861,12 +879,12 @@ final class MythicTalismans implements Listener {
     private void freeze(LivingEntity l){
         if(!eligible(l)||isStone(l)||stoneImmune.getOrDefault(l.getUniqueId(),0L)>now())return;
         if(l instanceof Player p)stonePlayers.put(p.getUniqueId(),now()+15000);
-        else {var data=l.getPersistentDataContainer();data.set(frozenKey,PersistentDataType.BYTE,(byte)1);data.set(aiKey,PersistentDataType.BYTE,(byte)(l.hasAI()?1:0));data.set(despawnKey,PersistentDataType.BYTE,(byte)(l.getRemoveWhenFarAway()?1:0));data.set(gravityKey,PersistentDataType.BYTE,(byte)(l.hasGravity()?1:0));l.setAI(false);l.setGravity(false);l.setRemoveWhenFarAway(false);}
+        else {var data=l.getPersistentDataContainer();long until=now()+15000;frozenMobs.put(l.getUniqueId(),until);data.set(frozenUntil,PersistentDataType.LONG,until);data.set(frozenKey,PersistentDataType.BYTE,(byte)1);data.set(aiKey,PersistentDataType.BYTE,(byte)(l.hasAI()?1:0));data.set(despawnKey,PersistentDataType.BYTE,(byte)(l.getRemoveWhenFarAway()?1:0));data.set(gravityKey,PersistentDataType.BYTE,(byte)(l.hasGravity()?1:0));l.setAI(false);l.setGravity(false);l.setRemoveWhenFarAway(false);}
         l.setVelocity(new Vector());burst(l.getLocation(),Kind.MEDUSA,24);l.getWorld().playSound(l.getLocation(),Sound.BLOCK_STONE_PLACE,1,.6f);
     }
     private void thaw(LivingEntity l){
         if(l instanceof Player p)stonePlayers.remove(p.getUniqueId());
-        else {var data=l.getPersistentDataContainer();if(!data.has(frozenKey,PersistentDataType.BYTE))return;l.setAI(data.getOrDefault(aiKey,PersistentDataType.BYTE,(byte)1)==1);l.setRemoveWhenFarAway(data.getOrDefault(despawnKey,PersistentDataType.BYTE,(byte)1)==1);l.setGravity(data.getOrDefault(gravityKey,PersistentDataType.BYTE,(byte)1)==1);data.remove(frozenKey);data.remove(aiKey);data.remove(despawnKey);data.remove(gravityKey);}
+        else {var data=l.getPersistentDataContainer();if(!data.has(frozenKey,PersistentDataType.BYTE))return;l.setAI(data.getOrDefault(aiKey,PersistentDataType.BYTE,(byte)1)==1);l.setRemoveWhenFarAway(data.getOrDefault(despawnKey,PersistentDataType.BYTE,(byte)1)==1);l.setGravity(data.getOrDefault(gravityKey,PersistentDataType.BYTE,(byte)1)==1);data.remove(frozenKey);data.remove(frozenUntil);frozenMobs.remove(l.getUniqueId());data.remove(aiKey);data.remove(despawnKey);data.remove(gravityKey);}
         stoneImmune.put(l.getUniqueId(),now()+30000);l.getWorld().playSound(l.getLocation(),Sound.BLOCK_STONE_BREAK,1,1.2f);
         l.getWorld().spawnParticle(Particle.BLOCK,l.getLocation().add(0,.7,0),18,.4,.5,.4,0,Material.STONE.createBlockData());
     }
@@ -908,7 +926,7 @@ final class MythicTalismans implements Listener {
         else if(generatedChunks.getOrDefault(chunkKey(entity.getLocation().getChunk()),0L)>now())markGenerated(entity);
         if(entity instanceof ItemDisplay&&entity.getPersistentDataContainer().has(key("koschei_display"),PersistentDataType.BYTE)&&boundEggs.values().stream().noneMatch(s->entity.getUniqueId().equals(s.display))){entity.remove();continue;}
         if(entity.getPersistentDataContainer().has(summonKey,PersistentDataType.STRING)&&!minions.containsKey(entity.getUniqueId())&&!clones.containsKey(entity.getUniqueId()))entity.remove();
-        else if(entity instanceof LivingEntity l&&isStone(l)&&!(l instanceof Player)){l.setAI(false);l.setGravity(false);l.setRemoveWhenFarAway(false);}
+        else if(entity instanceof LivingEntity l&&isStone(l)&&!(l instanceof Player)){long until=l.getPersistentDataContainer().getOrDefault(frozenUntil,PersistentDataType.LONG,0L);if(until<=now())thaw(l);else{frozenMobs.put(l.getUniqueId(),until);l.setAI(false);l.setGravity(false);l.setRemoveWhenFarAway(false);}}
     }}
     private void modifier(Player p,Attribute attribute,NamespacedKey key,double amount,AttributeModifier.Operation op,boolean apply){
         var a=p.getAttribute(attribute);if(a==null)return;var old=a.getModifier(key);
@@ -985,6 +1003,7 @@ final class MythicTalismans implements Listener {
         }
         if(ticks%20!=0)return;
         validateStorage();
+        for(var entry:new ArrayList<>(frozenMobs.entrySet())){Entity entity=Bukkit.getEntity(entry.getKey());if(!(entity instanceof LivingEntity l)||l.isDead()){frozenMobs.remove(entry.getKey());continue;}if(entry.getValue()<=time)thaw(l);}
         for(State egg:new ArrayList<>(boundEggs.values()))if(egg.egg!=null&&egg.egg.getWorld()!=null&&egg.egg.getWorld().isChunkLoaded(egg.egg.getBlockX()>>4,egg.egg.getBlockZ()>>4)){
             if(!eggBlock(egg.egg.getBlock()))destroyEgg(egg);
             else {renderEgg(egg);if(egg.eggHp<3&&time-egg.lastEggHit>=30000){egg.eggHp++;egg.lastEggHit=time;save();}}
@@ -1013,6 +1032,7 @@ final class MythicTalismans implements Listener {
         for(Ritual r:new ArrayList<>(rituals.values()))abortRitual(r,"сервер выключается");
         for(State s:boundEggs.values())removeEggDisplay(s);
         for(Player p:Bukkit.getOnlinePlayers()){show(p);effects(p,null);}
+        for(UUID uid:new ArrayList<>(frozenMobs.keySet())){Entity entity=Bukkit.getEntity(uid);if(entity instanceof LivingEntity l)thaw(l);}
         for(UUID uid:minions.keySet()){Entity e=Bukkit.getEntity(uid);if(e!=null)e.remove();}
         for(UUID uid:clones.keySet()){Entity e=Bukkit.getEntity(uid);if(e!=null)e.remove();}
         for(UUID uid:markDisplays.values()){Entity e=Bukkit.getEntity(uid);if(e!=null)e.remove();}

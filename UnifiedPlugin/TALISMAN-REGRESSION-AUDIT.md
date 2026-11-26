@@ -10,3 +10,5 @@ Production 1.1.19 console: /u talisman selftest 5/5. This is a registry test, no
 - Medusa: gaze, shield, line of sight, PvP flags, movement and item interactions, relog, thaw, cooldown and kills; no infinite mob stasis without documented design.
 - Shared: item identity, stack sizes, duplication, death fallback, dragon egg ritual rollback, inventory transactions, persistence failure, server crash and permissions.
 - UI: actual client pack hash and both inventory/equipped mirror models, clan filler, authentication overlay and all torch placement faces.
+
+Added executable policy tests to the existing selftest command and required them in the Purpur CI smoke test. Covered resurrection costs, Anubis army scaling and spawn provenance, Kitsune storage timing and cap. Medusa's mob freeze is bounded to 15 seconds (including chunk reload); this is a provisional balance choice.
