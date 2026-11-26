@@ -137,6 +137,28 @@ def convert(code,namespace,name,path):
         code=swap(code,'private void fillTeamMenu(Inventory inv,Player player){','private void fillTeamMenu(Inventory inv,Player player){\nguiBase(inv);',"clear stale clan buttons")
         code=swap(code,'if(slot<0||slot>=inv.getSize())return;','if(slot<0||slot>=inv.getSize()||inv.getItem(slot)==null||inv.getItem(slot).getType().isAir())return;',"ignore blank menu slots")
 
+    if name=="TargetClaim":
+        # A core inside the peace zone (including legacy cores) cannot upgrade beyond II.
+        # Keep existing protected dimensions; never silently shrink previously saved claims.
+        code=swap(code,"private void upgrade(Player p,Claim c){","private int maxLevel(Claim c){\nWorld w=Bukkit.getWorld(c.world);\nreturn c.spawnSized||(w!=null&&((dev.unified.UnifiedPlugin)host()).isPeace(new Location(w,c.x,c.y,c.z)))?2:4;\n}\nprivate int reservedLevel(Claim c){return Math.max(c.level,maxLevel(c));}\nprivate void upgrade(Player p,Claim c){","spawn level cap")
+        for old,new in [
+            ("core.level<4","core.level<maxLevel(core)"),
+            ("c.level>=4","c.level>=maxLevel(c)"),
+            ("claim.level<4","claim.level<maxLevel(claim)"),
+            ('tell(p,"§aПриват уже максимального уровня.");','tell(p,"§aМаксимальный уровень привата здесь: "+maxLevel(c)+".");'),
+            ("return world!=null&&minY(c,level)","return level<=maxLevel(c)&&world!=null&&minY(c,level)"),
+            ("return wouldOverlap(c,4);","return wouldOverlap(c,reservedLevel(c));"),
+            ("minX(c,4),right=maxX(c,4),front=minZ(c,4),back=maxZ(c,4)","minX(c,reservedLevel(c)),right=maxX(c,reservedLevel(c)),front=minZ(c,reservedLevel(c)),back=maxZ(c,reservedLevel(c))"),
+            ("minY(c,4),top=maxY(c,4)","minY(c,reservedLevel(c)),top=maxY(c,reservedLevel(c))"),
+            ("c.width(4)+other.width(4)","c.width(reservedLevel(c))+other.width(reservedLevel(other))"),
+            ("if(self&&preview&&!c.independent){","if(self&&preview&&c==mine&&!c.independent&&c.level<maxLevel(c)){"),
+            ("if(c.level+1<4)drawBorder(p,c,4,","if(c.level+1<maxLevel(c))drawBorder(p,c,maxLevel(c),"),
+            ("dimension(claim,4)","dimension(claim,maxLevel(claim))"),
+            ('c.level+"/4"','c.level+"/"+maxLevel(c)'),
+            ('claim.level+"/4"','claim.level+"/"+maxLevel(claim)'),
+        ]:
+            code=swap(code,old,new,"peace claim cap")
+
     # TalismanForge's previous shield and item state keys already use the
     # original namespace, via the explicit Keys above. No data migration.
     return code
