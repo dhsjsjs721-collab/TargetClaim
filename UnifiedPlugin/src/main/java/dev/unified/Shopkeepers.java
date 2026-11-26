@@ -102,6 +102,7 @@ Shop s=new Shop();s.id=UUID.randomUUID();s.owner=p.getUniqueId();s.home=l;shops.
 hand.setAmount(hand.getAmount()-1);spawn(s);say(p,"§aЛавка создана. Shift+ПКМ — управление.");
 }
 @EventHandler(priority=EventPriority.HIGHEST) public void interact(PlayerInteractEntityEvent e){
+if(host.seasonLocked(e.getPlayer())){e.setCancelled(true);return;}
 UUID id=entityId(e.getRightClicked());if(id==null)return;e.setCancelled(true);if(e.getHand()!=EquipmentSlot.HAND)return;
 Shop s=shops.get(id);if(s==null||!near(e.getPlayer(),s))return;
 if(s.walker!=null){say(e.getPlayer(),"§eТорговец переносит выручку.");return;}
@@ -129,6 +130,7 @@ private void refresh(Shop s){for(Player p:Bukkit.getOnlinePlayers())if(p.getOpen
 @EventHandler(priority=EventPriority.HIGHEST) public void drag(InventoryDragEvent e){if(e.getView().getTopInventory().getHolder() instanceof Menu)e.setCancelled(true);}
 @EventHandler(priority=EventPriority.HIGHEST) public void click(InventoryClickEvent e){
 if(!(e.getView().getTopInventory().getHolder() instanceof Menu m)||!(e.getWhoClicked() instanceof Player p))return;
+if(host.seasonLocked(p)){e.setCancelled(true);return;}
 if(e.getRawSlot()>=27&&m.owner&&m.edit>=0&&(e.getClick()==ClickType.LEFT||e.getClick()==ClickType.RIGHT)){Shop editShop=shops.get(m.id);if(editShop!=null&&editShop.owner.equals(p.getUniqueId())&&near(p,editShop)&&editShop.walker==null&&owns(editShop.owner,editShop.home))return;}
 e.setCancelled(true);if(e.getRawSlot()<0||e.getRawSlot()>=27||!(e.getClick()==ClickType.LEFT||e.getClick()==ClickType.RIGHT))return;
 Shop s=shops.get(m.id);if(s==null||!near(p,s)||s.walker!=null||!owns(s.owner,s.home)){Bukkit.getScheduler().runTask(host,()->p.closeInventory());return;}

@@ -56,6 +56,7 @@ def convert(code,namespace,name,path):
         code=swap(code,"if (trader.getPersistentDataContainer().has(traderKey,PersistentDataType.BYTE)) return;","if (trader.getPersistentDataContainer().has(traderKey,PersistentDataType.BYTE)) {\nvar existing=new java.util.ArrayList<>(trader.getRecipes());\nvar shopOffer=dev.unified.Shopkeepers.offer();\nif(existing.stream().noneMatch(r->r.getResult().isSimilar(shopOffer.getResult()))){existing.add(shopOffer);trader.setRecipes(existing);}\nreturn;\n}","personal merchant migration")
     if name in ("GrapplingHookListener","WanderingTraderFeature"):
         if name=="GrapplingHookListener":
+            code=swap(code,"public void onInteract(PlayerInteractEvent e){","public void onInteract(PlayerInteractEvent e){\nif(plugin instanceof dev.unified.UnifiedPlugin u&&u.seasonLocked(e.getPlayer()))return;","season hook gate")
             code=code.replace("import org.bukkit.plugin.java.JavaPlugin;","import org.bukkit.plugin.Plugin;")
             code=code.replace("JavaPlugin plugin","Plugin plugin")
             code=code.replace("new NamespacedKey(plugin,","new NamespacedKey(\"talismanforge\",")

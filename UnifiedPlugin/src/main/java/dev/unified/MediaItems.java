@@ -65,6 +65,7 @@ var meta=hand.getItemMeta();meta.getPersistentDataContainer().set(discKey,Persis
 }
 @EventHandler(priority=EventPriority.HIGHEST)
 public void playLink(PlayerInteractEvent e){
+if(host.seasonLocked(e.getPlayer()))return;
 if(e.getHand()!=EquipmentSlot.HAND||!e.getPlayer().isSneaking()||!e.getAction().isRightClick()||e.getItem()==null||!e.getItem().hasItemMeta())return;
 String url=e.getItem().getItemMeta().getPersistentDataContainer().get(discKey,PersistentDataType.STRING);if(url==null||youtube(url)==null)return;
 e.setCancelled(true);link(e.getPlayer(),url,e.getItem().getItemMeta().hasDisplayName()?e.getItem().getItemMeta().getDisplayName():"YouTube");

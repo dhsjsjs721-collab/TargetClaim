@@ -94,6 +94,7 @@ else{if(!p.getAllowFlight())p.setAllowFlight(true);p.setFlySpeed(.25f);long sec=
 @EventHandler(priority=EventPriority.LOWEST) public void entity(PlayerInteractEntityEvent e){if(locked(e.getPlayer()))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.LOWEST) public void drop(PlayerDropItemEvent e){if(locked(e.getPlayer()))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.LOWEST) public void pickup(EntityPickupItemEvent e){if(e.getEntity() instanceof Player p&&locked(p))e.setCancelled(true);}
+@EventHandler(priority=EventPriority.LOWEST) public void xp(PlayerExpChangeEvent e){if(locked(e.getPlayer()))e.setAmount(0);}
 @EventHandler(priority=EventPriority.LOWEST) public void food(FoodLevelChangeEvent e){if(e.getEntity() instanceof Player p&&locked(p))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.LOWEST) public void consume(PlayerItemConsumeEvent e){if(locked(e.getPlayer()))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.LOWEST) public void fish(PlayerFishEvent e){if(locked(e.getPlayer()))e.setCancelled(true);}

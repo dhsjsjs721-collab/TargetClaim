@@ -131,7 +131,7 @@ ItemStack held=event.getItem();
 if(!isTrapItem(held))return;
 event.setUseInteractedBlock(Event.Result.DENY);
 event.setUseItemInHand(Event.Result.DENY);
-Player caster=event.getPlayer();
+Player caster=event.getPlayer();if(plugin.seasonLocked(caster))return;
 if(!caster.hasPermission("minecraftunified.trap.use")){send(caster,"§cНет прав.");return;}
 long now=System.currentTimeMillis();
 if(now<cooldown.getOrDefault(caster.getUniqueId(),0L)){
