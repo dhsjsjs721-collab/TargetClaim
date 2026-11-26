@@ -30,18 +30,18 @@ private static void togglePractice(Minecraft mc) {
 if(mc.player==null || mc.level==null) return;
 if(hotkeyActive || settings.aimEnabled() || settings.triggerEnabled() || PracticeCombat.autoMove) {
 stopPractice(mc);
-mc.gui.setOverlayMessage(Component.literal("Land of Losers: OFF"),false);
+mc.gui.hud.setOverlayMessage(Component.literal("Land of Losers: OFF"),false);
 return;
 }
 String name=PracticeCombat.selectNearestPracticeTarget(mc);
 if(name==null) {
-mc.gui.setOverlayMessage(Component.literal("Land of Losers: no eligible target within 6 blocks"),false);
+mc.gui.hud.setOverlayMessage(Component.literal("Land of Losers: no eligible target within 6 blocks"),false);
 return;
 }
 var s=settings;
 settings=new CombatSettings(true,true,s.horizontalSpeed(),s.verticalSpeed(),s.fov());
 hotkeyActive=true; hotkeyWorld=mc.level; hotkeyPlayer=mc.player;
-mc.gui.setOverlayMessage(Component.literal("Land of Losers: ON | "+name),false);
+mc.gui.hud.setOverlayMessage(Component.literal("Land of Losers: ON | "+name),false);
 }
 private static void checkHotkeySession(Minecraft mc) {
 if(hotkeyActive && (mc.level!=hotkeyWorld || mc.player!=hotkeyPlayer || mc.player==null || !mc.player.isAlive())) stopPractice(mc);
