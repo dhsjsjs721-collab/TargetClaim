@@ -17,7 +17,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class Verity implements Listener {
 private static final NamespacedKey ITEM=new NamespacedKey("minecraftunified","verity"),VISUAL=new NamespacedKey("minecraftunified","verity_visual");
 private static final String PREFIX="verity_block_";
-private static final Material BASE=Material.POLISHED_BLACKSTONE;
+private static final Material BASE=Material.POLISHED_BLACKSTONE, PLACED=Material.GLASS;
 private static final String LINE="Пошёл нахуй, пёс";
 private static final List<Material> PRICES=List.of(
 Material.OAK_SAPLING,Material.SPRUCE_SAPLING,Material.BIRCH_SAPLING,Material.JUNGLE_SAPLING,Material.ACACIA_SAPLING,Material.DARK_OAK_SAPLING,Material.CHERRY_SAPLING,Material.MANGROVE_PROPAGULE,
@@ -55,6 +55,7 @@ boolean give(CommandSender s,Player p){
 if(!s.hasPermission("minecraftunified.verity.admin")){s.sendMessage("§cНет прав.");return true;}
 for(ItemStack left:p.getInventory().addItem(item()).values())p.getWorld().dropItemNaturally(p.getLocation(),left);s.sendMessage("§aВерити выдан.");return true;
 }
+private boolean physical(Block b){return b!=null&&(b.getType()==BASE||b.getType()==PLACED);}
 private boolean marked(Block b){return b.getChunk().getPersistentDataContainer().has(Pos.of(b).marker(),PersistentDataType.BYTE);}
 private void removeDisplay(Placed p){if(p.display!=null){Entity e=Bukkit.getEntity(p.display);if(e!=null)e.remove();p.display=null;}}
 private void forget(Pos pos,Placed p){if(active.remove(pos,p)){removeDisplay(p);Block b=pos.block();if(b!=null)b.getChunk().getPersistentDataContainer().remove(pos.marker());}}
@@ -62,12 +63,12 @@ private void render(Pos pos,Placed p){
 if(p.display!=null&&Bukkit.getEntity(p.display) instanceof ItemDisplay d&&d.isValid())return;
 Location l=pos.center();if(l==null)return;
 ItemDisplay d=l.getWorld().spawn(l,ItemDisplay.class,e->{e.setPersistent(false);e.setInvulnerable(true);e.setGravity(false);e.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);e.setBillboard(Display.Billboard.FIXED);e.setViewRange(1.6f);
-var t=e.getTransformation();t.getScale().set(1.015f);e.setTransformation(t);e.setItemStack(item());e.getPersistentDataContainer().set(VISUAL,PersistentDataType.BYTE,(byte)1);});p.display=d.getUniqueId();
+var t=e.getTransformation();t.getScale().set(1.04f);e.setTransformation(t);e.setItemStack(item());e.getPersistentDataContainer().set(VISUAL,PersistentDataType.BYTE,(byte)1);});p.display=d.getUniqueId();
 }
 private void load(Chunk c){
 var data=c.getPersistentDataContainer();
 for(NamespacedKey k:new HashSet<>(data.getKeys()))if(k.getNamespace().equals("minecraftunified")&&k.getKey().startsWith(PREFIX)){
-try{String[] v=k.getKey().substring(PREFIX.length()).split("_");Block b=c.getBlock(Integer.parseInt(v[0]),Integer.parseInt(v[1]),Integer.parseInt(v[2]));if(b.getType()!=BASE){data.remove(k);continue;}active.putIfAbsent(Pos.of(b),new Placed());}
+try{String[] v=k.getKey().substring(PREFIX.length()).split("_");Block b=c.getBlock(Integer.parseInt(v[0]),Integer.parseInt(v[1]),Integer.parseInt(v[2]));if(!physical(b)){data.remove(k);continue;}active.putIfAbsent(Pos.of(b),new Placed());}
 catch(RuntimeException ex){data.remove(k);}
 }
 }
@@ -86,15 +87,15 @@ if(n>=4){e.setCancelled(true);e.getPlayer().sendMessage("§cНе больше 4 
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void place(BlockPlaceEvent e){
 if(!isItem(e.getItemInHand())||e.getBlockPlaced().getType()!=BASE)return;Block b=e.getBlockPlaced();Pos pos=Pos.of(b);b.getChunk().getPersistentDataContainer().set(pos.marker(),PersistentDataType.BYTE,(byte)1);
 Placed p=new Placed();Placed old=active.put(pos,p);if(old!=null)removeDisplay(old);
-Bukkit.getScheduler().runTask(host,()->{if(active.get(pos)==p&&pos.block()!=null&&pos.block().getType()==BASE){render(pos,p);speak(pos.center(),p,true);}});
+Bukkit.getScheduler().runTask(host,()->{if(active.get(pos)==p&&physical(pos.block())){pos.block().setType(PLACED,false);render(pos,p);speak(pos.center(),p,true);}});
 }
-@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void drops(BlockDropItemEvent e){
-Pos pos=Pos.of(e.getBlock());if(!active.containsKey(pos)||e.getBlockState().getType()!=BASE)return;
-boolean first=true;for(Item drop:e.getItems()){if(first){drop.setItemStack(item());first=false;}else drop.remove();}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void suppressDrops(BlockBreakEvent e){
+if(marked(e.getBlock()))e.setDropItems(false);
 }
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void broken(BlockBreakEvent e){
 Pos pos=Pos.of(e.getBlock());Placed p=active.get(pos);if(p==null)return;
-Bukkit.getScheduler().runTask(host,()->{Block b=pos.block();if(b!=null&&b.getType()!=BASE)forget(pos,p);});
+boolean drop=e.getPlayer().getGameMode()!=GameMode.CREATIVE;
+Bukkit.getScheduler().runTask(host,()->{Block b=pos.block();if(b!=null&&!physical(b)&&active.get(pos)==p){forget(pos,p);Location loc=pos.center();if(drop&&loc!=null)loc.getWorld().dropItemNaturally(loc,item());}});
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void explode(EntityExplodeEvent e){e.blockList().removeIf(this::marked);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void explode(BlockExplodeEvent e){e.blockList().removeIf(this::marked);}
@@ -121,7 +122,7 @@ private void tick(){
 ticks+=5;Map<Mob,Location> frightened=new HashMap<>();Set<Pos> nearby=new HashSet<>();int budget=128;
 for(var entry:new ArrayList<>(active.entrySet())){
 Pos pos=entry.getKey();Placed p=entry.getValue();Block b=pos.block();
-if(b==null)continue;if(b.getType()!=BASE){forget(pos,p);continue;}
+if(b==null)continue;if(!physical(b)){forget(pos,p);continue;}if(b.getType()==BASE)b.setType(PLACED,false);
 Location center=pos.center();
 if(center.getWorld().getPlayers().stream().noneMatch(v->v.getLocation().distanceSquared(center)<80*80)){removeDisplay(p);continue;}
 render(pos,p);
