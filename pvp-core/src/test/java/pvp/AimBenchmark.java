@@ -79,7 +79,9 @@ if(k==0 && result.first()<0) throw new AssertionError("Static acquisition failed
 System.out.printf(Locale.ROOT,"%s,%s,%.2f,%d,%d,%.3f,%.3f,%.3f%n",names[k],variants[c],100.0*result.aligned()/TICKS,result.first(),result.longestMiss(),result.rmsDelta(),result.peakDelta(),result.peakTurn());
 hits+=result.aligned(); sum+=result.rmsDelta()*result.rmsDelta(); peak=Math.max(peak,result.peakDelta()); turn=Math.max(turn,result.peakTurn()); miss=Math.max(miss,result.longestMiss());
 }
-System.out.printf(Locale.ROOT,"ALL,%s,%.2f,-1,%d,%.3f,%.3f,%.3f%n",variants[c],100.0*hits/(TICKS*names.length),miss,Math.sqrt(sum/names.length),peak,turn);
+double alignedPercent=100.0*hits/(TICKS*names.length),rms=Math.sqrt(sum/names.length);
+System.out.printf(Locale.ROOT,"ALL,%s,%.2f,-1,%d,%.3f,%.3f,%.3f%n",variants[c],alignedPercent,miss,rms,peak,turn);
+if(variants[c].equals("refined_1.10.0") && (alignedPercent<99.5 || miss>4 || rms>4.75 || peak>45)) throw new AssertionError("Existing aim benchmark regressed");
 }
 }
 private AimBenchmark() {}

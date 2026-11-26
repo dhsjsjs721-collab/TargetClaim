@@ -16,7 +16,8 @@ public final class PracticeClient implements ClientModInitializer {
 static boolean guiLocked;
 static CombatSettings settings=CombatSettings.defaults();
 private static Object hotkeyWorld,hotkeyPlayer;
-private static boolean hotkeyActive,hotkeyHeld,supportBusy;
+private static boolean hotkeyActive,hotkeyHeld;
+private static final ActionArbiter arbiter=new ActionArbiter();
 private static int hudTicks;
 private static boolean orbitHeld;
 static boolean hotkeyActive() { return hotkeyActive; }
@@ -26,7 +27,7 @@ settings=new CombatSettings(false,false,s.horizontalSpeed(),s.verticalSpeed(),s.
 hotkeyActive=false; hotkeyWorld=null; hotkeyPlayer=null;
 PracticeFreeLook.stop(mc,true);
 PracticeCombat.finishPractice();
-PracticeSupport.reset(); supportBusy=false; hudTicks=0;
+PracticeSupport.reset(); arbiter.reset(); hudTicks=0;
 PracticeCombat.autoMove=false;
 PracticeCombat.clearServerTarget();
 PracticeCombat.releaseInput(mc);
@@ -66,6 +67,8 @@ var s=CombatSettings.defaults();
 settings=new CombatSettings(false,false,s.horizontalSpeed(),s.verticalSpeed(),p.fov());
 PracticeCombat.autoMove=false;
 }
+private static boolean modulesEnabled() { return settings.aimEnabled() || settings.triggerEnabled(); }
+private static boolean manualInput(Minecraft mc) { return mc.options.keyAttack.isDown() || mc.options.keyUse.isDown(); }
 public void onInitializeClient() {
 loadPreferences();
 PracticeGhost.register();
@@ -83,9 +86,14 @@ boolean orbitPressed=false;
 while(orbit.consumeClick()) orbitPressed=true;
 if(orbitPressed && !orbitHeld && client.gui.screen()==null) PracticeFreeLook.toggle(client);
 orbitHeld=orbit.isDown();
-supportBusy=hotkeyActive && PracticeSupport.tick(client,PracticeCombat.supportDistance(client));
-if(supportBusy) PracticeCombat.supportPause(client,PracticeSupport.status());
-else PracticeCombat.startTick(client,settings);
+var owner=arbiter.begin(modulesEnabled(),PracticeCombat.controlAvailable(client),manualInput(client));
+if(owner==ActionArbiter.Owner.COMBAT) {
+if(hotkeyActive && arbiter.supportEligible() && PracticeSupport.tick(client,PracticeCombat.supportDistance(client))) {
+arbiter.claimSupport();
+PracticeCombat.supportPause(client,PracticeSupport.status());
+} else PracticeCombat.startTick(client,settings);
+} else if(owner!=ActionArbiter.Owner.IDLE) { PracticeSupport.idleTick(); PracticeCombat.controlPause(client,owner.name(),true); }
+else PracticeCombat.finishPractice();
 });
 ClientTickEvents.END_CLIENT_TICK.register(client -> {
 PracticeCombat.releaseInput(client);
@@ -93,7 +101,10 @@ while(key.consumeClick()) {
 if(!guiLocked && client.player != null && client.gui.screen()==null) client.gui.setScreen(new PracticeScreen());
 }
 checkHotkeySession(client);
-if(!supportBusy) PracticeCombat.tick(client,settings);
+var startOwner=arbiter.owner();
+boolean active=modulesEnabled(),available=PracticeCombat.controlAvailable(client),manual=manualInput(client);
+if(arbiter.finish(active,available,manual)) PracticeCombat.tick(client,settings);
+else if(active && startOwner==ActionArbiter.Owner.COMBAT) PracticeCombat.controlPause(client,manual?"MANUAL":"PAUSED",false);
 PracticeFreeLook.tick(client);
 PracticeCombat.captureFrame(client);
 if(hotkeyActive && client.gui.screen()==null && ++hudTicks>=20) {

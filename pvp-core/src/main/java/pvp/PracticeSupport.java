@@ -15,11 +15,10 @@ private static int totemDelay,potionDelay,armorDelay,checkDelay,expectedSlot=-1;
 private static ItemStack expected=ItemStack.EMPTY;
 private static String status="Support idle";
 static String status() { return status; }
+static void idleTick() { if(totemDelay>0) totemDelay--; if(potionDelay>0) potionDelay--; if(armorDelay>0) armorDelay--; }
 static void reset() { totemDelay=potionDelay=armorDelay=checkDelay=0; expectedSlot=-1; expected=ItemStack.EMPTY; status="Support idle"; }
 static boolean tick(Minecraft mc,double distance) {
-if(totemDelay>0) totemDelay--;
-if(potionDelay>0) potionDelay--;
-if(armorDelay>0) armorDelay--;
+idleTick();
 var self=mc.player;
 if(self==null || mc.level==null || mc.gameMode==null || !self.isAlive() || self.isCreative() || self.isSpectator() || mc.gui.screen()!=null || mc.isPaused() || mc.getCameraEntity()!=self || self.isUsingItem() || self.isHandsBusy() || mc.options.keyUse.isDown() || mc.options.keyAttack.isDown() || self.containerMenu!=self.inventoryMenu || !self.inventoryMenu.getCarried().isEmpty()) return false;
 var menu=self.inventoryMenu;

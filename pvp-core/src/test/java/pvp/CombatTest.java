@@ -442,6 +442,29 @@ trace.clear(); trace.ghostWindow(1,true,false,true,1,CombatEngine.Action.WAIT_TA
 trace.ghostWindow(2,true,true,true,1,CombatEngine.Action.WAIT_JUMP);
 trace.ghostWindow(3,true,true,true,1,CombatEngine.Action.NORMAL);
 check(trace.report().contains("Ghost windows: ready=2 planned=1 deferred=1 geometry/ray mismatch=1"));
+var ownership=new ActionArbiter();
+check(ownership.begin(true,true,false)==ActionArbiter.Owner.COMBAT);
+ownership.claimSupport(); check(!ownership.finish(true,true,false));
+check(!ownership.finish(true,true,false));
+check(ownership.begin(true,true,true)==ActionArbiter.Owner.MANUAL);
+check(!ownership.supportEligible() && !ownership.finish(true,true,false));
+check(ownership.begin(true,false,false)==ActionArbiter.Owner.PAUSED);
+check(!ownership.finish(true,true,false));
+check(ownership.begin(true,true,false)==ActionArbiter.Owner.COMBAT);
+check(!ownership.finish(true,true,true));
+check(ownership.begin(true,true,false)==ActionArbiter.Owner.COMBAT);
+check(!ownership.finish(true,false,false));
+check(ownership.begin(true,true,false)==ActionArbiter.Owner.COMBAT);
+check(ownership.finish(true,true,false));
+check(!ownership.finish(true,true,false));
+ownership.reset(); check(!ownership.supportEligible());
+for(int mask=0;mask<64;mask++) {
+boolean enabled=(mask&1)!=0,available=(mask&2)!=0,manual=(mask&4)!=0;
+boolean endEnabled=(mask&8)!=0,endAvailable=(mask&16)!=0,endManual=(mask&32)!=0;
+var owner=ownership.begin(enabled,available,manual);
+check(ownership.supportEligible()==(enabled && available && !manual));
+check(ownership.finish(endEnabled,endAvailable,endManual)==(owner==ActionArbiter.Owner.COMBAT && endEnabled && endAvailable && !endManual));
+}
 System.out.println("Combat tests passed");
 }
 }

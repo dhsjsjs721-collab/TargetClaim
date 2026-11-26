@@ -22,17 +22,21 @@ return serverTarget;
 }
 static boolean hasLockedTarget(Minecraft mc) { return currentServerTarget(mc)!=null; }
 static double supportDistance(Minecraft mc) { var target=currentServerTarget(mc); return target==null || mc.player==null?Double.NaN:Math.sqrt(mc.player.distanceToSqr(target.entity())); }
-static void supportPause(Minecraft mc,String reason) {
-if(mc.player==null || mc.level==null) return;
+static void supportPause(Minecraft mc,String reason) { pauseControl(mc,"SUPPORT",reason,true); }
+static void controlPause(Minecraft mc,String gate,boolean advance) { pauseControl(mc,gate,gate,advance); }
+static boolean controlAvailable(Minecraft mc) { return enabled(mc) && available(mc,mc.player) && mc.player.containerMenu==mc.player.inventoryMenu && mc.player.inventoryMenu.getCarried().isEmpty(); }
+private static void pauseControl(Minecraft mc,String gate,String reason,boolean advance) {
+if(!enabled(mc)) { if(sessionActive) resetWorld(mc); return; }
 if(lastPlayer!=mc.player || lastLevel!=mc.level) resetWorld(mc);
-sessionActive=true; trackingTick++; expirePending(); resetReplayFrame(); replayGate="SUPPORT"; replayPlan=reason; requestedMovement=false; progress.reset();
+sessionActive=true; if(advance) trackingTick++; expirePending(); resetReplayFrame(); replayGate=gate; replayPlan=reason; requestedMovement=false; progress.reset();
+if(gate.equals("MANUAL")) manualTick=trackingTick;
 if(mc.player.getHealth()<lastHealth) incomingDamage(); else if(responseWindow>0) responseWindow--;
 lastHealth=mc.player.getHealth();
 if(jumpDelay>0) jumpDelay--; if(attackDelay>0) attackDelay--; if(blockedJumpTicks>0) blockedJumpTicks--;
 if(mc.player.onGround()) hitThisFall=false;
 descendingTicks=0;
 resetTracking(); clearJump(); readyWait=0; waitingTarget=null;
-releaseInput(mc); trace.support(reason); setStatus(reason);
+releaseInput(mc); if(gate.equals("SUPPORT")) trace.support(reason); setStatus(reason);
 }
 static String targetSummary(Minecraft mc) {
 var selected=currentServerTarget(mc);
@@ -172,7 +176,7 @@ var selected=currentServerTarget(mc);
 return mc.player!=null && mc.level!=null && mc.gameMode!=null && (localPractice(mc) || selected!=null);
 }
 private static boolean available(Minecraft mc,LocalPlayer self) {
-return mc.gui.screen()==null && !mc.isPaused() && !mc.options.keyUse.isDown() && mc.getCameraEntity()==self && self.isAlive() && !self.isSpectator() && !self.isCreative() && !self.isUsingItem() && !self.isHandsBusy();
+return mc.gui.screen()==null && !mc.isPaused() && mc.getCameraEntity()==self && self.isAlive() && !self.isSpectator() && !self.isCreative() && !self.isUsingItem() && !self.isHandsBusy();
 }
 private static String unavailableReason(Minecraft mc,LocalPlayer self) {
 if(mc.isPaused()) return "Paused";
