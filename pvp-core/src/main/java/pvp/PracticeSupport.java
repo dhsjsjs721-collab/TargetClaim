@@ -25,7 +25,8 @@ if(self==null || mc.level==null || mc.gameMode==null || !self.isAlive() || self.
 var menu=self.inventoryMenu;
 if(expectedSlot>=0) {
 if(--checkDelay>0) { status="Inventory settle"; return true; }
-boolean observed=ItemStack.isSameItemSameComponents(menu.getSlot(expectedSlot).getItem(),expected);
+var actual=menu.getSlot(expectedSlot).getItem();
+boolean observed=ItemStack.isSameItemSameComponents(actual,expected) && actual.getCount()==expected.getCount();
 expectedSlot=-1; expected=ItemStack.EMPTY;
 status=observed?"Inventory observed":"Inventory mismatch";
 if(!observed) { potionDelay=Math.max(potionDelay,12); totemDelay=Math.max(totemDelay,12); armorDelay=Math.max(armorDelay,20); }

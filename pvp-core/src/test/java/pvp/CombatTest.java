@@ -399,6 +399,32 @@ check(SupportPlan.mayEquipArmor(true,true,true,5));
 check(!SupportPlan.mayEquipArmor(false,true,true,5));
 check(!SupportPlan.mayEquipArmor(true,false,true,5));
 check(!SupportPlan.mayEquipArmor(true,true,true,4));
+var stableRecovery=new CombatEngine.Recovery();
+stableRecovery.hit(1);
+check(stableRecovery.update(1,true,0));
+check(!stableRecovery.update(2,true,0));
+check(!stableRecovery.update(3,false,.4));
+check(stableRecovery.hit(4));
+check(stableRecovery.update(4,false,.4));
+var rejectedTarget=new TargetFilter.Candidate(false,false,true,true,false,false);
+int testedDecisions=0;
+for(int i=0;i<10000;i++) {
+double charge=(i%101)/100.0;
+boolean ground=(i&1)!=0,sprint=(i&2)!=0,restriction=(i&4)!=0,range=(i&8)!=0,ray=(i&16)!=0,readyItem=(i&32)!=0,spent=(i&64)!=0;
+var f=new CombatEngine.Frame(charge,ground,ground?0:.2,sprint,restriction,range,ray,false,false,(i&128)==0?t:rejectedTarget);
+var action=CombatEngine.practiceAction(f,1,spent,!restriction,false,readyItem,true,(i&256)!=0,12,i%8,6,(i&512)!=0,true,(i&1024)!=0);
+if(CombatEngine.attackAction(action)) {
+check(CombatEngine.attackAllowed(f,readyItem));
+check(ground || !spent);
+if(action==CombatEngine.Action.CRITICAL) check(!ground && !sprint && !restriction && f.fallDistance()>0);
+}
+testedDecisions++;
+}
+check(testedDecisions==10000);
+var invalidCharge=new CombatEngine.Frame(Double.NaN,true,0,false,false,true,true,false,false,t);
+check(CombatEngine.practiceAction(invalidCharge,0,false,true,false,true,true,false,12,0,6,false,true,false)==CombatEngine.Action.WAIT_COOLDOWN);
+var unchargedFall=new CombatEngine.Frame(.92,false,.2,false,false,true,true,false,false,t);
+check(!CombatEngine.attackAction(CombatEngine.practiceAction(unchargedFall,1,false,true,false,true,true,false,12,4,6,false,true,false)));
 System.out.println("Combat tests passed");
 }
 }

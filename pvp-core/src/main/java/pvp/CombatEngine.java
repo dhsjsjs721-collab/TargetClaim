@@ -116,6 +116,8 @@ public boolean update(long tick,boolean grounded,double awaySpeed) {
 if(!pressure(tick)) { recovering=false; stable=0; return false; }
 if(lastUpdate==tick) return recovering;
 lastUpdate=tick;
+// Once stable, a later voluntary jump is not a new knockback event.
+if(!recovering) return false;
 if(!grounded || (Double.isFinite(awaySpeed) && awaySpeed>.10)) { recovering=true; stable=0; }
 else if(++stable>=2) recovering=false;
 return recovering;
@@ -139,10 +141,10 @@ lastHit=tick; unanswered++;
 }
 public void outgoing(long tick) { unanswered=0; firstHit=-100; }
 public boolean update(long tick,double distance,double reach,boolean grounded) {
-if(!Double.isFinite(distance) || !Double.isFinite(reach) || reach<=0) return retreat;
+if(!Double.isFinite(distance) || !Double.isFinite(reach) || reach<=0 || distance<0) return retreat;
 if(retreat) {
 long elapsed=tick-retreatStart;
-if(elapsed>=6 && grounded && distance>=reach+.55 && tick-lastHit>=5 || elapsed>=18) {
+if((elapsed>=6 && grounded && distance>=reach+.55 && tick-lastHit>=5) || elapsed>=18) {
 retreat=false; unanswered=0; firstHit=-100; reengageUntil=tick+8;
 }
 } else if(tick>=reengageUntil && unanswered>=2 && tick-lastHit<=12 && distance>=reach*.72) {
@@ -153,16 +155,24 @@ return retreat;
 public boolean retreating() { return retreat; }
 public boolean reengaging(long tick) { return tick<reengageUntil; }
 }
+public static boolean attackAction(Action action) { return action==Action.NORMAL || action==Action.CRITICAL || action==Action.COMBO; }
+/** All live practice attack decisions share the same conservative charge and target gate. */
+public static boolean attackAllowed(Frame f,boolean attackReady) {
+return TargetFilter.accepts(f.target()) && f.inRange() && f.crosshairOnTarget() && attackReady && Double.isFinite(f.cooldown()) && f.cooldown()>=.95;
+}
 public static Action practiceAction(Frame f,int descendingTicks,boolean hitThisFall,boolean canJump,boolean jumpPending,boolean attackReady,boolean jumpReady,boolean urgent,double weaponDelay,int readyWait,int jumpHorizon,boolean combo,boolean canSprint,boolean retreating) {
 if(!TargetFilter.accepts(f.target()) || !f.inRange() || !f.crosshairOnTarget()) return Action.WAIT_TARGET;
-boolean ready=attackReady && Double.isFinite(f.cooldown()) && f.cooldown()>=.95;
+if(!Double.isFinite(f.cooldown())) return Action.WAIT_COOLDOWN;
+boolean ready=attackAllowed(f,attackReady);
 if(hitThisFall && !f.grounded()) return Action.WAIT_LANDING;
 if(ready && !f.restricted() && !f.grounded() && !f.sprinting() && f.fallDistance()>0 && descendingTicks>=1) return Action.CRITICAL;
 if(retreating || readyWait>=3 && ready) {
 if(!ready) return Action.WAIT_COOLDOWN;
 return f.sprinting() && f.grounded() && !f.restricted()?Action.COMBO:Action.NORMAL;
 }
-return hybridPlan(f,descendingTicks,hitThisFall,canJump,jumpPending,attackReady,jumpReady,urgent,weaponDelay,readyWait,jumpHorizon,combo,canSprint);
+Action planned=hybridPlan(f,descendingTicks,hitThisFall,canJump && !f.restricted(),jumpPending,attackReady,jumpReady,urgent,weaponDelay,readyWait,jumpHorizon,combo,canSprint);
+if(attackAction(planned) && !ready) return Action.WAIT_COOLDOWN;
+return planned;
 }
 private CombatEngine() {}
 }
