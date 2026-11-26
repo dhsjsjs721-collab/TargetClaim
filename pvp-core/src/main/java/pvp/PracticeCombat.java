@@ -106,10 +106,14 @@ private static AimModel.Turn turn=new AimModel.Turn(0,0);
 private static float lastHealth;
 private static int responseWindow;
 private static final CombatEngine.Recovery recovery=new CombatEngine.Recovery();
+private static final CombatEngine.Exchange exchange=new CombatEngine.Exchange();
+private static int orbitSide;
+private static LivingEntity orbitTarget;
+private static boolean retreating;
 private static void incomingDamage() { if(recovery.hit(trackingTick)) trace.event(trackingTick,"INCOMING_DAMAGE"); responseWindow=12; }
 private static boolean comboMode;
 private static LivingEntity styleTarget;
-private static void resetStyle() { comboMode=false; styleTarget=null; }
+private static void resetStyle() { comboMode=false; styleTarget=null; orbitTarget=null; orbitSide=0; retreating=false; exchange.reset(); }
 private static int readyTicks;
 private static String status="Disabled";
 static String status() { return status; }
@@ -195,7 +199,7 @@ manualTick=trackingTick; clearJump(); readyWait=0; setStatus("Manual attack / it
 decision=CombatEngine.Decision.WAIT;
 EntityHitResult hit=pickTarget(mc,self);
 LivingEntity crosshair=hit!=null && hit.getEntity() instanceof LivingEntity living && aimValid(self,living)?living:null;
-LivingEntity target=crosshair!=null?crosshair:settings.aimEnabled() && aimTarget!=null && valid(self,aimTarget) && Double.isFinite(angularError) && angularError<9?aimTarget:null;
+LivingEntity target=crosshair!=null?crosshair:settings.aimEnabled() && aimTarget!=null && aimValid(self,aimTarget)?aimTarget:null;
 if(target==null) { if(++consecutiveNoRay>=3) { readyWait=0; waitingTarget=null; } setStatus(localPractice(mc) && !golemTest && currentServerTarget(mc)==null?"Iron Golem Test off":aimTarget!=null?"Approach / align":"No valid target"); return; }
 consecutiveNoRay=0;
 boolean restricted=restricted(self);
@@ -206,7 +210,9 @@ boolean itemReady=!self.cannotAttackWithItem(self.getMainHandItem(),0);
 if(waitingTarget!=target) { waitingTarget=target; readyWait=0; }
 if(crosshair==target && cooldown>.90 && itemReady) readyWait=Math.min(20,readyWait+1);
 else if(cooldown<=.90 || !itemReady) readyWait=0;
-else readyWait=Math.max(0,readyWait-1);
+// Preserve a charged wait through a short aim loss; do not restart the cooldown.
+else if(!inRange(self,target)) readyWait=0;
+else readyWait=Math.min(20,readyWait+1);
 var eye=self.getEyePosition();
 var bounds=target.getBoundingBox();
 var box=new AimModel.Box(new AimModel.Vec(bounds.minX,bounds.minY,bounds.minZ),new AimModel.Vec(bounds.maxX,bounds.maxY,bounds.maxZ));
@@ -219,11 +225,12 @@ boolean urgent=crosshair==target && (future>reach-.18 && future>now+.04 || now>r
 var frame=new CombatEngine.Frame(cooldown,self.onGround(),falling?self.fallDistance:0,self.isSprinting(),restricted,crosshair==target || inRange(self,target),crosshair==target,!target.onGround() && target.getDeltaMovement().y<0,responseWindow>0,new TargetFilter.Candidate(true,false,true,true,false,false));
 boolean recovering=updateRecovery(self,target);
 boolean combo=updateStyle(self,target,now,future,reach) || recovering && self.onGround();
-if((combo || recovering) && jumpRequested && self.onGround()) clearJump();
-boolean canSprint=!restricted && !self.isShiftKeyDown() && (mc.options.keyUp.isDown() || autoMove) && !mc.options.keyDown.isDown();
-var action=CombatEngine.hybridPlan(frame,descendingTicks,hitThisFall,canJump,jumpRequested,attackDelay==0 && itemReady,jumpDelay==0,urgent,self.getCurrentItemAttackStrengthDelay(),readyWait,jumpTiming.horizon(),combo,canSprint);
+if((combo || recovering || retreating) && jumpRequested && self.onGround()) clearJump();
+boolean canSprint=!restricted && !self.isShiftKeyDown() && (mc.options.keyUp.isDown() || autoMove && lastMovement.forward() && !retreating) && !mc.options.keyDown.isDown();
+var action=CombatEngine.practiceAction(frame,descendingTicks,hitThisFall,canJump,jumpRequested,attackDelay==0 && itemReady,jumpDelay==0,urgent,self.getCurrentItemAttackStrengthDelay(),readyWait,jumpTiming.horizon(),combo,canSprint,retreating);
 trace.style(combo);
 trace.recovery(recovering);
+trace.attackGate(crosshair==target,inRange(self,target),itemReady,cooldown,retreating);
 trace.sample(cooldown,now,reach,angularError,crosshair==target);
 setStatus(action.name());
 switch(action) {
@@ -344,7 +351,12 @@ if(combatTarget==null) { var hit=pickTarget(mc,self); if(hit!=null && hit.getEnt
 if(self.getHealth()<lastHealth) incomingDamage();
 boolean recovering=updateRecovery(self,combatTarget);
 boolean combo=updateStyle(self,combatTarget) || recovering && self.onGround();
-if((combo || recovering) && self.onGround() && jumpRequested) clearJump();
+if(combatTarget!=null && autoMove) {
+boolean before=retreating;
+retreating=exchange.update(trackingTick,Math.hypot(combatTarget.getX()-self.getX(),combatTarget.getZ()-self.getZ()),self.getAttackRangeWith(self.getMainHandItem()).effectiveMaxRange(self),self.onGround());
+if(before!=retreating) trace.event(trackingTick,retreating?"DISENGAGE_START":"DISENGAGE_END");
+} else retreating=false;
+if((combo || recovering || retreating) && self.onGround() && jumpRequested) clearJump();
 if(jumpTarget!=null && jumpItem!=self.getMainHandItem().getItem()) { clearJump(); trace.event(trackingTick,"JUMP_CANCEL_ITEM_CHANGE"); }
 boolean critActive=jumpTarget!=null && aimValid(self,jumpTarget) && !restricted(self);
 if(critActive || (!combo && combatTarget!=null && valid(self,combatTarget) && !restricted(self)) || (!self.onGround() && !hitThisFall && self.getDeltaMovement().y<0 && combatTarget!=null && valid(self,combatTarget) && !restricted(self))) {
@@ -365,14 +377,17 @@ var other=aimTarget.getDeltaMovement();
 double targetX=aimTarget==sampledTarget?targetMotion.x():other.x;
 double targetZ=aimTarget==sampledTarget?targetMotion.z():other.z;
 double reach=self.getAttackRangeWith(self.getMainHandItem()).effectiveMaxRange(self);
-var choice=CombatAI.chooseFollow(dx,dz,aimTarget.getYRot(),self.getYRot(),velocity.x,velocity.z,targetX,targetZ,reach,lastMovement,(mx,mz)->{
+if(orbitTarget!=aimTarget) { orbitTarget=aimTarget; orbitSide=0; }
+orbitSide=CombatAI.orbitSide(dx,dz,aimTarget.getYRot(),orbitSide);
+java.util.function.BiPredicate<Double,Double> safe=(mx,mz)->{
 var next=self.getBoundingBox().move(mx,0,mz);
 return mc.level.noCollision(self,next) && !mc.level.noCollision(self,next.move(0,self.onGround()?-.7:-1.7,0));
-});
+};
+var choice=retreating?CombatAI.chooseRetreat(dx,dz,self.getYRot(),velocity.x,velocity.z,lastMovement,safe):CombatAI.chooseFollow(dx,dz,aimTarget.getYRot(),self.getYRot(),velocity.x,velocity.z,targetX,targetZ,reach,lastMovement,orbitSide,safe);
 var move=choice.movement();
 lastMovement=move;
 if(Double.isFinite(choice.cost())) {
-trace.movement(Math.hypot(dx,dz)>reach?"FOLLOW":move.left() || move.right()?"FLANK":move.forward()?"APPROACH":move.back()?"RETREAT":"HOLD");
+trace.movement(retreating?"DISENGAGE":Math.hypot(dx,dz)>reach?"FOLLOW":move.left() || move.right()?"FLANK":move.forward()?"APPROACH":move.back()?"RETREAT":"HOLD");
 if(move.forward()) { mc.options.keyUp.setDown(true); forcedForward=true; }
 if(move.back()) { mc.options.keyDown.setDown(true); forcedBack=true; }
 if(move.left()) { mc.options.keyLeft.setDown(true); forcedLeft=true; }
@@ -380,7 +395,7 @@ if(move.right()) { mc.options.keyRight.setDown(true); forcedRight=true; }
 } else trace.movement("BLOCKED");
 }
 }
-if(combo && combatTarget!=null && self.onGround() && !restricted(self) && !self.isShiftKeyDown() && mc.options.keyUp.isDown() && !mc.options.keyDown.isDown() && !mc.options.keySprint.isDown()) {
+if(combo && !retreating && combatTarget!=null && self.onGround() && !restricted(self) && !self.isShiftKeyDown() && mc.options.keyUp.isDown() && !mc.options.keyDown.isDown() && !mc.options.keySprint.isDown()) {
 mc.options.keySprint.setDown(true); forcedSprint=true;
 }
 }
@@ -406,12 +421,12 @@ return result instanceof EntityHitResult hit?hit:null;
 public static void recordDamage(ClientboundDamageEventPacket packet) {
 var mc=Minecraft.getInstance();
 if(mc.player==null || mc.level==null || lastPlayer!=mc.player || lastLevel!=mc.level || !sessionActive) return;
-if(packet.entityId()==mc.player.getId()) { incomingDamage(); return; }
+if(packet.entityId()==mc.player.getId()) { incomingDamage(); var selected=currentServerTarget(mc); if(selected!=null && packet.sourceCauseId()==selected.entity().getId()) exchange.incoming(trackingTick); return; }
 if(packet.sourceCauseId()!=mc.player.getId() || packet.sourceDirectId()!=mc.player.getId()) return;
 if(manualTick>=0 && trackingTick-manualTick<=2) { trace.event(trackingTick,"MANUAL_DAMAGE_UNATTRIBUTED"); return; }
 for(var it=pending.iterator();it.hasNext();) {
 var attempt=it.next();
-if(attempt.entityId()==packet.entityId() && trackingTick-attempt.tick()<=40) { it.remove(); confirmedHits++; trace.confirm(trackingTick,attempt.tick()); break; }
+if(attempt.entityId()==packet.entityId() && trackingTick-attempt.tick()<=40) { it.remove(); confirmedHits++; trace.confirm(trackingTick,attempt.tick()); exchange.outgoing(trackingTick); break; }
 }
 }
 private static boolean attack(Minecraft mc,LocalPlayer self,EntityHitResult hit) {

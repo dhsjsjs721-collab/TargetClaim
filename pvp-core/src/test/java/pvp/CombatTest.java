@@ -305,6 +305,23 @@ check(orbit.movement().left() || orbit.movement().right());
 var rearHold=CombatAI.chooseFollow(0,1.92,0,0,0,0,0,0,3,null,(x,z)->true);
 check(rearHold.movement().equals(new AimModel.Movement(false,false,false,false)));
 check(!Double.isFinite(CombatAI.chooseFollow(0,5,0,0,0,0,0,0,3,null,(x,z)->false).cost()));
+var exchange=new CombatEngine.Exchange();
+exchange.incoming(1); check(!exchange.update(2,2.7,3,true));
+exchange.incoming(11); check(exchange.update(11,2.7,3,true));
+check(exchange.update(14,4,3,true));
+check(!exchange.update(18,4,3,true));
+check(exchange.reengaging(18));
+exchange.reset(); exchange.incoming(1); exchange.outgoing(2); exchange.incoming(11);
+check(!exchange.update(12,2.9,3,true));
+var retreat=CombatAI.chooseRetreat(0,2.7,0,0,0,null,(x,z)->true);
+check(retreat.movement().back());
+check(!Double.isFinite(CombatAI.chooseRetreat(0,2.7,0,0,0,null,(x,z)->false).cost()));
+check(CombatAI.orbitSide(0,2,180,-1)==-1);
+check(CombatEngine.practiceAction(normal,0,false,true,false,true,true,false,12,3,6,false,true,false)==CombatEngine.Action.NORMAL);
+check(CombatEngine.practiceAction(normal,0,false,true,false,true,true,false,12,0,6,false,true,true)==CombatEngine.Action.NORMAL);
+check(CombatEngine.practiceAction(lostCrosshair,1,false,true,false,true,true,false,12,5,6,false,true,false)==CombatEngine.Action.WAIT_TARGET);
+trace.clear(); trace.attackGate(false,true,true,1,false); trace.attackGate(true,false,true,1,false);
+check(trace.report().contains("NO_RAY=1") && trace.report().contains("OUT_OF_RANGE=1"));
 System.out.println("Combat tests passed");
 }
 }

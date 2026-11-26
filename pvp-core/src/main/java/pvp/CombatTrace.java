@@ -13,8 +13,8 @@ private double latency;
 private double lastCharge=Double.NaN,lastDistance=Double.NaN,lastReach=Double.NaN,lastAngle=Double.NaN;
 private long samples,onTarget,aimSamples,aimCorrections;
 private double maxYaw,maxPitch;
-private final Map<String,Long> movement=new LinkedHashMap<>();
-public void clear() { events.clear(); counts.clear(); last=""; attempts=confirmed=expired=comboAttempts=criticalAttempts=0; comboTicks=criticalTicks=recoveryTicks=0; latency=0; samples=onTarget=aimSamples=aimCorrections=0; maxYaw=maxPitch=0; movement.clear(); lastCharge=lastDistance=lastReach=lastAngle=Double.NaN; }
+private final Map<String,Long> movement=new LinkedHashMap<>(),attackGates=new LinkedHashMap<>();
+public void clear() { events.clear(); counts.clear(); last=""; attempts=confirmed=expired=comboAttempts=criticalAttempts=0; comboTicks=criticalTicks=recoveryTicks=0; latency=0; samples=onTarget=aimSamples=aimCorrections=0; maxYaw=maxPitch=0; movement.clear(); attackGates.clear(); lastCharge=lastDistance=lastReach=lastAngle=Double.NaN; }
 public void state(long tick,String value) {
 counts.merge(value,1L,Long::sum);
 if(!value.equals(last)) { event(tick,value); last=value; }
@@ -41,8 +41,12 @@ aimSamples++;
 if(yaw!=0 || pitch!=0) aimCorrections++;
 maxYaw=Math.max(maxYaw,Math.abs(yaw)); maxPitch=Math.max(maxPitch,Math.abs(pitch));
 }
+public void attackGate(boolean aligned,boolean inReach,boolean itemReady,double charge,boolean retreating) {
+String gate=!inReach?"OUT_OF_RANGE":!aligned?"NO_RAY":!itemReady?"ITEM_BUSY":!Double.isFinite(charge) || charge<.95?"COOLDOWN":retreating?"RETREAT_READY":"READY";
+attackGates.merge(gate,1L,Long::sum);
+}
 public void movement(String value) { movement.merge(value,1L,Long::sum); }
 private static String fmt(double value) { return Double.isFinite(value)?String.format(java.util.Locale.ROOT,"%.2f",value):"n/a"; }
 public String summary() { return confirmed+"/"+attempts+" hits | "+expired+" timeout"; }
-public String report() { return "Land of Losers diagnostics\n"+summary()+" | observed feedback delay: "+String.format(java.util.Locale.ROOT,"%.1f",latency)+" ticks\nStyles: combo="+comboTicks+" critical="+criticalTicks+" | attempts: sprint="+comboAttempts+" critical="+criticalAttempts+"\nRecovery ticks: "+recoveryTicks+"\nSamples aligned: "+onTarget+"/"+samples+"\nLast sample: charge="+fmt(lastCharge)+" distance="+fmt(lastDistance)+" reach="+fmt(lastReach)+" angle="+fmt(lastAngle)+"\nAim corrections: "+aimCorrections+"/"+aimSamples+" | max yaw="+fmt(maxYaw)+" pitch="+fmt(maxPitch)+"\nMovement: "+movement+"\nStates: "+counts+"\nRecent transitions:\n"+String.join("\n",events); }
+public String report() { return "Land of Losers diagnostics\n"+summary()+" | observed feedback delay: "+String.format(java.util.Locale.ROOT,"%.1f",latency)+" ticks\nStyles: combo="+comboTicks+" critical="+criticalTicks+" | attempts: sprint="+comboAttempts+" critical="+criticalAttempts+"\nRecovery ticks: "+recoveryTicks+"\nSamples aligned: "+onTarget+"/"+samples+"\nLast sample: charge="+fmt(lastCharge)+" distance="+fmt(lastDistance)+" reach="+fmt(lastReach)+" angle="+fmt(lastAngle)+"\nAim corrections: "+aimCorrections+"/"+aimSamples+" | max yaw="+fmt(maxYaw)+" pitch="+fmt(maxPitch)+"\nMovement: "+movement+"\nAttack gates: "+attackGates+"\nStates: "+counts+"\nRecent transitions:\n"+String.join("\n",events); }
 }

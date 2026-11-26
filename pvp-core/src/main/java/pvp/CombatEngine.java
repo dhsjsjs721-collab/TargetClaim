@@ -126,5 +126,43 @@ public static double awaySpeed(double dx,double dz,double vx,double vz) {
 double length=Math.hypot(dx,dz);
 return length>1e-6 && Double.isFinite(length) && Double.isFinite(vx) && Double.isFinite(vz)?-(dx*vx+dz*vz)/length:0;
 }
+/** Tracks an unfavorable exchange against the selected practice opponent. */
+public static final class Exchange {
+private long firstHit=-100,lastHit=-100,retreatStart=-100,reengageUntil=-100;
+private int unanswered;
+private boolean retreat;
+public void reset() { firstHit=lastHit=retreatStart=reengageUntil=-100; unanswered=0; retreat=false; }
+public void incoming(long tick) {
+if(tick-lastHit<2) return;
+if(tick-firstHit>24) { firstHit=tick; unanswered=0; }
+lastHit=tick; unanswered++;
+}
+public void outgoing(long tick) { unanswered=0; firstHit=-100; }
+public boolean update(long tick,double distance,double reach,boolean grounded) {
+if(!Double.isFinite(distance) || !Double.isFinite(reach) || reach<=0) return retreat;
+if(retreat) {
+long elapsed=tick-retreatStart;
+if(elapsed>=6 && grounded && distance>=reach+.55 && tick-lastHit>=5 || elapsed>=18) {
+retreat=false; unanswered=0; firstHit=-100; reengageUntil=tick+8;
+}
+} else if(tick>=reengageUntil && unanswered>=2 && tick-lastHit<=12 && distance>=reach*.72) {
+retreat=true; retreatStart=tick;
+}
+return retreat;
+}
+public boolean retreating() { return retreat; }
+public boolean reengaging(long tick) { return tick<reengageUntil; }
+}
+public static Action practiceAction(Frame f,int descendingTicks,boolean hitThisFall,boolean canJump,boolean jumpPending,boolean attackReady,boolean jumpReady,boolean urgent,double weaponDelay,int readyWait,int jumpHorizon,boolean combo,boolean canSprint,boolean retreating) {
+if(!TargetFilter.accepts(f.target()) || !f.inRange() || !f.crosshairOnTarget()) return Action.WAIT_TARGET;
+boolean ready=attackReady && Double.isFinite(f.cooldown()) && f.cooldown()>=.95;
+if(hitThisFall && !f.grounded()) return Action.WAIT_LANDING;
+if(ready && !f.restricted() && !f.grounded() && !f.sprinting() && f.fallDistance()>0 && descendingTicks>=1) return Action.CRITICAL;
+if(retreating || readyWait>=3 && ready) {
+if(!ready) return Action.WAIT_COOLDOWN;
+return f.sprinting() && f.grounded() && !f.restricted()?Action.COMBO:Action.NORMAL;
+}
+return hybridPlan(f,descendingTicks,hitThisFall,canJump,jumpPending,attackReady,jumpReady,urgent,weaponDelay,readyWait,jumpHorizon,combo,canSprint);
+}
 private CombatEngine() {}
 }

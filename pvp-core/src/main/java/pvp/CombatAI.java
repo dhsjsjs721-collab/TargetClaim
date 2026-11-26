@@ -126,6 +126,9 @@ return new MovementChoice(chosen,best);
 }
 /** Short-horizon pursuit with an explicit rear-position objective. */
 public static MovementChoice chooseFollow(double dx,double dz,double targetYaw,double viewYaw,double ownX,double ownZ,double targetX,double targetZ,double reach,AimModel.Movement last,BiPredicate<Double,Double> safe) {
+return chooseFollow(dx,dz,targetYaw,viewYaw,ownX,ownZ,targetX,targetZ,reach,last,0,safe);
+}
+public static MovementChoice chooseFollow(double dx,double dz,double targetYaw,double viewYaw,double ownX,double ownZ,double targetX,double targetZ,double reach,AimModel.Movement last,int orbitSide,BiPredicate<Double,Double> safe) {
 double d0=Math.hypot(dx,dz);
 var hold=new AimModel.Movement(false,false,false,false);
 if(!Double.isFinite(d0) || !Double.isFinite(reach) || reach<=0) return new MovementChoice(hold,Double.POSITIVE_INFINITY);
@@ -146,9 +149,13 @@ if(!safe.test(x,z)) { ok=false; break; }
 double a=dx+clamp(targetX,-.4,.4)*t-x,b=dz+clamp(targetZ,-.4,.4)*t-z;
 double d=Math.hypot(a,b),err=d-ideal;
 double angle=d>.01?Math.acos(clamp((-a*rearX-b*rearZ)/d,-1,1)):Math.PI;
-double rearWeight=1.25*clamp((reach+1.3-d)/1.4,0,1);
+double rearWeight=2.0*clamp((reach+1.3-d)/1.4,0,1);
 cost+=err*err*(err>0?1.7:2.6)+Math.max(0,d-reach)*2.8+rearWeight*angle*angle;
 cost+=8*Math.pow(Math.max(0,1.05-d),2);
+if(orbitSide!=0 && angle>Math.PI*.65 && d>.01) {
+double cross=(-a*rearZ+b*rearX)/d;
+cost+=.9*Math.max(0,-orbitSide*cross);
+}
 }
 if(!ok) continue;
 var move=new AimModel.Movement(f>0,f<0,right<0,right>0);
@@ -156,6 +163,38 @@ if(last!=null && !move.equals(last)) cost+=.18;
 if(cost<best) { best=cost; chosen=move; }
 }
 return new MovementChoice(chosen,best);
+}
+/** Select safe steps away from an opponent, while preserving the current facing. */
+public static MovementChoice chooseRetreat(double dx,double dz,double viewYaw,double ownX,double ownZ,AimModel.Movement last,BiPredicate<Double,Double> safe) {
+var hold=new AimModel.Movement(false,false,false,false);
+double dist=Math.hypot(dx,dz);
+if(!Double.isFinite(dist) || dist<.01) return new MovementChoice(hold,Double.POSITIVE_INFINITY);
+double y=Math.toRadians(viewYaw),fx=-Math.sin(y),fz=Math.cos(y),rx=-Math.cos(y),rz=-Math.sin(y);
+double best=Double.POSITIVE_INFINITY;
+var chosen=hold;
+for(int f=-1;f<=1;f++) for(int right=-1;right<=1;right++) {
+double mag=Math.max(1,Math.hypot(f,right)),ix=(fx*f+rx*right)/mag*.22,iz=(fz*f+rz*right)/mag*.22;
+double x=0,z=0,vx=clamp(ownX,-.5,.5),vz=clamp(ownZ,-.5,.5),cost=0;
+boolean ok=true;
+for(int t=1;t<=3;t++) {
+vx=.45*vx+.55*ix; vz=.45*vz+.55*iz; x+=vx; z+=vz;
+if(!safe.test(x,z)) { ok=false; break; }
+cost+= (dx*x+dz*z)/dist;
+}
+if(!ok || cost>0) continue;
+var move=new AimModel.Movement(f>0,f<0,right<0,right>0);
+if(last!=null && !move.equals(last)) cost+=.06;
+if(cost<best) { best=cost; chosen=move; }
+}
+return new MovementChoice(chosen,best);
+}
+public static int orbitSide(double dx,double dz,double targetYaw,int previous) {
+double y=Math.toRadians(targetYaw),rx=Math.sin(y),rz=-Math.cos(y);
+double length=Math.hypot(dx,dz);
+if(length<.01) return previous==0?1:previous;
+double cross=(-dx*rz+dz*rx)/length;
+if(Math.abs(cross)<.23) return previous==0?1:previous;
+return cross>0?1:-1;
 }
 private static double pathCost(double dx,double dz,double tx,double tz,int tick,double x,double z,double ideal,double initial,double rearX,double rearZ,double reach,double uncertainty) {
 double a=dx+clamp(tx,-.35,.35)*tick-x,b=dz+clamp(tz,-.35,.35)*tick-z;
