@@ -36,6 +36,7 @@ private MirrorArmor mirrorArmor;
 private Goblins goblins;
 private Verity verity;
 private Shopkeepers shops;
+private RecipeGuide recipeGuide;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("claims","p"),Map.entry("p","p"),Map.entry("private","p"),
 Map.entry("team","team"),Map.entry("teams","team"),Map.entry("clan","team"),Map.entry("clans","team"),
@@ -114,6 +115,7 @@ deepslateCrafts=null;
 if(Bukkit.getPluginManager().getPlugin("TalismanForge")!=null){
 getLogger().severe("WARNING: standalone TalismanForge detected. Remove its old JAR from plugins to prevent duplicate abilities or command conflicts.");
 }
+recipeGuide=new RecipeGuide(this);recipeGuide.enable();
 getLogger().info("MinecraftUnified 1.1.22 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
@@ -170,6 +172,7 @@ sender.sendMessage("§e/u goblin [число] [forest|mushroom] §7— вызв�
 sender.sendMessage("§e/u map §7— карты; §e/u trap §7— обсидиановая ловушка");
 sender.sendMessage("§e/u mining §7— шахтёрская экипировка и метательные факелы");
 sender.sendMessage("§e/skin §7— смена скина; §e/disc §7— записать ссылку YouTube на пластинку");
+sender.sendMessage("§e/u video <YouTube> §7— обложка видео на карте");
 sender.sendMessage("§e/u shop §7— настройки личного торговца");
 sender.sendMessage("§e/u guide §7— краткое руководство игрока");
 }
@@ -210,6 +213,9 @@ sender.sendMessage("§eШахтёрская шапка: §fжелезо свер
 sender.sendMessage("§eТрапка: §fобсидиан в углах, железо по сторонам, алмаз в центре.");
 sender.sendMessage("§eВерити: §fредкий обмен у странствующего торговца; /u give verity (админ)");
 sender.sendMessage("§eЗеркальная броня: §f8 затемнённых стёкол, форма обычного нагрудника. /u give mirror");
+sender.sendMessage("§eКрюк-кошка: §fжелезо и нити, самородок по центру, палка снизу.");
+sender.sendMessage("§eЛичный торговец: §f32 алмаза у странствующего торговца. ПКМ биркой по блоку в своём привате.");
+sender.sendMessage("§eВсе крафты: §f/u recipes открывает книгу рецептов.");
 sender.sendMessage("§eФакел: §fShift + ПКМ в основной руке — бросок.");
 }
 private void claimGuide(CommandSender sender){
@@ -253,9 +259,12 @@ String action=args[0].toLowerCase(Locale.ROOT);
 if(action.equals("spawn")||action.equals("mobs"))return spawnMob(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("frog"))return spawnMob(sender,new String[]{"frog"});
 if(action.equals("goblin")||action.equals("goblins"))return goblins==null?unavailable(sender):goblins.command(sender,Arrays.copyOfRange(args,1,args.length));
+if(action.equals("video"))return media==null?unavailable(sender):media.video(sender,Arrays.copyOfRange(args,1,args.length));
+if(action.equals("skin"))return media==null?unavailable(sender):media.skin(sender,Arrays.copyOfRange(args,1,args.length));
+if(action.equals("disc"))return media==null?unavailable(sender):media.disc(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("shop"))return shops==null?unavailable(sender):shops.command(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("give"))return giveShortcut(sender,args);
-if(action.equals("recipes")){recipes(sender);return true;}
+if(action.equals("recipes")){if(sender instanceof org.bukkit.entity.Player p&&recipeGuide!=null)recipeGuide.open(p);else recipes(sender);return true;}
 if(action.equals("guide")){claimGuide(sender);recipes(sender);return true;}
 if(action.equals("vfx")){for(ModuleBridge m:enabledModules)if(m instanceof TalismanForgePlugin t)return t.onCommand(sender,getCommand("talismanforge"),"tf",new String[]{"vfx",args.length>=2?args[1]:""});return unavailable(sender);}
 if("p".equals(ROUTES.get(action))&&args.length>=2){if(args[1].equalsIgnoreCase("create")||args[1].equalsIgnoreCase("help")||args[1].equalsIgnoreCase("recipe")){claimGuide(sender);return true;}if(args[1].equalsIgnoreCase("give")&&args.length==2)return giveShortcut(sender,new String[]{"give","claim"});}
@@ -292,7 +301,7 @@ if(command.getName().equals("unifiedmsg")){var claims=claimModule();return claim
 if(command.getName().equals("unifiedreply"))return List.of();
 if(args.length<=1){
 String prefix=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-return List.of("help","guide","recipes","give","vfx","status","claim","team","clan","talisman","enchant","wildlife","spawn","frog","goblin","trader","map","trap","mining","shop")
+return List.of("help","guide","recipes","give","vfx","status","claim","team","clan","talisman","enchant","wildlife","spawn","frog","goblin","trader","map","trap","mining","shop","skin","disc","video")
 .stream().filter(x->x.startsWith(prefix)).toList();
 }
 String action=args[0].toLowerCase(Locale.ROOT);

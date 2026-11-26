@@ -1,3 +1,7 @@
+# Recipe and media update
+
+Personal merchant token is guaranteed in every wandering trader, including existing traders without an offer, for 32 diamonds. `/u recipes` opens a protected recipe viewer populated from registered custom recipes and unlocks the native recipe book. Added survival crafts for Soulbound, Triple Shot and return charm. Personal merchant, Verity and independent claims remain trader-exclusive; mythic talismans remain ritual rewards. `/skin` applies the Paper live profile update; `/disc` stores a link on a disc, `clear` removes it, and inserting the disc in a jukebox sends a clickable link to nearby players (32 blocks). `/u video <YouTube>` loads a static video thumbnail using ImageMaps. No streaming audio/video is implemented; vanilla clients need mods or a browser for actual playback.
+
 # Latest fixes
 
 Anubis receives 10 charge per gained XP; cap remains 500 and rescue costs 200 charge. Verity uses a full-size BlockDisplay with a resource-pack model for the admin-only structure-block DATA mode; ordinary survival block textures are unaffected. Resource pack status is logged per player for troubleshooting. Auth illustration requires UnifiedAuth 1.6.1 and compatible client pack ordering.

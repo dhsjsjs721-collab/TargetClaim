@@ -5,6 +5,10 @@ import org.bukkit.entity.*;
 import org.bukkit.event.*;
 import org.bukkit.event.player.*;
 import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.block.Jukebox;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.Event;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.command.*;
 import org.bukkit.inventory.*;
 import org.bukkit.persistence.PersistentDataType;
@@ -52,18 +56,29 @@ boolean disc(CommandSender sender,String[] args){
 if(!(sender instanceof Player p)){tell(sender,"§cТолько в игре.");return true;}
 ItemStack hand=p.getInventory().getItemInMainHand();
 if(!hand.getType().name().startsWith("MUSIC_DISC_")||hand.getAmount()!=1){tell(p,"§cДержи одну пластинку в основной руке.");return true;}
-if(args.length==0){tell(p,"§e/disc <ссылка YouTube> [название]");return true;}
+if(args.length==0){String saved=hand.getItemMeta().getPersistentDataContainer().get(discKey,PersistentDataType.STRING);if(saved!=null&&youtube(saved)!=null)link(p,saved,hand.getItemMeta().hasDisplayName()?hand.getItemMeta().getDisplayName():"YouTube");else tell(p,"§e/disc <ссылка YouTube> [название]");return true;}
+if(args[0].equalsIgnoreCase("clear")){var meta=hand.getItemMeta();meta.getPersistentDataContainer().remove(discKey);meta.setItemModel(null);meta.displayName(null);meta.lore(null);hand.setItemMeta(meta);p.getInventory().setItemInMainHand(hand);tell(p,"§aЗапись удалена.");return true;}
 String url=youtube(args[0]);if(url==null){tell(p,"§cНужна HTTPS-ссылка на отдельное видео YouTube.");return true;}
 String name=args.length>1?String.join(" ",Arrays.copyOfRange(args,1,args.length)):"YouTube";
 name=name.replaceAll("[\\p{Cntrl}§]","").strip();if(name.length()>48)name=name.substring(0,48);
-var meta=hand.getItemMeta();meta.getPersistentDataContainer().set(discKey,PersistentDataType.STRING,url);meta.setItemModel(new NamespacedKey("minecraftunified","youtube_disc"));meta.displayName(Component.text(name,NamedTextColor.GOLD));meta.lore(List.of(Component.text("YouTube · Shift+ПКМ — открыть",NamedTextColor.GRAY),Component.text("Встроенного аудио пока нет",NamedTextColor.DARK_GRAY)));hand.setItemMeta(meta);p.getInventory().setItemInMainHand(hand);tell(p,"§aСсылка записана.");return true;
+var meta=hand.getItemMeta();meta.getPersistentDataContainer().set(discKey,PersistentDataType.STRING,url);meta.setItemModel(new NamespacedKey("minecraftunified","youtube_disc"));meta.displayName(Component.text(name,NamedTextColor.GOLD));meta.lore(List.of(Component.text("YouTube · Shift+ПКМ — открыть",NamedTextColor.GRAY),Component.text("Проигрыватель · ссылка для слушателей",NamedTextColor.GRAY)));hand.setItemMeta(meta);p.getInventory().setItemInMainHand(hand);tell(p,"§aСсылка записана.");return true;
 }
 @EventHandler(priority=EventPriority.HIGHEST)
 public void playLink(PlayerInteractEvent e){
 if(e.getHand()!=EquipmentSlot.HAND||!e.getPlayer().isSneaking()||!e.getAction().isRightClick()||e.getItem()==null||!e.getItem().hasItemMeta())return;
 String url=e.getItem().getItemMeta().getPersistentDataContainer().get(discKey,PersistentDataType.STRING);if(url==null||youtube(url)==null)return;
-e.setCancelled(true);e.getPlayer().sendMessage(Component.text("[Открыть видео YouTube]",NamedTextColor.AQUA).clickEvent(ClickEvent.openUrl(url)));
+e.setCancelled(true);link(e.getPlayer(),url,e.getItem().getItemMeta().hasDisplayName()?e.getItem().getItemMeta().getDisplayName():"YouTube");
 }
+private void link(Player player,String url,String name){player.sendMessage(Component.text("[YouTube] "+name,NamedTextColor.GOLD).append(Component.text(" [Открыть]",NamedTextColor.AQUA).clickEvent(ClickEvent.openUrl(url))));}
+@EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void jukebox(PlayerInteractEvent e){
+if(e.getHand()!=EquipmentSlot.HAND||e.getAction()!=Action.RIGHT_CLICK_BLOCK||e.getPlayer().isSneaking()||e.useInteractedBlock()==Event.Result.DENY||e.getClickedBlock()==null||!(e.getClickedBlock().getState() instanceof Jukebox box)||e.getItem()==null||!e.getItem().hasItemMeta())return;
+String url=e.getItem().getItemMeta().getPersistentDataContainer().get(discKey,PersistentDataType.STRING);if(url==null||youtube(url)==null||!box.getRecord().getType().isAir())return;
+var block=e.getClickedBlock();Bukkit.getScheduler().runTask(host,()->{if(!(block.getState() instanceof Jukebox j))return;ItemStack disc=j.getRecord();if(!disc.hasItemMeta()||!url.equals(disc.getItemMeta().getPersistentDataContainer().get(discKey,PersistentDataType.STRING)))return;
+j.stopPlaying();String name=disc.getItemMeta().hasDisplayName()?disc.getItemMeta().getDisplayName():"YouTube";Location loc=block.getLocation().add(.5,.5,.5);for(Player p:loc.getWorld().getPlayers())if(p.getLocation().distanceSquared(loc)<=32*32)link(p,url,name);
+});
+}
+boolean video(CommandSender sender,String[] args){if(!(sender instanceof Player p)){tell(sender,"§cТолько в игре.");return true;}if(args.length!=1){tell(p,"§e/u video <ссылка YouTube> — обложка видео на карте в руке");return true;}String url=youtube(args[0]);if(url==null){tell(p,"§cНужна ссылка на видео YouTube.");return true;}return Bukkit.dispatchCommand(p,"imagemap https://i.ytimg.com/vi/"+url.substring(url.length()-11)+"/hqdefault.jpg");}
+
 private boolean persist(){
 try{File tmp=new File(file.getParentFile(),file.getName()+".tmp");skins.save(tmp);try{Files.move(tmp.toPath(),file.toPath(),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}catch(AtomicMoveNotSupportedException ex){Files.move(tmp.toPath(),file.toPath(),StandardCopyOption.REPLACE_EXISTING);}return true;}catch(IOException ex){host.getLogger().warning("Cannot save skins: "+ex.getMessage());return false;}
 }
@@ -108,7 +123,7 @@ finish(id,token,target,src,model,save);
 private void finish(UUID id,String token,PlayerProfile profile,String src,String model,boolean save){
 Player p=Bukkit.getPlayer(id);if(p==null||!pending.remove(id,token))return;
 if(save){String path=id.toString();Object old=skins.get(path);skins.set(path+".source",src);skins.set(path+".model",model);if(!persist()){skins.set(path,old);tell(p,"§cНе удалось сохранить скин.");return;}}
-p.setPlayerProfile(profile);if(save)tell(p,"§aСкин установлен.");
+p.setPlayerProfile(profile);p.updateInventory();if(save)tell(p,"§aСкин применён без переподключения. Если клиент ещё показывает старую текстуру, дождись загрузки.");
 }
 @EventHandler public void join(PlayerJoinEvent e){UUID id=e.getPlayer().getUniqueId();Bukkit.getScheduler().runTaskLater(host,()->{Player p=Bukkit.getPlayer(id);String src=skins.getString(id+".source");if(p!=null&&src!=null&&skinSource(src)!=null)apply(p,src,skins.getString(id+".model","classic"),false);},60L);}
 @EventHandler public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();pending.remove(id);originals.remove(id);cooldown.remove(id);}

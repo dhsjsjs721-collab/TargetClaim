@@ -41,11 +41,16 @@ def convert(code,namespace,name,path):
         code=swap(code,'meta.setDisplayName("§d§l✦ Ядро привата ✦");','meta.setDisplayName("§d§l✦ Ядро привата ✦");meta.setItemModel(new NamespacedKey("targetclaim","claim_core"));',"core model")
         code=swap(code,'meta.setDisplayName("§6§lНезависимый приват");','meta.setDisplayName("§6§lНезависимый приват");meta.setItemModel(new NamespacedKey("targetclaim","independent_core"));',"independent core model")
     if name=="EnchantmentForge":
+        code=swap(code,"traderFeature.start();","traderFeature.start();\nregisterExtraCrafts();","register forge crafts")
+        code=swap(code,"private NamespacedKey key(Enchant enchant) {","private void registerExtraCrafts(){\norg.bukkit.inventory.ShapedRecipe a=new org.bukkit.inventory.ShapedRecipe(new NamespacedKey(\"enchantmentforge\",\"craft_soulbound\"),book(Enchant.SOULBOUND));a.shape(\"OEO\",\"EBE\",\"OEO\");a.setIngredient(\'O\',Material.OBSIDIAN);a.setIngredient(\'E\',Material.ECHO_SHARD);a.setIngredient(\'B\',Material.BOOK);Bukkit.addRecipe(a);\norg.bukkit.inventory.ShapedRecipe b=new org.bukkit.inventory.ShapedRecipe(new NamespacedKey(\"enchantmentforge\",\"craft_triple_shot\"),book(Enchant.TRIPLE_SHOT));b.shape(\"ASA\",\"SBS\",\"ASA\");b.setIngredient(\'A\',Material.ARROW);b.setIngredient(\'S\',Material.AMETHYST_SHARD);b.setIngredient(\'B\',Material.BOOK);Bukkit.addRecipe(b);\norg.bukkit.inventory.ShapedRecipe c=new org.bukkit.inventory.ShapedRecipe(new NamespacedKey(\"enchantmentforge\",\"craft_charm\"),traderFeature.charm());c.shape(\"AEA\",\"ETE\",\"AEA\");c.setIngredient(\'A\',Material.AMETHYST_SHARD);c.setIngredient(\'E\',Material.ECHO_SHARD);c.setIngredient(\'T\',Material.TOTEM_OF_UNDYING);Bukkit.addRecipe(c);\n}\nprivate NamespacedKey key(Enchant enchant) {","forge craft recipes")
         code=swap(code,'meta.setDisplayName("§dКнига: "+enchant.title);','meta.setDisplayName("§dКнига: "+enchant.title);meta.setItemModel(new NamespacedKey("enchantmentforge",enchant.id));',"book model")
     if name=="WanderingTraderFeature":
         code=swap(code,'meta.setDisplayName("§bОберег возвращения");','meta.setDisplayName("§bОберег возвращения");meta.setItemModel(new NamespacedKey("enchantmentforge","return_charm"));',"charm model")
         code=swap(code,'meta.setDisplayName("§6§lНезависимый приват");','meta.setDisplayName("§6§lНезависимый приват");meta.setItemModel(new NamespacedKey("targetclaim","independent_core"));',"trader core model")
         code=swap(code,"for (Offer offer:selected) recipes.add(recipe(offer));","for (Offer offer:selected) recipes.add(recipe(offer));\nif(random.nextDouble()<.05)recipes.add(dev.unified.Verity.offer(random));","rare Verity trade")
+    if name=="WanderingTraderFeature":
+        code=swap(code,"return recipes;","recipes.add(dev.unified.Shopkeepers.offer());\nreturn recipes;","personal merchant offer")
+        code=swap(code,"if (trader.getPersistentDataContainer().has(traderKey,PersistentDataType.BYTE)) return;","if (trader.getPersistentDataContainer().has(traderKey,PersistentDataType.BYTE)) {\nvar existing=new java.util.ArrayList<>(trader.getRecipes());\nvar shopOffer=dev.unified.Shopkeepers.offer();\nif(existing.stream().noneMatch(r->r.getResult().isSimilar(shopOffer.getResult()))){existing.add(shopOffer);trader.setRecipes(existing);}\nreturn;\n}","personal merchant migration")
     if name in ("GrapplingHookListener","WanderingTraderFeature"):
         if name=="GrapplingHookListener":
             code=code.replace("import org.bukkit.plugin.java.JavaPlugin;","import org.bukkit.plugin.Plugin;")
@@ -161,9 +166,7 @@ def convert(code,namespace,name,path):
 
     if name=="TargetClaim":
         code=swap(code,"public boolean isClaimed(Location place){","public boolean ownsShopLocation(UUID owner,Location place){Claim c=claimAt(place);return c!=null&&c.owner.equals(owner);}\npublic boolean isClaimed(Location place){","shop chest ownership")
-    if name=="EnchantmentForge" and path.endswith("WanderingTraderFeature.java"):
-        code=swap(code,"return recipes;","recipes.add(dev.unified.Shopkeepers.offer());\nreturn recipes;","personal merchant offer")
-        code=swap(code,"if (trader.getPersistentDataContainer().has(traderKey,PersistentDataType.BYTE)) return;","if (trader.getPersistentDataContainer().has(traderKey,PersistentDataType.BYTE)) {\nvar existing=new java.util.ArrayList<>(trader.getRecipes());\nvar shopOffer=dev.unified.Shopkeepers.offer();\nif(existing.stream().noneMatch(r->r.getResult().isSimilar(shopOffer.getResult()))){existing.add(shopOffer);trader.setRecipes(existing);}\nreturn;\n}","personal merchant migration")
+
 
     # TalismanForge's previous shield and item state keys already use the
     # original namespace, via the explicit Keys above. No data migration.

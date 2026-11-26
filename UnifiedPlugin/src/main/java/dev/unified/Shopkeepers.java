@@ -45,7 +45,7 @@ public Inventory getInventory(){return inv;}
 }
 Shopkeepers(UnifiedPlugin host){this.host=host;file=new File(host.getDataFolder(),"shops.yml");}
 static ItemStack token(){ItemStack i=new ItemStack(Material.NAME_TAG);var m=i.getItemMeta();m.setDisplayName("§6§lЛичный торговец");m.setLore(List.of("§7ПКМ по блоку в своём привате","§7Личная лавка с автоматическим сбором выручки"));m.getPersistentDataContainer().set(new NamespacedKey("minecraftunified","shop_token"),PersistentDataType.BYTE,(byte)1);i.setItemMeta(m);return i;}
-public static MerchantRecipe offer(){MerchantRecipe r=new MerchantRecipe(token(),1);r.addIngredient(new ItemStack(Material.DIAMOND,32));r.setExperienceReward(false);return r;}
+public static MerchantRecipe offer(){MerchantRecipe r=new MerchantRecipe(token(),1);r.setPriceMultiplier(0);r.setDemand(0);r.setSpecialPrice(0);r.addIngredient(new ItemStack(Material.DIAMOND,32));r.setExperienceReward(false);return r;}
 void enable(){
 YamlConfiguration y=YamlConfiguration.loadConfiguration(file);
 var section=y.getConfigurationSection("shops");
