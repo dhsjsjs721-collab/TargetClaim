@@ -286,6 +286,25 @@ check(CombatEngine.awaySpeed(0,0,1,1)==0);
 check(CombatEngine.awaySpeed(3,0,.3,0)<0);
 trace.clear(); trace.recovery(true); trace.recovery(false);
 check(trace.report().contains("Recovery ticks: 1"));
+var lockSettings=new CombatSettings(true,true,.55,.4,360);
+var lockEye=new AimModel.Vec(0,1.5,0);
+var lockBox=new AimModel.Box(new AimModel.Vec(-.3,0,2),new AimModel.Vec(.3,1.8,2.6));
+var lockView=new AimModel.Angles(180,0);
+var lockDelta=new AimModel.Turn(0,0);
+int acquire=0;
+for(;acquire<30 && !AimModel.intersects(lockEye,lockView,lockBox);acquire++) {
+lockDelta=AimModel.lockTurn(lockEye,lockView,lockBox,lockDelta,lockSettings,0);
+lockView=new AimModel.Angles(AimModel.wrap(lockView.yaw()+lockDelta.yaw()),lockView.pitch()+lockDelta.pitch());
+}
+check(acquire<20 && AimModel.intersects(lockEye,lockView,lockBox));
+check(AimModel.lockTurn(lockEye,lockView,lockBox,lockDelta,lockSettings,8).equals(new AimModel.Turn(0,0)));
+var follow=CombatAI.chooseFollow(0,8,0,0,0,0,0,0,3,null,(x,z)->true);
+check(follow.movement().forward());
+var orbit=CombatAI.chooseFollow(0,1.92,180,0,0,0,0,0,3,null,(x,z)->true);
+check(orbit.movement().left() || orbit.movement().right());
+var rearHold=CombatAI.chooseFollow(0,1.92,0,0,0,0,0,0,3,null,(x,z)->true);
+check(rearHold.movement().equals(new AimModel.Movement(false,false,false,false)));
+check(!Double.isFinite(CombatAI.chooseFollow(0,5,0,0,0,0,0,0,3,null,(x,z)->false).cost()));
 System.out.println("Combat tests passed");
 }
 }

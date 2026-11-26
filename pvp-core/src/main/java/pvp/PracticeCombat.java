@@ -12,15 +12,16 @@ import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 public final class PracticeCombat {
 static boolean golemTest;
 static boolean autoMove=false;
-private record ServerTarget(Object world,LocalPlayer player,java.util.UUID id,String name) {}
+private record ServerTarget(Object world,LocalPlayer player,java.util.UUID id,String name,LivingEntity entity) {}
 private static ServerTarget serverTarget;
 private static boolean localPractice(Minecraft mc) {
 return mc.hasSingleplayerServer() && mc.getSingleplayerServer()!=null && !mc.getSingleplayerServer().isPublished();
 }
 private static ServerTarget currentServerTarget(Minecraft mc) {
-if(serverTarget!=null && (serverTarget.world()!=mc.level || serverTarget.player()!=mc.player)) serverTarget=null;
+if(serverTarget!=null && (serverTarget.world()!=mc.level || serverTarget.player()!=mc.player || !serverTarget.entity().isAlive())) serverTarget=null;
 return serverTarget;
 }
+static boolean hasLockedTarget(Minecraft mc) { return currentServerTarget(mc)!=null; }
 static void clearServerTarget() { serverTarget=null; clearJump(); aimTarget=null; resetTracking(); resetStyle(); }
 static String selectNearestPracticeTarget(Minecraft mc) {
 if(mc.player==null || mc.level==null || mc.gameMode==null || !available(mc,mc.player)) return null;
@@ -36,7 +37,7 @@ nearest=target; best=distance;
 }
 if(nearest==null) return null;
 clearServerTarget();
-serverTarget=new ServerTarget(mc.level,self,nearest.getUUID(),nearest.getName().getString());
+serverTarget=new ServerTarget(mc.level,self,nearest.getUUID(),nearest.getName().getString(),nearest);
 return nearest.getName().getString();
 }
 static String serverTargetLabel(Minecraft mc) {
@@ -50,12 +51,12 @@ if(currentServerTarget(mc)!=null) { clearServerTarget(); return serverTargetLabe
 var self=mc.player;
 var hit=pickTarget(mc,self);
 if(hit==null || !(hit.getEntity() instanceof LivingEntity target) || target==self || !target.isAlive() || target.isInvisible() || target.isSpectator() || !self.hasLineOfSight(target) || (!(target instanceof Player) && !isGolem(target)) || (target instanceof Player other && !self.canHarmPlayer(other))) return "Aim at your practice bot first";
-serverTarget=new ServerTarget(mc.level,self,target.getUUID(),target.getName().getString());
+serverTarget=new ServerTarget(mc.level,self,target.getUUID(),target.getName().getString(),target);
 clearJump(); aimTarget=null; resetTracking();
 return serverTargetLabel(mc);
 }
 private static boolean isGolem(LivingEntity target) { return "entity.minecraft.iron_golem".equals(target.getType().getDescriptionId()); }
-private static final double AIM_RANGE=6.0;
+private static final double AIM_RANGE=6.0,FOLLOW_RANGE=12.0;
 private record Pending(int entityId,long tick) {}
 private static final ArrayDeque<Pending> pending=new ArrayDeque<>();
 private static final CombatTrace trace=new CombatTrace();
@@ -122,7 +123,7 @@ private static boolean aimValid(LocalPlayer self,LivingEntity target) {
 var mc=Minecraft.getInstance();
 var selected=currentServerTarget(mc);
 boolean chosen=selected!=null && selected.id().equals(target.getUUID());
-return target!=self && TargetFilter.lockedPracticeTarget(localPractice(mc),golemTest,isGolem(target),selected!=null,chosen) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && (!(target instanceof Player other) || self.canHarmPlayer(other)) && self.distanceToSqr(target)<=AIM_RANGE*AIM_RANGE;
+return target!=self && TargetFilter.lockedPracticeTarget(localPractice(mc),golemTest,isGolem(target),selected!=null,chosen) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && (!(target instanceof Player other) || self.canHarmPlayer(other)) && self.distanceToSqr(target)<=(chosen && autoMove?FOLLOW_RANGE*FOLLOW_RANGE:AIM_RANGE*AIM_RANGE);
 }
 private static boolean inRange(LocalPlayer self, LivingEntity target) {
 return self.getAttackRangeWith(self.getMainHandItem()).isInRange(self,target.getBoundingBox(),0.0);
@@ -256,7 +257,7 @@ AimModel.Angles best=null;
 double bestError=Double.POSITIVE_INFINITY,bestScore=Double.POSITIVE_INFINITY,retainedScore=Double.POSITIVE_INFINITY,retainedError=0;
 AimModel.Angles retained=null;
 LivingEntity selected=null;
-for(var target:mc.level.getEntitiesOfClass(LivingEntity.class,self.getBoundingBox().inflate(6),target -> aimValid(self,target))) {
+for(var target:mc.level.getEntitiesOfClass(LivingEntity.class,self.getBoundingBox().inflate(autoMove && currentServerTarget(mc)!=null?FOLLOW_RANGE:AIM_RANGE),target -> aimValid(self,target))) {
 var bb=target.getBoundingBox();
 var box=new AimModel.Box(new AimModel.Vec(bb.minX,bb.minY,bb.minZ),new AimModel.Vec(bb.maxX,bb.maxY,bb.maxZ));
 var desired=AimModel.bodyDirection(new AimModel.Vec(eye.x,eye.y,eye.z),current,box);
@@ -285,16 +286,18 @@ motionAngle=AimModel.error(AimModel.direction(zero,previousRelative),AimModel.di
 sampledTarget=selected;
 previousRelative=relative;
 previousEye=origin;
-best=AimModel.bodyDirection(origin,current,box);
+boolean locked=currentServerTarget(mc)!=null;
+best=locked?AimModel.lockDirection(origin,current,box):AimModel.bodyDirection(origin,current,box);
 bestError=AimModel.error(current,best);
 angularError=bestError;
-boolean onTarget=rayOn(mc,self,selected) || AimModel.intersects(origin,current,box);
+boolean onTarget=AimModel.intersects(origin,current,box);
 if(bestError>.12 && !onTarget) {
-turn=AimModel.smoothTurn(current,best,turn,settings,motionAngle);
+turn=locked?AimModel.lockTurn(origin,current,box,turn,settings,motionAngle):AimModel.smoothTurn(current,best,turn,settings,motionAngle);
 trace.aimCorrection(turn.yaw(),turn.pitch());
 self.setYRot(self.getYRot()+(float)turn.yaw());
 self.setXRot((float)Math.max(-90,Math.min(90,self.getXRot()+turn.pitch())));
-angularError=AimModel.error(new AimModel.Angles(self.getYRot(),self.getXRot()),best);
+var applied=new AimModel.Angles(self.getYRot(),self.getXRot());
+angularError=AimModel.intersects(origin,applied,box)?0:AimModel.error(applied,best);
 } else { turn=new AimModel.Turn(0,0); trace.aimCorrection(0,0); }
 } else resetTracking();
 }
@@ -354,22 +357,22 @@ if(!mc.options.keyJump.isDown()) { mc.options.keyJump.setDown(true); forcedJump=
 jumpPressTicks--;
 } else { blockedJumpTicks=12; clearJump(); setStatus("Jump blocked"); }
 } else if(jumpRequested && self.onGround() && (!critActive || (!valid(self,jumpTarget) && !rayOn(mc,self,jumpTarget)))) clearJump();
-if(autoMove && !mc.options.keyJump.isDown() && !jumpRequested && self.onGround() && settings.aimEnabled() && aimTarget!=null && aimValid(self,aimTarget) && !self.isShiftKeyDown() && !mc.options.keyDown.isDown() && !mc.options.keyLeft.isDown() && !mc.options.keyRight.isDown() && !mc.options.keyUp.isDown()) {
+if(autoMove && (!mc.options.keyJump.isDown() || forcedJump) && (!recovering || self.onGround()) && settings.aimEnabled() && aimTarget!=null && aimValid(self,aimTarget) && !self.isShiftKeyDown() && !mc.options.keyDown.isDown() && !mc.options.keyLeft.isDown() && !mc.options.keyRight.isDown() && !mc.options.keyUp.isDown()) {
 double dx=aimTarget.getX()-self.getX(),dz=aimTarget.getZ()-self.getZ();
-if(Math.abs(aimTarget.getY()-self.getY())<1.5 && !self.isInWater() && !self.isPassenger()) {
+if(Math.abs(aimTarget.getY()-self.getY())<2.0 && !self.isInWater() && !self.isPassenger()) {
 var velocity=self.getDeltaMovement();
 var other=aimTarget.getDeltaMovement();
 double targetX=aimTarget==sampledTarget?targetMotion.x():other.x;
 double targetZ=aimTarget==sampledTarget?targetMotion.z():other.z;
 double reach=self.getAttackRangeWith(self.getMainHandItem()).effectiveMaxRange(self);
-var choice=CombatAI.choosePath(dx,dz,aimTarget.getYRot(),self.getYRot(),velocity.x,velocity.z,targetX,targetZ,reach-.65,reach,tracker.uncertainty(),lastMovement,(mx,mz)->{
+var choice=CombatAI.chooseFollow(dx,dz,aimTarget.getYRot(),self.getYRot(),velocity.x,velocity.z,targetX,targetZ,reach,lastMovement,(mx,mz)->{
 var next=self.getBoundingBox().move(mx,0,mz);
-return mc.level.noCollision(self,next) && !mc.level.noCollision(self,next.move(0,-.7,0));
+return mc.level.noCollision(self,next) && !mc.level.noCollision(self,next.move(0,self.onGround()?-.7:-1.7,0));
 });
 var move=choice.movement();
 lastMovement=move;
 if(Double.isFinite(choice.cost())) {
-trace.movement(move.forward() || move.back() || move.left() || move.right()?"MOVE":"HOLD");
+trace.movement(Math.hypot(dx,dz)>reach?"FOLLOW":move.left() || move.right()?"FLANK":move.forward()?"APPROACH":move.back()?"RETREAT":"HOLD");
 if(move.forward()) { mc.options.keyUp.setDown(true); forcedForward=true; }
 if(move.back()) { mc.options.keyDown.setDown(true); forcedBack=true; }
 if(move.left()) { mc.options.keyLeft.setDown(true); forcedLeft=true; }

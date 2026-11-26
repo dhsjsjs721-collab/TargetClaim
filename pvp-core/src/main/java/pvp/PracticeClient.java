@@ -40,11 +40,12 @@ return;
 }
 var s=settings;
 settings=new CombatSettings(true,true,s.horizontalSpeed(),s.verticalSpeed(),s.fov());
+PracticeCombat.autoMove=true;
 hotkeyActive=true; hotkeyWorld=mc.level; hotkeyPlayer=mc.player;
 mc.gui.hud.setOverlayMessage(Component.literal("Land of Losers: ON | "+name),false);
 }
 private static void checkHotkeySession(Minecraft mc) {
-if(hotkeyActive && (mc.level!=hotkeyWorld || mc.player!=hotkeyPlayer || mc.player==null || !mc.player.isAlive())) stopPractice(mc);
+if(hotkeyActive && (mc.level!=hotkeyWorld || mc.player!=hotkeyPlayer || mc.player==null || !mc.player.isAlive() || !PracticeCombat.hasLockedTarget(mc))) stopPractice(mc);
 }
 private static Path configFile() { return FabricLoader.getInstance().getConfigDir().resolve("land-of-losers.properties"); }
 static void savePreferences() {

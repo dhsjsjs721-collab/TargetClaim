@@ -36,10 +36,12 @@ if(hi<lo) return false;
 }
 return true;
 }
-public static Angles bodyDirection(Vec eye,Angles view,Box box) {
+public static Angles bodyDirection(Vec eye,Angles view,Box box) { return bodyDirection(eye,view,box,.035); }
+public static Angles lockDirection(Vec eye,Angles view,Box box) { return bodyDirection(eye,view,box,.12); }
+private static Angles bodyDirection(Vec eye,Angles view,Box box,double margin) {
 if(intersects(eye,view,box)) return view;
 Vec d=rayDirection(view);
-double x=(box.max().x()-box.min().x())*.035,y=(box.max().y()-box.min().y())*.035,z=(box.max().z()-box.min().z())*.035;
+double x=(box.max().x()-box.min().x())*margin,y=(box.max().y()-box.min().y())*margin,z=(box.max().z()-box.min().z())*margin;
 Box inner=new Box(new Vec(box.min().x()+x,box.min().y()+y,box.min().z()+z),new Vec(box.max().x()-x,box.max().y()-y,box.max().z()-z));
 double high=0;
 for(double xx:new double[]{inner.min().x(),inner.max().x()})
@@ -90,6 +92,19 @@ double capY=7+2*boost,capP=4+1.5*boost;
 double wantY=clamp(dy*(.18+.29*settings.horizontalSpeed()+.12*boost),-capY,capY);
 double wantP=clamp(dp*(.15+.30*settings.verticalSpeed()+.12*boost),-capP,capP);
 return new Turn(slew(dy,wantY,previous.yaw(),2.0+boost),slew(dp,wantP,previous.pitch(),1.2+.6*boost));
+}
+/** Faster acquisition outside the box, still bounded and without overshoot. */
+public static Turn lockTurn(Vec eye,Angles current,Box box,Turn previous,CombatSettings settings,double motion) {
+if(!settings.aimEnabled() || intersects(eye,current,box)) return new Turn(0,0);
+var target=lockDirection(eye,current,box);
+double error=error(current,target);
+if(error>settings.fov()/2) return new Turn(0,0);
+double dy=wrap(target.yaw()-current.yaw()),dp=target.pitch()-current.pitch();
+double large=clamp(error/55,0,1),moving=clamp(motion/8,0,1);
+double capY=8+14*large+4*moving,capP=5+7*large+3*moving;
+double wantY=clamp(dy*(.42+.30*large+.15*moving),-capY,capY);
+double wantP=clamp(dp*(.38+.25*large+.12*moving),-capP,capP);
+return new Turn(slew(dy,wantY,previous.yaw(),3+4*large+moving),slew(dp,wantP,previous.pitch(),2+2*large+moving));
 }
 private static double slew(double error,double desired,double previous,double acceleration) {
 if(Math.abs(error)<.12) return 0;
