@@ -81,8 +81,9 @@ for(UUID id:holograms.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remov
 holograms.clear();for(UUID id:relicDisplays.values()){Entity e=Bukkit.getEntity(id);if(e!=null)e.remove();}relicDisplays.clear();
 if(hookListener!=null)hookListener.shutdown();saveAltars();if(myths!=null)myths.close();
 }
+private static final String RELIC_BLOCK="minecraft:note_block[instrument=custom_head,note=23,powered=false]";
 private ItemStack chestItem(){
-ItemStack i=new ItemStack(Material.BARRIER);ItemMeta m=i.getItemMeta();
+ItemStack i=new ItemStack(Material.NOTE_BLOCK);ItemMeta m=i.getItemMeta();
 m.setDisplayName("§3§lРеликварий");
 m.setItemModel(new NamespacedKey("talismanforge","reliquary"));
 m.setLore(List.of("§7Древний магический блок","§bСветящийся луч без настоящего маяка","§7Пробуждение через §b03:00","§7Награда ближайшему игроку, ставить может каждый"));
@@ -90,7 +91,7 @@ m.getPersistentDataContainer().set(chestKey,PersistentDataType.BYTE,(byte)1);
 i.setItemMeta(m);return i;
 }
 private boolean specialChest(ItemStack i){
-if(i==null||(i.getType()!=Material.CHEST&&i.getType()!=Material.BARRIER)||!i.hasItemMeta())return false;
+if(i==null||(i.getType()!=Material.CHEST&&i.getType()!=Material.BARRIER&&i.getType()!=Material.NOTE_BLOCK)||!i.hasItemMeta())return false;
 return Byte.valueOf((byte)1).equals(i.getItemMeta().getPersistentDataContainer().get(chestKey,PersistentDataType.BYTE))||
 Byte.valueOf((byte)1).equals(i.getItemMeta().getPersistentDataContainer().get(new NamespacedKey("talismanforge","talisman_chest"),PersistentDataType.BYTE));
 }
@@ -208,16 +209,17 @@ if(pulses%2==0)ambient(a);
 }
 }
 private void showRelicBlock(Altar a){
-if(a.base!=Material.BARRIER)return;
-UUID id=relicDisplays.get(a.id);Entity e=id==null?null:Bukkit.getEntity(id);
-if(e instanceof ItemDisplay&&e.isValid())return;
-Location loc=a.location();if(loc==null)return;
-ItemDisplay display=loc.getWorld().spawn(loc,ItemDisplay.class,d->{
-d.setItemStack(chestItem());d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
-d.setBillboard(Display.Billboard.FIXED);d.setPersistent(false);d.setInvulnerable(true);
-});
-relicDisplays.put(a.id,display.getUniqueId());
+Location loc=a.location();if(loc==null)return;Block block=loc.getBlock();
+if(block.getType()!=a.base)return;
+if(a.base==Material.CHEST&&block.getState() instanceof org.bukkit.block.Chest chest&&!chest.getBlockInventory().isEmpty())return;
+if(a.base==Material.BARRIER||a.base==Material.CHEST||a.base==Material.NOTE_BLOCK){
+if(!block.getBlockData().getAsString().equals(RELIC_BLOCK))block.setBlockData(Bukkit.createBlockData(RELIC_BLOCK),false);
+if(a.base!=Material.NOTE_BLOCK){a.base=Material.NOTE_BLOCK;saveAltars();}
 }
+UUID id=relicDisplays.remove(a.id);Entity e=id==null?null:Bukkit.getEntity(id);if(e!=null)e.remove();
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void note(NotePlayEvent e){if(protectedAltar(e.getBlock())!=null)e.setCancelled(true);}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void physics(BlockPhysicsEvent e){if(protectedAltar(e.getBlock())!=null)e.setCancelled(true);}
 private void showHologram(Altar a){
 Location loc=a.location();if(loc==null)return;
 UUID uuid=holograms.get(a.id);Entity entity=uuid==null?null:Bukkit.getEntity(uuid);
@@ -294,6 +296,8 @@ private void purge(Inventory inv){purge(inv,0);}
 private boolean purge(Inventory inv,int depth){
 boolean changed=false;for(int slot=0;slot<inv.getSize();slot++){
 ItemStack i=inv.getItem(slot);if(retired(i)){inv.setItem(slot,null);changed=true;}
+else if(specialChest(i)&&i.getType()!=Material.NOTE_BLOCK){ItemStack replacement=chestItem();replacement.setAmount(i.getAmount());inv.setItem(slot,replacement);changed=true;}
+else if(specialChest(i)&&!new NamespacedKey("talismanforge","reliquary").equals(i.getItemMeta().getItemModel())){ItemMeta meta=i.getItemMeta();meta.setItemModel(new NamespacedKey("talismanforge","reliquary"));i.setItemMeta(meta);inv.setItem(slot,i);changed=true;}
 else if(cleanNested(i,depth)){inv.setItem(slot,i);changed=true;}
 }return changed;
 }

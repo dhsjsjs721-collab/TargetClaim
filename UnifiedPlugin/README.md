@@ -1,3 +1,7 @@
+# Test targets and solid reliquary
+
+The test world enters survival for actual ability testing; /test creative and /test survival toggle modes, /test reset resets targets. Three player-shaped mannequins (immortal, respawning, equipment) and one attacking zombie; damage readout, three-second respawn. Right-click equipment NPC with an item to equip it; sneak right-click for offhand; empty hand returns equipment. Mannequins are not real Player instances; player-only abilities remain player-only, but Medusa can stun tagged test mannequins. Reliquary uses real note block state custom_head/note=23, previous Verity state 24 unchanged, and migrates legacy placed barriers/empty chests and held items. Existing reward timing is unchanged.
+
 # Isolated OP test world
 
 `/test` enters a separate void world with a 33x33 platform and chests of actual registered custom recipe results, all five base/awakened relics, and testing supplies. `/test exit` restores inventory, ender chest, location, XP and mode; `/test refill` restocks. Only OP can enter, including during waiting and scouting. A persistent snapshot is taken before entry; rejoining restores it. World-boundary teleports are blocked unless initiated by the test module. Operators remain trusted and can use administrative commands.

@@ -489,7 +489,7 @@ final class MythicTalismans implements Listener {
         },step*2L);}
         p.playSound(p.getLocation(),Sound.ENTITY_EXPERIENCE_ORB_PICKUP,.45f,1.35f);
     }
-    private boolean eligible(LivingEntity e){return !(e instanceof ArmorStand)&&!(e instanceof Mannequin)&&!e.getPersistentDataContainer().has(new NamespacedKey("minecraftunified","shop_entity"))&&!Set.of("ENDER_DRAGON","WITHER","WARDEN","ELDER_GUARDIAN").contains(e.getType().name());}
+    private boolean eligible(LivingEntity e){return !(e instanceof ArmorStand)&&(!(e instanceof Mannequin)||e.getWorld().getName().equals("unified_test")&&e.getPersistentDataContainer().has(new NamespacedKey("minecraftunified","test_target"),PersistentDataType.STRING))&&!e.getPersistentDataContainer().has(new NamespacedKey("minecraftunified","shop_entity"))&&!Set.of("ENDER_DRAGON","WITHER","WARDEN","ELDER_GUARDIAN").contains(e.getType().name());}
     private Player attacker(Entity e){
         if(e instanceof Player p)return p;
         if(e instanceof Projectile q&&q.getShooter() instanceof Player p)return p;

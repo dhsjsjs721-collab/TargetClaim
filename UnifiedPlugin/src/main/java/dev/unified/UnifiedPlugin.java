@@ -125,7 +125,7 @@ recipeGuide=new RecipeGuide(this);recipeGuide.enable();
 season=new SeasonStart(this);season.enable();
 for(String name:List.of("s","a")){PluginCommand c=getCommand(name);if(c!=null)c.setExecutor((sender,cmd,label,args)->season.command(sender,name.equals("a")));}
 new CommandPolicy(this).enable();
-testWorld=new TestWorld(this);testWorld.enable();PluginCommand test=getCommand("test");if(test!=null){test.setExecutor((sender,cmd,label,args)->testWorld.command(sender,args));test.setTabCompleter((sender,cmd,alias,args)->sender.isOp()&&args.length==1?List.of("exit","refill").stream().filter(x->x.startsWith(args[0])).toList():List.of());}
+testWorld=new TestWorld(this);testWorld.enable();PluginCommand test=getCommand("test");if(test!=null){test.setExecutor((sender,cmd,label,args)->testWorld.command(sender,args));test.setTabCompleter((sender,cmd,alias,args)->sender.isOp()&&args.length==1?List.of("exit","refill","reset","survival","creative").stream().filter(x->x.startsWith(args[0])).toList():List.of());}
 if(!CommandPolicy.selftest())throw new IllegalStateException("Command policy self-test failed");getLogger().info("SELFTEST command policy OK");
 getLogger().info("MinecraftUnified 1.1.22 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));

@@ -22,15 +22,17 @@ private final UnifiedPlugin host;
 private final File dir;
 private final Set<UUID> switching=new HashSet<>();
 private World world;
-TestWorld(UnifiedPlugin h){host=h;dir=new File(h.getDataFolder(),"test-sessions");dir.mkdirs();}
-void enable(){Bukkit.getPluginManager().registerEvents(this,host);}
+private final TestTargets targets;
+TestWorld(UnifiedPlugin h){host=h;dir=new File(h.getDataFolder(),"test-sessions");dir.mkdirs();targets=new TestTargets(h);}
+void enable(){Bukkit.getPluginManager().registerEvents(this,host);targets.enable();}
 private File file(Player p){return new File(dir,p.getUniqueId()+".yml");}
 private boolean session(Player p){return file(p).isFile();}
 private boolean in(World w){return w!=null&&WORLD.equals(w.getName());}
 boolean command(CommandSender sender,String[] args){
-if(args.length==1&&args[0].equalsIgnoreCase("setup")&&sender instanceof ConsoleCommandSender){try{ensure();int filled=0;for(int x=-12;x<=-5;x++)for(int z=-6;z<=1;z++)if(world.getBlockAt(x,81,z).getState() instanceof Chest c&&!c.getBlockInventory().isEmpty())filled++;if(filled<3)throw new IllegalStateException("missing test chests");sender.sendMessage("SELFTEST test world OK: "+filled+" stocked chests");}catch(Exception e){host.getLogger().severe("Test world setup failed: "+e);sender.sendMessage("§cОшибка создания тестовой платформы.");}return true;}
+if(args.length==1&&args[0].equalsIgnoreCase("setup")&&sender instanceof ConsoleCommandSender){try{ensure();int filled=0;for(int x=-12;x<=-5;x++)for(int z=-6;z<=1;z++)if(world.getBlockAt(x,81,z).getState() instanceof Chest c&&!c.getBlockInventory().isEmpty())filled++;if(filled<3||targets.count()!=4)throw new IllegalStateException("missing test chests or targets");sender.sendMessage("SELFTEST test world OK: "+filled+" stocked chests, "+targets.count()+" targets");}catch(Exception e){host.getLogger().severe("Test world setup failed: "+e);sender.sendMessage("§cОшибка создания тестовой платформы.");}return true;}
 if(!(sender instanceof Player p)||!p.isOp()){sender.sendMessage("§cТолько OP в игре.");return true;}
 if(args.length>0&&args[0].equalsIgnoreCase("exit")||args.length==0&&in(p.getWorld())){restore(p);return true;}
+if(args.length>0&&Set.of("survival","creative","reset").contains(args[0].toLowerCase(Locale.ROOT))){if(!in(p.getWorld())||!session(p)){p.sendMessage("§cСначала /test.");return true;}if(args[0].equalsIgnoreCase("reset")){targets.reset();p.sendMessage("§aЦели восстановлены.");}else{p.setGameMode(args[0].equalsIgnoreCase("creative")?GameMode.CREATIVE:GameMode.SURVIVAL);p.setFallDistance(0);}return true;}
 if(args.length>0&&args[0].equalsIgnoreCase("refill")){
 if(!in(p.getWorld())||!session(p)){p.sendMessage("§cСначала /test.");return true;}
 stock();p.sendMessage("§aСундуки пополнены.");return true;}
@@ -41,8 +43,8 @@ p.closeInventory();if(!snapshot(p))return true;
 clear(p);
 switching.add(p.getUniqueId());boolean ok;try{ok=p.teleport(new Location(world,.5,81,.5));}finally{switching.remove(p.getUniqueId());}
 if(!ok){restore(p);return true;}
-p.setGameMode(GameMode.CREATIVE);p.setAllowFlight(true);p.setFlying(false);p.setFlySpeed(.15f);
-p.sendMessage("§dТестовый мир · /test exit — назад · /test refill — пополнить сундуки.");
+p.setGameMode(GameMode.SURVIVAL);p.setFlying(false);p.setAllowFlight(false);p.setFlySpeed(.1f);p.setHealth(p.getMaxHealth());p.setFoodLevel(20);
+p.sendMessage("§dТестовый мир · /test creative|survival · /test reset · /test exit.");
 return true;
 }
 private boolean snapshot(Player p){
@@ -67,7 +69,7 @@ p.setFallDistance(0);p.saveData();Files.delete(file(p).toPath());p.sendMessage("
 }catch(Exception ex){host.getLogger().warning("Test restore failed for "+p.getUniqueId()+": "+ex);p.sendMessage("§cОшибка восстановления. Резервная копия сохранена.");return false;}finally{switching.remove(p.getUniqueId());}
 }
 private void ensure(){
-if(world!=null)return;world=Bukkit.getWorld(WORLD);
+if(world!=null){targets.setup(world);return;}world=Bukkit.getWorld(WORLD);
 if(world==null){world=new WorldCreator(WORLD).environment(World.Environment.NORMAL).generateStructures(false).generator(new ChunkGenerator(){
 @Override public boolean shouldGenerateNoise(){return false;}
 @Override public boolean shouldGenerateSurface(){return false;}
@@ -81,7 +83,7 @@ if(world==null)throw new IllegalStateException("Cannot create world");
 world.setSpawnLocation(0,81,0);world.setDifficulty(Difficulty.NORMAL);world.setTime(6000);world.setStorm(false);
 world.setGameRule(GameRule.DO_MOB_SPAWNING,false);world.setGameRule(GameRule.DO_DAYLIGHT_CYCLE,false);world.setGameRule(GameRule.DO_WEATHER_CYCLE,false);
 for(int x=-16;x<=16;x++)for(int z=-16;z<=16;z++){world.getBlockAt(x,80,z).setType(Math.abs(x)==16||Math.abs(z)==16?Material.POLISHED_BLACKSTONE:Material.SMOOTH_STONE,false);if(Math.abs(x)==16||Math.abs(z)==16)world.getBlockAt(x,81,z).setType(Material.GLASS,false);}
-stock();
+stock();targets.setup(world);
 }
 private void chest(int x,int z,String name,List<ItemStack> content){var b=world.getBlockAt(x,81,z);b.setType(Material.CHEST,false);Chest c=(Chest)b.getState();c.setCustomName("§d"+name);c.update(true,false);Inventory inv=c.getBlockInventory();inv.clear();for(ItemStack i:content)if(i!=null&&!i.getType().isAir())inv.addItem(i);}
 private void stock(){
