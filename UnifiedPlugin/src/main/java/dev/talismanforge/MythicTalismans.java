@@ -133,7 +133,7 @@ final class MythicTalismans implements Listener {
         }catch(IOException ex){plugin.getLogger().severe("Cannot save mythic artifacts: "+ex);return false;}
     }
     private int cap(Kind k,State s){return k==Kind.KITSUNE&&s.awakened?9:k.initial;}
-    private String chargeText(Kind k,State s){return k==Kind.KOSCHEI&&s.awakened?"∞":s.charges+"/"+cap(k,s)+(k==Kind.ANUBIS?" душ":"");}
+    private String chargeText(Kind k,State s){return k==Kind.KOSCHEI&&s.awakened?"∞":s.charges+"/"+cap(k,s)+(k==Kind.ANUBIS?" XP":"");}
     private Component title(Kind k,String value){return Component.text(value,TextColor.color(k.color));}
     private void message(Player p,Kind k,String text){p.sendMessage(title(k,"✦ "+text));}
     private ItemStack item(State s){
@@ -146,7 +146,7 @@ final class MythicTalismans implements Listener {
         List<String> lore=new ArrayList<>(List.of("§8МИФИЧЕСКАЯ РЕЛИКВИЯ", "§7"+(s.awakened?"Пробуждена":"Способна пробудиться"),"§7Заряды: §f"+chargeText(k,s)));
         switch(k){
             case THOR -> {lore.add("§bМолния · +13% некритического урона");lore.add("§7Естественная молния восстанавливает заряд");lore.add("§cВ Незере: Слабость I");}
-            case ANUBIS -> {lore.add("§6Души естественных мобов · 200 за спасение");lore.add("§7Видит места гибели");lore.add("§cПод дождём: −15% скорости");}
+            case ANUBIS -> {lore.add("§6Полученный опыт 1:1 · 200 XP за спасение");lore.add("§7Видит места гибели");lore.add("§cПод дождём: −15% скорости");}
             case KOSCHEI -> {lore.add(link?"§aСвязана с установленным яйцом. Держи в руке.":"§aУстанови вне любого привата, чтобы получить Душу Кощея");lore.add("§7Мембрана фантома восстанавливает заряд");lore.add("§c−1 сердце, −25% питания");}
             case KITSUNE -> {lore.add("§6Невидимость · 180с / Shift 30с");lore.add("§730 минут в хранилище за заряд");lore.add("§cВне маскировки: +10% входящего урона");}
             case MEDUSA -> {lore.add("§dКаменный взгляд · 20 убитых статуй за заряд");lore.add("§7ПКМ-щит отражает взгляд");}
@@ -276,6 +276,7 @@ final class MythicTalismans implements Listener {
             for(String reason:List.of("SPAWNER","SPAWNER_EGG","DISPENSE_EGG","BREEDING","CUSTOM","COMMAND"))if(naturalReason(reason,true))throw new IllegalStateException("forbidden soul origin "+reason);
             if(!naturalReason("NATURAL",false)||!naturalReason("CHUNK_GEN",false)||naturalReason("DEFAULT",false)||!naturalReason("DEFAULT",true))throw new IllegalStateException("natural spawn classification");
             if(storageCharges(0,3,RECHARGE-1)!=0||storageCharges(0,3,RECHARGE)!=1||storageCharges(2,3,RECHARGE*9)!=3||storageCharges(0,9,RECHARGE*10)!=9||storageCharges(1,3,-1)!=1)throw new IllegalStateException("storage timing");
+            if(anubisXp(0,5)!=5||anubisXp(490,30)!=500||anubisXp(50,-5)!=50||anubisXp(499,Integer.MAX_VALUE)!=500)throw new IllegalStateException("Anubis XP policy");
             sender.sendMessage("SELFTEST relic policies OK");
         }catch(Exception e){sender.sendMessage("SELFTEST relic policies FAILED: "+e.getMessage());}
     }
@@ -647,22 +648,18 @@ final class MythicTalismans implements Listener {
         if(p==null&&soul!=null&&soul.until()>=now())p=Bukkit.getPlayer(soul.owner());
         if(p==null)return;
         Kind k=active(p);
-        if(k==Kind.ANUBIS){
-            if(natural(entity)&&!peace(entity.getLocation())&&!peace(p.getLocation())&&(soul==null||soul.state()==activeState(p))){
-                State st=activeState(p);int old=st.charges;st.charges=Math.min(500,st.charges+soulValue(entity));
-                if(st.charges!=old){
-                    if(!save())st.charges=old;
-                    else {soulTrail(p,entity.getLocation());p.sendActionBar(title(k,"+"+(st.charges-old)+" душ · "+st.charges+"/500"));refreshItem(p,k);}
-                }
-            }else if(now()-soulFeedback.getOrDefault(p.getUniqueId(),0L)>4000){
-                soulFeedback.put(p.getUniqueId(),now());var reason=entity.getEntitySpawnReason();
-                p.sendMessage("§7Анубис: неестественное появление или недопустимое убийство ("+(reason==null?"UNKNOWN":reason.name())+").");
-            }
-        }
         Credit credit=credits.remove(entity.getUniqueId());
         if(k==Kind.MEDUSA&&credit!=null&&credit.owner().equals(p.getUniqueId())&&credit.state()==activeState(p)&&credit.until()>=now()){
             State s=activeState(p);if(s.charges<cap(k,s)){if(++s.progress>=20){s.progress=0;charge(s,1,p);}save();}
         }
+    }
+    private static int anubisXp(int current,int received){return (int)Math.min(500L,Math.max(0L,current)+(long)Math.max(0,received));}
+    @EventHandler(priority=EventPriority.MONITOR) public void receivedXp(PlayerExpChangeEvent e){
+        Player p=e.getPlayer();if(e.getAmount()<=0||p.getGameMode()==GameMode.CREATIVE||p.getGameMode()==GameMode.SPECTATOR)return;
+        State st=activeState(p);if(st==null||st.kind!=Kind.ANUBIS)return;
+        int old=st.charges;st.charges=anubisXp(old,e.getAmount());if(st.charges==old)return;
+        if(!save()){st.charges=old;return;}
+        p.sendActionBar(title(Kind.ANUBIS,"+"+(st.charges-old)+" XP · "+st.charges+"/500"));refreshItem(p,Kind.ANUBIS);
     }
     private void summonArmy(Player p,int souls,State source){
         if(activeState(p)!=source)return;boolean awakened=source.awakened;

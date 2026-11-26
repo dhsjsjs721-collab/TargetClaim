@@ -111,7 +111,8 @@ Location l=m.getLocation(),nearest=null;double best=16*16;
 for(Pos pos:active.keySet())if(pos.world.equals(l.getWorld().getUID())){double x=l.getX()-pos.x-.5,y=l.getY()-pos.y-.5,z=l.getZ()-pos.z-.5,d=x*x+y*y+z*z;if(d<=best){best=d;nearest=pos.center();}}
 return nearest;
 }
-private boolean afraid(Mob m){return m.isValid()&&!m.isDead()&&!m.isInsideVehicle()&&m.getPassengers().isEmpty()&&nearest(m)!=null;}
+private boolean shopMob(Mob m){return m.getPersistentDataContainer().has(new NamespacedKey("minecraftunified","shop_entity"),PersistentDataType.STRING);}
+private boolean afraid(Mob m){return !shopMob(m)&&m.isValid()&&!m.isDead()&&!m.isInsideVehicle()&&m.getPassengers().isEmpty()&&nearest(m)!=null;}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void target(EntityTargetLivingEntityEvent e){if(e.getTarget()!=null&&e.getEntity() instanceof Mob m&&afraid(m))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void hit(EntityDamageByEntityEvent e){
 Mob m=e.getDamager() instanceof Mob mob?mob:e.getDamager() instanceof Projectile p&&p.getShooter() instanceof Mob mob?mob:null;
@@ -127,7 +128,7 @@ Location center=pos.center();
 if(center.getWorld().getPlayers().stream().noneMatch(v->v.getLocation().distanceSquared(center)<80*80)){removeDisplay(p);continue;}
 render(pos,p);
 for(LivingEntity entity:center.getWorld().getNearbyLivingEntities(center,16,16,16)){
-if(!(entity instanceof Mob m)||!m.isValid()||m.isDead()||m.isInsideVehicle()||!m.getPassengers().isEmpty())continue;
+if(!(entity instanceof Mob m)||shopMob(m)||!m.isValid()||m.isDead()||m.isInsideVehicle()||!m.getPassengers().isEmpty())continue;
 Location l=m.getLocation();double dist=l.distanceSquared(center);if(dist>256)continue;
 Location old=frightened.get(m);if(old==null||l.distanceSquared(old)>dist)frightened.put(m,center);nearby.add(pos);
 }
