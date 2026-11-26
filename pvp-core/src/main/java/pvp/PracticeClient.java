@@ -51,7 +51,7 @@ PracticeCombat.beginPractice(mc);
 mc.gui.hud.setOverlayMessage(Component.literal("Land of Losers: ON | "+name),false);
 }
 private static void checkHotkeySession(Minecraft mc) {
-if(hotkeyActive && (mc.level!=hotkeyWorld || mc.player!=hotkeyPlayer || mc.player==null || !mc.player.isAlive() || !PracticeCombat.hasLockedTarget(mc))) stopPractice(mc);
+if(hotkeyActive && ((!settings.aimEnabled() && !settings.triggerEnabled()) || mc.level!=hotkeyWorld || mc.player!=hotkeyPlayer || mc.player==null || !mc.player.isAlive() || mc.player.isSpectator() || mc.player.isCreative() || !PracticeCombat.hasLockedTarget(mc))) stopPractice(mc);
 }
 private static Path configFile() { return FabricLoader.getInstance().getConfigDir().resolve("land-of-losers.properties"); }
 static void savePreferences() {
@@ -92,6 +92,7 @@ PracticeCombat.releaseInput(client);
 while(key.consumeClick()) {
 if(!guiLocked && client.player != null && client.gui.screen()==null) client.gui.setScreen(new PracticeScreen());
 }
+checkHotkeySession(client);
 if(!supportBusy) PracticeCombat.tick(client,settings);
 PracticeFreeLook.tick(client);
 PracticeCombat.captureFrame(client);

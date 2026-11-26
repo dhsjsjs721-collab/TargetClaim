@@ -390,6 +390,15 @@ check(Math.abs(orbitView.yaw()+178)<.0001 && orbitView.pitch()==90);
 orbitView.turn(0,-2000); check(orbitView.pitch()==-90);
 orbitView.turn(Double.NaN,0); check(orbitView.pitch()==-90);
 orbitView.reset(Double.NaN,Double.POSITIVE_INFINITY); check(orbitView.yaw()==0 && orbitView.pitch()==0);
+check(SupportPlan.armorScore(8,.5,false)>SupportPlan.armorScore(6,1,false));
+check(SupportPlan.armorScore(8,.14,false)<0);
+check(SupportPlan.armorScore(8,1,true)<0);
+check(SupportPlan.armorScore(0,1,false)<0);
+check(SupportPlan.armorScore(8,Double.NaN,false)<0);
+check(SupportPlan.mayEquipArmor(true,true,true,5));
+check(!SupportPlan.mayEquipArmor(false,true,true,5));
+check(!SupportPlan.mayEquipArmor(true,false,true,5));
+check(!SupportPlan.mayEquipArmor(true,true,true,4));
 System.out.println("Combat tests passed");
 }
 }

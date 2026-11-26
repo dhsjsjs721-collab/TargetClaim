@@ -18,7 +18,7 @@ private static boolean localPractice(Minecraft mc) {
 return mc.hasSingleplayerServer() && mc.getSingleplayerServer()!=null && !mc.getSingleplayerServer().isPublished();
 }
 private static ServerTarget currentServerTarget(Minecraft mc) {
-if(serverTarget!=null && (serverTarget.world()!=mc.level || serverTarget.player()!=mc.player || !serverTarget.entity().isAlive())) serverTarget=null;
+if(serverTarget!=null && (serverTarget.world()!=mc.level || serverTarget.player()!=mc.player || !serverTarget.entity().isAlive() || serverTarget.entity().isRemoved())) serverTarget=null;
 return serverTarget;
 }
 static boolean hasLockedTarget(Minecraft mc) { return currentServerTarget(mc)!=null; }
@@ -31,6 +31,7 @@ if(mc.player.getHealth()<lastHealth) incomingDamage(); else if(responseWindow>0)
 lastHealth=mc.player.getHealth();
 if(jumpDelay>0) jumpDelay--; if(attackDelay>0) attackDelay--; if(blockedJumpTicks>0) blockedJumpTicks--;
 if(mc.player.onGround()) hitThisFall=false;
+descendingTicks=0;
 resetTracking(); clearJump(); readyWait=0; waitingTarget=null;
 releaseInput(mc); trace.support(reason); setStatus(reason);
 }
