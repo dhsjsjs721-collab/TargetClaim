@@ -58,6 +58,7 @@ final StringBuilder digits=new StringBuilder(12);
 final AtomicBoolean working=new AtomicBoolean();
 volatile Stage stage;
 volatile boolean passwordVerified;
+volatile boolean artReady;
 volatile String preparedPassword;
 boolean knownNetwork;
 boolean rememberSubmitted;
@@ -225,8 +226,10 @@ s.remember=knownNetwork;
 if(sessions.putIfAbsent(uuid,s)!=null){
 connection.disconnect(branded("Сессия авторизации уже активна",DANGER));return;
 }
-s.result.completeOnTimeout(false,timeoutSeconds,TimeUnit.SECONDS);
 try{
+s.artReady=prepareResourcePack(s);
+if(!s.connection.isConnected())return;
+s.result.completeOnTimeout(false,timeoutSeconds,TimeUnit.SECONDS);
 render(s,null);
 if(!s.result.join()){
 denied++;
@@ -241,6 +244,31 @@ s.erase();
 }
 }
 
+private boolean prepareResourcePack(Session s){
+var configured=Bukkit.getServerResourcePack();
+if(configured==null||configured.getUrl().isBlank()){getLogger().warning("No server resource pack configured; rendering plain authentication.");return false;}
+try{
+String hash=configured.getHash();
+if(hash==null||!hash.matches("[0-9a-fA-F]{40}"))throw new IllegalArgumentException("Invalid SHA-1");
+var info=net.kyori.adventure.resource.ResourcePackInfo.resourcePackInfo().id(configured.getId()).uri(java.net.URI.create(configured.getUrl())).hash(hash).build();
+var loaded=new CompletableFuture<Boolean>();
+var request=net.kyori.adventure.resource.ResourcePackRequest.resourcePackRequest().packs(info).required(configured.isRequired()).replace(false)
+.prompt(Component.text("Land of Losers · Загрузка ресурсов сервера"))
+.callback((id,status,audience)->{
+if(!id.equals(info.id()))return;
+getLogger().info("Resource pack (configuration): "+s.name+" -> "+status);
+switch(status.name()){
+case "SUCCESSFULLY_LOADED" -> loaded.complete(true);
+case "DECLINED","FAILED_DOWNLOAD","FAILED_RELOAD","DISCARDED","INVALID_URL" -> loaded.complete(false);
+default -> {}
+}
+}).build();
+s.connection.getAudience().sendResourcePacks(request);
+boolean ok=loaded.completeOnTimeout(false,35,TimeUnit.SECONDS).join();
+if(!ok)getLogger().warning("Resource pack not confirmed for "+s.name+"; using plain auth screen.");
+return ok;
+}catch(RuntimeException ex){getLogger().warning("Cannot send resource pack before auth: "+ex.getMessage());return false;}
+}
 private static final TextColor GOLD=TextColor.color(0xF5C875);
 private static final TextColor MINT=TextColor.color(0x68E5B1);
 private static final TextColor ICE=TextColor.color(0xA88BFF);
@@ -289,7 +317,7 @@ DialogBase.Builder base=DialogBase.builder(brand().append(Component.text(" · "+
 List<DialogInput> inputs=new ArrayList<>();
 List<ActionButton> buttons=new ArrayList<>();
 List<DialogBody> body=new ArrayList<>();
-if(getConfig().getBoolean("branding.auth-art-enabled",false)){
+if(s.artReady&&getConfig().getBoolean("branding.auth-art-enabled",true)){
 Component art=Component.text("\uE100",NamedTextColor.WHITE).font(Key.key("landoflosers:auth_art"));
 body.add(DialogBody.plainMessage(art.append(Component.text("\n \n \n \n \n \n \n ")),280));
 }

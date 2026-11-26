@@ -1,4 +1,4 @@
-# UnifiedAuth 1.6.1 — Paper 26.3 / Java 25
+# UnifiedAuth 1.6.2 — Paper 26.3 / Java 25
 authentication:
   enabled: true
   pin-length: 4

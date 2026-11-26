@@ -1,3 +1,7 @@
+# UnifiedAuth 1.6.2
+
+Before rendering the first authentication dialog, the plugin explicitly requests the exact resource pack configured in server.properties (same UUID, URL, SHA-1). It waits up to 35 seconds for SUCCESSFULLY_LOADED and logs each client response. Missing or failed packs fall back to plain auth, without bypassing credentials. Authentication artwork is an inline image only, not a full-screen background. Credentials and existing configuration remain compatible.
+
 # UnifiedAuth 1.6.1 — Land of Losers
 
 Paper 26.3 / Java 25.
