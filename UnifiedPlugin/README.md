@@ -1,3 +1,7 @@
+# Clan fees
+
+Leaving costs 32 diamonds paid by the departing player; kicking costs 64 paid by the clan leader. Dissolving a clan costs 32 plus 64 per other member to prevent bypassing either fee. Only diamonds in the normal inventory are counted. Insufficient funds leave membership and inventory unchanged. A failed clan file save restores the old membership and diamonds; abrupt crashes between world/player saves are not atomic. All fees apply to OP players as well when using normal clan commands.
+
 # Media reliability
 
 `/skin <username|NameMC profile/skin|MineSkin skin page|public HTTPS PNG> [classic|slim]`, `/skin reset`, `/skin status`. A five-second cooldown and rolling limit of three successful changes in ten hours, including reset. Signed Mojang texture data and successful-change timestamps are saved to skins.yml; rejoin does not consume a change. Direct PNGs are passed to MineSkin's queue service, not fetched by the Minecraft server. API key may be set by administrator via MINESKIN_API_KEY or media.mineskin-api-key; external limits and failures remain possible. Live profile changes use Paper setPlayerProfile. Disc URL metadata and thumbnail maps remain supported; no actual YouTube streaming in vanilla Minecraft.
