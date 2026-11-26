@@ -210,8 +210,13 @@ trace.movement("BLOCKED");
 check(trace.report().contains("Samples aligned: 1/2"));
 check(trace.report().contains("distance=3.40") && trace.report().contains("angle=n/a"));
 check(trace.report().contains("BLOCKED=1"));
+trace.aimCorrection(0,0);
+trace.aimCorrection(-2.5,1.25);
+trace.aimCorrection(Double.NaN,0);
+check(trace.report().contains("Aim corrections: 1/2 | max yaw=2.50 pitch=1.25"));
 trace.clear();
 check(trace.report().contains("Samples aligned: 0/0"));
+check(trace.report().contains("Aim corrections: 0/0 | max yaw=0.00 pitch=0.00"));
 try {
 var folder=java.nio.file.Files.createTempDirectory("lol-test");
 var prefsPath=folder.resolve("prefs.properties");
@@ -239,6 +244,13 @@ var view=new AimModel.Angles(n*.73-365,n%178-89);
 var bodyNext=AimModel.bodyDirection(practiceEye,view,practiceBox);
 check(AimModel.intersects(practiceEye,bodyNext,practiceBox));
 if(AimModel.intersects(practiceEye,view,practiceBox)) check(bodyNext.equals(view));
+}
+for(int i=0;i<1000;i++) {
+var from=new AimModel.Angles(rng.nextDouble()*360-180,rng.nextDouble()*178-89);
+var to=new AimModel.Angles(rng.nextDouble()*360-180,rng.nextDouble()*178-89);
+var correction=AimModel.smoothTurn(from,to,new AimModel.Turn(rng.nextDouble()*18-9,rng.nextDouble()*11-5.5),smoothSettings,8);
+check(Math.abs(correction.yaw())<=Math.abs(AimModel.wrap(to.yaw()-from.yaw()))+1e-9);
+check(Math.abs(correction.pitch())<=Math.abs(to.pitch()-from.pitch())+1e-9);
 }
 System.out.println("Combat tests passed");
 }

@@ -95,7 +95,9 @@ private static double slew(double error,double desired,double previous,double ac
 if(Math.abs(error)<.12) return 0;
 if(Math.signum(previous)!=Math.signum(error)) previous=0;
 double next=previous+clamp(desired-previous,-acceleration,acceleration);
-return Math.copySign(Math.min(Math.abs(error),Math.abs(next)),error);
+// Limit residual inertia near the target; never exceed the remaining error.
+double brakingLimit=Math.sqrt(2*acceleration*Math.abs(error));
+return Math.copySign(Math.min(Math.abs(error),Math.min(brakingLimit,Math.abs(next))),error);
 }
 public static boolean shouldApproach(double horizontalDistanceSquared,double yawError) {
 return horizontalDistanceSquared>6.25 && horizontalDistanceSquared<=36 && Math.abs(yawError)<25;

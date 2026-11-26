@@ -50,7 +50,7 @@ private static double startWeaponDelay;
 private static long manualTick=-1;
 private static Object lastWeapon;
 private static double lastWeaponDelay=Double.NaN;
-static String diagnostics() { return (sessionActive?trace.report():previousReport.isEmpty()?trace.report():previousReport); }
+static String diagnostics() { return "Current status: "+status+"\n"+(sessionActive?trace.report():previousReport.isEmpty()?trace.report():previousReport); }
 private static void setStatus(String value) { status=value; trace.state(trackingTick,value); }
 private static void expirePending() { while(!pending.isEmpty() && trackingTick-pending.peekFirst().tick()>40) { pending.removeFirst(); expiredHits++; trace.expire(trackingTick); } }
 private static int confirmedHits,expiredHits,jumpCount;
@@ -112,6 +112,15 @@ return mc.player!=null && mc.level!=null && mc.gameMode!=null && (localPractice(
 private static boolean available(Minecraft mc,LocalPlayer self) {
 return mc.gui.screen()==null && !mc.isPaused() && mc.getCameraEntity()==self && self.isAlive() && !self.isSpectator() && !self.isCreative() && !self.isUsingItem() && !self.isHandsBusy();
 }
+private static String unavailableReason(Minecraft mc,LocalPlayer self) {
+if(mc.isPaused()) return "Paused";
+if(mc.getCameraEntity()!=self) return "Different camera entity";
+if(!self.isAlive()) return "Player dead";
+if(self.isSpectator()) return "Spectator mode";
+if(self.isCreative()) return "Creative mode";
+if(self.isUsingItem() || self.isHandsBusy()) return "Hands busy";
+return "Unavailable";
+}
 private static boolean restricted(LocalPlayer self) {
 return self.isInWater() || self.isInLava() || self.isPassenger() || self.onClimbable() || self.isMobilityRestricted() || self.hasEffect(MobEffects.BLINDNESS) || self.isFallFlying() || self.getAbilities().flying;
 }
@@ -134,7 +143,7 @@ var self=mc.player;
 if(lastPlayer!=self || lastLevel!=mc.level) resetWorld(mc);
 sessionActive=true;
 expirePending();
-if(!available(mc,self)) { clearJump(); descendingTicks=0; readyWait=0; waitingTarget=null; startStrength=Float.NaN; lastHealth=self.getHealth(); return; }
+if(!available(mc,self)) { clearJump(); descendingTicks=0; readyWait=0; waitingTarget=null; startStrength=Float.NaN; lastHealth=self.getHealth(); if(mc.gui.screen()==null) setStatus(unavailableReason(mc,self)); return; }
 if(self.getHealth()<lastHealth) responseWindow=12;
 else if(responseWindow>0) responseWindow--;
 lastHealth=self.getHealth();
@@ -156,7 +165,7 @@ if(falling && observedAscent && requestedJumpTick>=0) {
 jumpTiming.observe((int)(trackingTick-requestedJumpTick)); observedAscent=false; requestedJumpTick=-1;
 }
 if(jumpTarget!=null && (++jumpAge>26 || !aimValid(self,jumpTarget) || jumpItem!=self.getMainHandItem().getItem())) clearJump();
-if(!settings.triggerEnabled()) { clearJump(); readyWait=0; waitingTarget=null; setStatus("AutoCritical off"); return; }
+if(!settings.triggerEnabled()) { clearJump(); readyWait=0; waitingTarget=null; setStatus(settings.aimEnabled()?(aimTarget!=null?"Aim only / target acquired":"Aim only / no target"):"Modules off"); return; }
 if(mc.options.keyAttack.isDown() || CombatTrace.manualAction(startStrength,self.getAttackStrengthScale(.5f),startItem==self.getMainHandItem().getItem(),startWeaponDelay,self.getCurrentItemAttackStrengthDelay())) {
 manualTick=trackingTick; clearJump(); readyWait=0; setStatus("Manual attack / item change"); return;
 }
@@ -164,7 +173,7 @@ decision=CombatEngine.Decision.WAIT;
 EntityHitResult hit=pickTarget(mc,self);
 LivingEntity crosshair=hit!=null && hit.getEntity() instanceof LivingEntity living && aimValid(self,living)?living:null;
 LivingEntity target=crosshair!=null?crosshair:settings.aimEnabled() && aimTarget!=null && valid(self,aimTarget) && Double.isFinite(angularError) && angularError<9?aimTarget:null;
-if(target==null) { if(++consecutiveNoRay>=3) { readyWait=0; waitingTarget=null; } setStatus(aimTarget!=null?"Approach / align":"No valid target"); return; }
+if(target==null) { if(++consecutiveNoRay>=3) { readyWait=0; waitingTarget=null; } setStatus(localPractice(mc) && !golemTest?"Iron Golem Test off":aimTarget!=null?"Approach / align":"No valid target"); return; }
 consecutiveNoRay=0;
 boolean restricted=restricted(self);
 boolean canJump=!restricted && !self.isShiftKeyDown() && mc.level.noCollision(self,self.getBoundingBox().move(0,.35,0)) && blockedJumpTicks==0;
@@ -204,7 +213,7 @@ status=action==CombatEngine.Action.CRITICAL?(counter?"Counter attempt":"Critical
 readyWait=0;
 decision=action==CombatEngine.Action.CRITICAL?CombatEngine.Decision.CRITICAL_WINDOW:CombatEngine.Decision.NORMAL_WINDOW;
 responseWindow=0;
-} else { setStatus("Attack not consumed"); attackDelay=1; }
+} else { trace.event(trackingTick,crosshair!=target?"ATTACK_TARGET_MISMATCH":"ATTACK_NOT_CONSUMED"); setStatus("Attack not consumed"); attackDelay=1; }
 }
 default -> {}
 }
@@ -253,10 +262,11 @@ angularError=bestError;
 boolean onTarget=rayOn(mc,self,selected) || AimModel.intersects(origin,current,box);
 if(bestError>.12 && !onTarget) {
 turn=AimModel.smoothTurn(current,best,turn,settings,motionAngle);
+trace.aimCorrection(turn.yaw(),turn.pitch());
 self.setYRot(self.getYRot()+(float)turn.yaw());
 self.setXRot((float)Math.max(-90,Math.min(90,self.getXRot()+turn.pitch())));
 angularError=AimModel.error(new AimModel.Angles(self.getYRot(),self.getXRot()),best);
-} else turn=new AimModel.Turn(0,0);
+} else { turn=new AimModel.Turn(0,0); trace.aimCorrection(0,0); }
 } else resetTracking();
 }
 }
