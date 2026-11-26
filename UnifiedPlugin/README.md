@@ -1,3 +1,7 @@
+# Disc editor
+
+Sneak-right-click any single music disc (including blank/unrecorded ones) or use `/disc` to open a native dialog. Paste a YouTube URL and optional name, save, open the recorded link or clear it. The dialog validates that the original held disc is unchanged. The jukebox no longer stops the vanilla track on insertion; nearby players also receive a clickable YouTube link. YouTube audio itself is not streamed to an unmodified client.
+
 # Shop editor
 
 Owners right-click to configure nine offers; Shift+right-click previews the buyer view. Click an offer and then an inventory item to deposit a stack (right click one). Two independent price options per offer may use any item, including custom item metadata; selecting a currency copies only its template, not the item. Exact amount input via vanilla dialog, 1–1728 per payment, zero disables an option. Purchase quantity 1–64 subject to the product stack size. 27-slot revenue buffer, existing auto-deposit behavior, existing shop records migrate. Name, skin, style and earnings are configured in the GUI. Actual price is validated server-side; no commands are required for ordinary settings. Test world OP may place merchants on its platform.

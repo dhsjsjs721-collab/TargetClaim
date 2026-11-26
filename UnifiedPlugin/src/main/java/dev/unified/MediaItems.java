@@ -18,6 +18,14 @@ import java.util.concurrent.*;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.ClickCallback;
+import io.papermc.paper.dialog.Dialog;
+import io.papermc.paper.registry.data.dialog.DialogBase;
+import io.papermc.paper.registry.data.dialog.ActionButton;
+import io.papermc.paper.registry.data.dialog.input.DialogInput;
+import io.papermc.paper.registry.data.dialog.body.DialogBody;
+import io.papermc.paper.registry.data.dialog.action.DialogAction;
+import io.papermc.paper.registry.data.dialog.type.DialogType;
 import net.kyori.adventure.text.format.NamedTextColor;
 import java.net.*;
 import java.util.*;
@@ -42,7 +50,7 @@ String key=System.getenv("MINESKIN_API_KEY");if(key==null||key.isBlank())key=hos
 workers=new ThreadPoolExecutor(2,2,0L,TimeUnit.SECONDS,new ArrayBlockingQueue<>(16),r->{Thread t=new Thread(r,"Unified-skin");t.setDaemon(true);return t;});
 if(!selftest())throw new IllegalStateException("Media self-test failed");host.getLogger().info("SELFTEST media OK");
 Bukkit.getPluginManager().registerEvents(this,host);
-host.getLogger().info("MediaItems enabled: YouTube link records and persistent player skin profiles.");
+host.getLogger().info("MediaItems enabled: sneak-right-click disc editor; vanilla jukebox audio preserved; persistent skin profiles.");
 }
 private void tell(CommandSender s,String m){s.sendMessage("§6Media §8» §r"+m);}
 private static String youtube(String s){
@@ -60,23 +68,52 @@ if(u.getPath().startsWith("/embed/"))id=u.getPath().substring(7);
 return id!=null&&id.matches("[A-Za-z0-9_-]{11}")?"https://www.youtube.com/watch?v="+id:null;
 }catch(Exception e){return null;}
 }
+private static boolean record(ItemStack i){return i!=null&&i.getType().name().startsWith("MUSIC_DISC_");}
+private String savedLink(ItemStack i){return record(i)&&i.hasItemMeta()?youtube(i.getItemMeta().getPersistentDataContainer().get(discKey,PersistentDataType.STRING)):null;}
+private String recordName(ItemStack i){return i.hasItemMeta()&&i.getItemMeta().hasDisplayName()?net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(i.getItemMeta().displayName()):"YouTube";}
+private boolean writeDisc(Player p,String raw,String name){
+if(host.seasonLocked(p))return false;
+ItemStack hand=p.getInventory().getItemInMainHand();if(!record(hand)||hand.getAmount()!=1){tell(p,"§cДержи одну пластинку в основной руке.");return false;}
+String url=youtube(raw);if(url==null){tell(p,"§cНужна HTTPS-ссылка на отдельное видео YouTube.");return false;}
+name=name==null?"":name.replaceAll("[\\p{Cntrl}§]","").strip();if(name.isBlank())name="YouTube";if(name.length()>48)name=name.substring(0,48);
+var meta=hand.getItemMeta();meta.getPersistentDataContainer().set(discKey,PersistentDataType.STRING,url);meta.setItemModel(new NamespacedKey("minecraftunified","youtube_disc"));meta.displayName(Component.text(name,NamedTextColor.GOLD));meta.lore(List.of(Component.text("Shift+ПКМ — редактор записи",NamedTextColor.GRAY),Component.text("Проигрыватель — музыка Minecraft и ссылка YouTube",NamedTextColor.GRAY)));hand.setItemMeta(meta);p.getInventory().setItemInMainHand(hand);tell(p,"§aЗапись сохранена.");return true;
+}
+private void clearDisc(Player p){
+ItemStack hand=p.getInventory().getItemInMainHand();if(!record(hand)||savedLink(hand)==null)return;
+var meta=hand.getItemMeta();meta.getPersistentDataContainer().remove(discKey);meta.setItemModel(null);meta.displayName(null);meta.lore(null);hand.setItemMeta(meta);p.getInventory().setItemInMainHand(hand);tell(p,"§aЗапись удалена.");
+}
+private boolean sameDisc(Player p,int slot,ItemStack before){return p.isOnline()&&!host.seasonLocked(p)&&p.getInventory().getHeldItemSlot()==slot&&before.equals(p.getInventory().getItemInMainHand());}
+private void discMenu(Player p){
+if(host.seasonLocked(p))return;ItemStack item=p.getInventory().getItemInMainHand();if(!record(item)||item.getAmount()!=1){tell(p,"§cДержи одну пластинку в основной руке.");return;}
+ItemStack before=item.clone();int slot=p.getInventory().getHeldItemSlot();String saved=savedLink(item);
+List<ActionButton> buttons=new ArrayList<>();
+buttons.add(ActionButton.create(Component.text("Сохранить",NamedTextColor.GREEN),null,110,DialogAction.customClick((view,audience)->{
+if(!(audience instanceof Player actor)||!actor.getUniqueId().equals(p.getUniqueId()))return;String url=view.getText("url"),name=view.getText("name");
+Bukkit.getScheduler().runTask(host,()->{if(!sameDisc(actor,slot,before)){tell(actor,"§cПластинка изменилась. Открой меню снова.");return;}if(!writeDisc(actor,url,name))discMenu(actor);});
+},ClickCallback.Options.builder().uses(1).build())));
+if(saved!=null){
+buttons.add(ActionButton.create(Component.text("Открыть запись",NamedTextColor.AQUA),null,110,DialogAction.customClick((view,audience)->{if(audience instanceof Player actor&&actor.getUniqueId().equals(p.getUniqueId()))Bukkit.getScheduler().runTask(host,()->{if(sameDisc(actor,slot,before))link(actor,saved,recordName(before));});},ClickCallback.Options.builder().uses(1).build())));
+buttons.add(ActionButton.create(Component.text("Удалить запись",NamedTextColor.RED),null,110,DialogAction.customClick((view,audience)->{if(audience instanceof Player actor&&actor.getUniqueId().equals(p.getUniqueId()))Bukkit.getScheduler().runTask(host,()->{if(sameDisc(actor,slot,before))clearDisc(actor);});},ClickCallback.Options.builder().uses(1).build())));
+}
+buttons.add(ActionButton.create(Component.text("Отмена"),null,110,null));
+p.showDialog(Dialog.create(builder->builder.empty().base(DialogBase.builder(Component.text("Музыкальная пластинка",NamedTextColor.GOLD))
+.body(List.of(DialogBody.plainMessage(Component.text("Запиши ссылку. Проигрыватель играет исходную музыку Minecraft и отправляет слушателям ссылку YouTube."),240)))
+.inputs(List.of(DialogInput.text("url",Component.text("Ссылка YouTube")).width(240).maxLength(1800).initial(saved==null?"":saved).build(),DialogInput.text("name",Component.text("Название записи")).width(240).maxLength(48).initial(saved==null?"":recordName(item).substring(0,Math.min(48,recordName(item).length()))).build())).build()).type(DialogType.multiAction(buttons).columns(2).build())));
+}
 boolean disc(CommandSender sender,String[] args){
 if(!(sender instanceof Player p)){tell(sender,"§cТолько в игре.");return true;}
-ItemStack hand=p.getInventory().getItemInMainHand();
-if(!hand.getType().name().startsWith("MUSIC_DISC_")||hand.getAmount()!=1){tell(p,"§cДержи одну пластинку в основной руке.");return true;}
-if(args.length==0){String saved=hand.getItemMeta().getPersistentDataContainer().get(discKey,PersistentDataType.STRING);if(saved!=null&&youtube(saved)!=null)link(p,saved,hand.getItemMeta().hasDisplayName()?hand.getItemMeta().getDisplayName():"YouTube");else tell(p,"§e/disc <ссылка YouTube> [название]");return true;}
-if(args[0].equalsIgnoreCase("clear")){var meta=hand.getItemMeta();meta.getPersistentDataContainer().remove(discKey);meta.setItemModel(null);meta.displayName(null);meta.lore(null);hand.setItemMeta(meta);p.getInventory().setItemInMainHand(hand);tell(p,"§aЗапись удалена.");return true;}
-String url=youtube(args[0]);if(url==null){tell(p,"§cНужна HTTPS-ссылка на отдельное видео YouTube.");return true;}
-String name=args.length>1?String.join(" ",Arrays.copyOfRange(args,1,args.length)):"YouTube";
-name=name.replaceAll("[\\p{Cntrl}§]","").strip();if(name.length()>48)name=name.substring(0,48);
-var meta=hand.getItemMeta();meta.getPersistentDataContainer().set(discKey,PersistentDataType.STRING,url);meta.setItemModel(new NamespacedKey("minecraftunified","youtube_disc"));meta.displayName(Component.text(name,NamedTextColor.GOLD));meta.lore(List.of(Component.text("YouTube · Shift+ПКМ — открыть",NamedTextColor.GRAY),Component.text("Проигрыватель · ссылка для слушателей",NamedTextColor.GRAY)));hand.setItemMeta(meta);p.getInventory().setItemInMainHand(hand);tell(p,"§aСсылка записана.");return true;
+if(host.seasonLocked(p)){tell(p,"§cДоступно после начала сезона.");return true;}
+ItemStack hand=p.getInventory().getItemInMainHand();if(!record(hand)||hand.getAmount()!=1){tell(p,"§cДержи одну пластинку в основной руке.");return true;}
+if(args.length==0){discMenu(p);return true;}
+if(args[0].equalsIgnoreCase("clear")){clearDisc(p);return true;}
+if(args[0].equalsIgnoreCase("open")){String saved=savedLink(hand);if(saved!=null)link(p,saved,recordName(hand));else discMenu(p);return true;}
+writeDisc(p,args[0],args.length>1?String.join(" ",Arrays.copyOfRange(args,1,args.length)):"YouTube");return true;
 }
 @EventHandler(priority=EventPriority.HIGHEST)
 public void playLink(PlayerInteractEvent e){
 if(host.seasonLocked(e.getPlayer()))return;
-if(e.getHand()!=EquipmentSlot.HAND||!e.getPlayer().isSneaking()||!e.getAction().isRightClick()||e.getItem()==null||!e.getItem().hasItemMeta())return;
-String url=e.getItem().getItemMeta().getPersistentDataContainer().get(discKey,PersistentDataType.STRING);if(url==null||youtube(url)==null)return;
-e.setCancelled(true);link(e.getPlayer(),url,e.getItem().getItemMeta().hasDisplayName()?e.getItem().getItemMeta().getDisplayName():"YouTube");
+if(e.getHand()!=EquipmentSlot.HAND||!e.getPlayer().isSneaking()||!e.getAction().isRightClick()||!record(e.getItem()))return;
+e.setCancelled(true);e.setUseInteractedBlock(Event.Result.DENY);e.setUseItemInHand(Event.Result.DENY);discMenu(e.getPlayer());
 }
 private void link(Player player,String url,String name){player.sendMessage(Component.text("[YouTube] "+name,NamedTextColor.GOLD).append(Component.text(" [Открыть]",NamedTextColor.AQUA).clickEvent(ClickEvent.openUrl(url))));}
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void jukebox(PlayerInteractEvent e){
@@ -84,7 +121,7 @@ if(host.seasonLocked(e.getPlayer()))return;
 if(e.getHand()!=EquipmentSlot.HAND||e.getAction()!=Action.RIGHT_CLICK_BLOCK||e.getPlayer().isSneaking()||e.useInteractedBlock()==Event.Result.DENY||e.getClickedBlock()==null||!(e.getClickedBlock().getState() instanceof Jukebox box)||e.getItem()==null||!e.getItem().hasItemMeta())return;
 String url=e.getItem().getItemMeta().getPersistentDataContainer().get(discKey,PersistentDataType.STRING);if(url==null||youtube(url)==null||!box.getRecord().getType().isAir())return;
 var block=e.getClickedBlock();Bukkit.getScheduler().runTask(host,()->{if(!(block.getState() instanceof Jukebox j))return;ItemStack disc=j.getRecord();if(!disc.hasItemMeta()||!url.equals(disc.getItemMeta().getPersistentDataContainer().get(discKey,PersistentDataType.STRING)))return;
-j.stopPlaying();String name=disc.getItemMeta().hasDisplayName()?disc.getItemMeta().getDisplayName():"YouTube";Location loc=block.getLocation().add(.5,.5,.5);for(Player p:loc.getWorld().getPlayers())if(p.getLocation().distanceSquared(loc)<=32*32)link(p,url,name);
+String name=recordName(disc);Location loc=block.getLocation().add(.5,.5,.5);for(Player p:loc.getWorld().getPlayers())if(p.getLocation().distanceSquared(loc)<=32*32)link(p,url,name);
 });
 }
 boolean video(CommandSender sender,String[] args){if(!(sender instanceof Player p)){tell(sender,"§cТолько в игре.");return true;}if(args.length!=1){tell(p,"§e/u video <ссылка YouTube> — обложка видео на карте в руке");return true;}String url=youtube(args[0]);if(url==null){tell(p,"§cНужна ссылка на видео YouTube.");return true;}return Bukkit.dispatchCommand(p,"imagemap https://i.ytimg.com/vi/"+url.substring(url.length()-11)+"/hqdefault.jpg");}
