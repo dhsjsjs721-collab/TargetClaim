@@ -23,7 +23,7 @@ return serverTarget;
 }
 static boolean hasLockedTarget(Minecraft mc) { return currentServerTarget(mc)!=null; }
 static double supportDistance(Minecraft mc) { var target=currentServerTarget(mc); return target==null || mc.player==null?Double.NaN:Math.sqrt(mc.player.distanceToSqr(target.entity())); }
-static void supportPause(Minecraft mc,String reason) { clearJump(); readyWait=0; waitingTarget=null; releaseInput(mc); setStatus(reason); }
+static void supportPause(Minecraft mc,String reason) { trace.breakAimSequence(); clearJump(); readyWait=0; waitingTarget=null; releaseInput(mc); setStatus(reason); }
 static void clearServerTarget() { serverTarget=null; clearJump(); aimTarget=null; resetTracking(); resetStyle(); }
 static String selectNearestPracticeTarget(Minecraft mc) {
 if(mc.player==null || mc.level==null || mc.gameMode==null || !available(mc,mc.player)) return null;
@@ -308,6 +308,7 @@ self.setXRot((float)Math.max(-90,Math.min(90,self.getXRot()+turn.pitch())));
 var applied=new AimModel.Angles(self.getYRot(),self.getXRot());
 angularError=AimModel.intersects(origin,applied,box)?0:AimModel.error(applied,best);
 } else { turn=new AimModel.Turn(0,0); trace.aimCorrection(0,0); }
+trace.aimObservation(AimModel.intersects(origin,new AimModel.Angles(self.getYRot(),self.getXRot()),box));
 } else resetTracking();
 }
 }
@@ -330,7 +331,7 @@ double now=AimModel.boxDistance(origin,box);
 double future=AimModel.futureBoxDistance(origin,box,target==sampledTarget?relativeMotion:new AimModel.Vec(0,0,0),4);
 return updateStyle(self,target,now,future,self.getAttackRangeWith(self.getMainHandItem()).effectiveMaxRange(self));
 }
-private static void resetTracking() { tracker.reset(); lastMovement=new AimModel.Movement(false,false,false,false); sampledTarget=null; previousRelative=null; previousEye=null; targetMotion=new AimModel.Vec(0,0,0); relativeMotion=new AimModel.Vec(0,0,0); motionAngle=0; turn=new AimModel.Turn(0,0); angularError=Double.NaN; }
+private static void resetTracking() { trace.breakAimSequence(); tracker.reset(); lastMovement=new AimModel.Movement(false,false,false,false); sampledTarget=null; previousRelative=null; previousEye=null; targetMotion=new AimModel.Vec(0,0,0); relativeMotion=new AimModel.Vec(0,0,0); motionAngle=0; turn=new AimModel.Turn(0,0); angularError=Double.NaN; }
 static void startTick(Minecraft mc,CombatSettings settings) {
 if(!enabled(mc)) { if(sessionActive) resetWorld(mc); return; }
 var self=mc.player;

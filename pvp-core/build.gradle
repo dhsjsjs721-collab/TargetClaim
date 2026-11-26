@@ -1,7 +1,7 @@
 plugins {
 id 'net.fabricmc.fabric-loom' version '1.19-SNAPSHOT'
 }
-version = '1.9.8'
+version = '1.9.9'
 group = 'pvp'
 repositories { mavenCentral() }
 dependencies {
@@ -14,7 +14,7 @@ java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
 tasks.named('test', Test) {
     enabled = false
 }
-['CoreTest', 'CombatTest'].each { testClass ->
+['CoreTest', 'CombatTest', 'AimBenchmark'].each { testClass ->
     def execution = tasks.register("run${testClass}", JavaExec) {
         dependsOn tasks.named('testClasses')
         classpath = sourceSets.test.runtimeClasspath

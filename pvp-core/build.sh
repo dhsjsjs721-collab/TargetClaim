@@ -6,4 +6,5 @@ javac --release 21 -d build/main src/main/java/pvp/{AimModel,CombatAI,CombatEngi
 javac --release 21 -cp build/main -d build/test $(find src/test/java -name '*.java')
 java -cp build/main:build/test pvp.CoreTest
 java -cp build/main:build/test pvp.CombatTest
+java -cp build/main:build/test pvp.AimBenchmark
 jar --create --file build/pvp-core-0.2.jar -C build/main .

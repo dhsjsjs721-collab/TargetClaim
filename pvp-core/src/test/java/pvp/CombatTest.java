@@ -337,6 +337,14 @@ var sharperBox=new AimModel.Box(new AimModel.Vec(-.3,0,2),new AimModel.Vec(.3,1.
 var sharperView=new AimModel.Angles(18,5);
 var sharperTurn=AimModel.lockTurn(sharperEye,sharperView,sharperBox,new AimModel.Turn(0,0),new CombatSettings(true,true,.55,.4,360),0);
 check(AimModel.intersects(sharperEye,new AimModel.Angles(sharperView.yaw()+sharperTurn.yaw(),sharperView.pitch()+sharperTurn.pitch()),sharperBox));
+trace.clear();
+trace.aimCorrection(0,0); trace.aimCorrection(3,4);
+trace.breakAimSequence(); trace.aimCorrection(20,0);
+trace.aimObservation(true); trace.aimObservation(false);
+check(trace.report().contains("Geometry aligned: 1/2"));
+check(trace.report().contains("correction delta RMS=5.00 peak=5.00"));
+trace.clear();
+check(trace.report().contains("Geometry aligned: 0/0"));
 System.out.println("Combat tests passed");
 }
 }
