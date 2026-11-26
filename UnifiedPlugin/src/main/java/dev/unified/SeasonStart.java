@@ -52,6 +52,7 @@ if(!(sender instanceof ConsoleCommandSender)&&!(sender instanceof RemoteConsoleC
 if(admit&&phase!=Phase.WAITING){sender.sendMessage("§cСначала /s. Текущий режим: "+phase);return true;}
 phase=admit?Phase.SCOUT:Phase.WAITING;until=admit?System.currentTimeMillis()+SCOUT_MS:0;save();
 for(Player p:Bukkit.getOnlinePlayers()){p.closeInventory();apply(p);}
+sender.sendMessage("Season phase -> "+phase.name());
 Bukkit.broadcastMessage(admit?"§dРазведка началась! §f10 минут полёта и создания кланов.":"§dОжидание запуска. §7Администратор откроет сезон.");
 return true;
 }
@@ -97,7 +98,8 @@ else{if(!p.getAllowFlight())p.setAllowFlight(true);p.setFlySpeed(.25f);long sec=
 @EventHandler(priority=EventPriority.LOWEST) public void consume(PlayerItemConsumeEvent e){if(locked(e.getPlayer()))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.LOWEST) public void fish(PlayerFishEvent e){if(locked(e.getPlayer()))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.LOWEST) public void shoot(EntityShootBowEvent e){if(e.getEntity() instanceof Player p&&locked(p))e.setCancelled(true);}
-@EventHandler(priority=EventPriority.LOWEST) public void bucket(PlayerBucketEvent e){if(locked(e.getPlayer()))e.setCancelled(true);}
+@EventHandler(priority=EventPriority.LOWEST) public void bucketEmpty(PlayerBucketEmptyEvent e){if(locked(e.getPlayer()))e.setCancelled(true);}
+@EventHandler(priority=EventPriority.LOWEST) public void bucketFill(PlayerBucketFillEvent e){if(locked(e.getPlayer()))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.LOWEST) public void portal(PlayerPortalEvent e){if(locked(e.getPlayer()))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.LOWEST) public void mount(EntityMountEvent e){if(e.getEntity() instanceof Player p&&locked(p))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.LOWEST) public void mode(PlayerGameModeChangeEvent e){if(locked(e.getPlayer())&&!changing.contains(e.getPlayer().getUniqueId()))e.setCancelled(true);}

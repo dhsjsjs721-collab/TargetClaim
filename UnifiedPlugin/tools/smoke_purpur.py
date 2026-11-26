@@ -84,7 +84,7 @@ def main():
             if not any("Done (" in line for line in logs):
                 raise RuntimeError("Purpur did not fully start within 150s or crashed")
             print("Purpur started; testing universal routing",flush=True)
-            for cmd in ["u status","u guide","u recipes","u give","u claim create","u talisman list","u talisman selftest","u vfx thor","u trap","u trap give nobody 1","u ss status","u tf","u tf give nobody thor","u ce help","u pig","u frog","u spawn","u spawn frog","u spawn goblin","u spawn trader","u trader","u help"]:
+            for cmd in ["u status","s","a","u guide","u recipes","u give","u claim create","u talisman list","u talisman selftest","u vfx thor","u trap","u trap give nobody 1","u ss status","u tf","u tf give nobody thor","u ce help","u pig","u frog","u spawn","u spawn frog","u spawn goblin","u spawn trader","u trader","u help"]:
                 proc.stdin.write(cmd+"\n")
                 proc.stdin.flush()
                 time.sleep(.8)
@@ -98,6 +98,7 @@ def main():
             reader.join(timeout=5)
         output="\n".join(logs)
         if "SELFTEST koschei held-link OK" not in output:raise AssertionError("Koschei held-link test failed")
+        if "Season phase -> WAITING" not in output or "Season phase -> SCOUT" not in output:raise AssertionError("Season commands failed")
         if "SELFTEST command policy OK" not in output:raise AssertionError("Command policy self-test failed")
         if "SELFTEST relic policies OK" not in output:raise AssertionError("Relic policy regression failed")
         if "SELFTEST relic registry 5/5" not in output:raise AssertionError("Independent relic self-test did not pass")
