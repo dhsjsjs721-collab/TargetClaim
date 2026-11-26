@@ -313,36 +313,28 @@ Stage stage=s.stage;
 boolean password=passwordStage(stage);
 boolean create=stage==Stage.CREATE_PASSWORD || stage==Stage.CREATE_PIN;
 String label=stage==Stage.LEGACY_PIN?"Обновление аккаунта":create?"Регистрация":"Авторизация";
-DialogBase.Builder base=DialogBase.builder(brand().append(Component.text(" · "+label,MUTED))).canCloseWithEscape(false);
+DialogBase.Builder base=DialogBase.builder(brand().append(Component.text(" · "+(create?"Регистрация":stage==Stage.LEGACY_PIN?"Обновление":"Вход")+" "+(password?"1/2":"2/2"),MUTED))).canCloseWithEscape(false);
 List<DialogInput> inputs=new ArrayList<>();
 List<ActionButton> buttons=new ArrayList<>();
 List<DialogBody> body=new ArrayList<>();
-if(s.artReady&&getConfig().getBoolean("branding.auth-art-enabled",true)){
-Component art=Component.text("\uE100",NamedTextColor.WHITE).font(Key.key("landoflosers:auth_art"));
-Component spacer=Component.text("\n \n \n \n \n \n \n ").font(Key.key("minecraft:default"));
-body.add(DialogBody.plainMessage(Component.empty().append(art).append(spacer),280));
-}
-body.add(DialogBody.plainMessage(brand().append(Component.text(" · ",MUTED)).append(accent(getConfig().getString("branding.edition","Vanilla+"),GOLD))));
-body.add(DialogBody.plainMessage(accent(stage==Stage.LEGACY_PIN?"ОБНОВЛЕНИЕ • СТАРЫЙ PIN":password?"01 / 02  •  ПАРОЛЬ":"02 / 02  •  PIN-КОД",ROSE)));
-body.add(DialogBody.plainMessage(Component.text(password?"● ━━━━━ ○":stage==Stage.LEGACY_PIN?"Подтвердите прежний аккаунт":"✓ ━━━━━ ●",password?ICE:MINT)));
 if(notice!=null)body.add(DialogBody.plainMessage(Component.text(notice,DANGER)));
 if(password){
-body.add(DialogBody.plainMessage(Component.text(create?"Создайте надёжный пароль.":"Введите пароль от вашего аккаунта.",NamedTextColor.WHITE)));
-if(s.knownNetwork)body.add(DialogBody.plainMessage(Component.text("✓ Знакомая сеть. Пароль и PIN обязательны.",MINT)));
-inputs.add(DialogInput.text("password",accent("Пароль  •  10–64 символа",ICE)).width(280).initial("").maxLength(64).build());
+
+
+inputs.add(DialogInput.text("password",accent(create?"Создайте пароль (10–64)":"Пароль",ICE)).width(160).initial("").maxLength(64).build());
 if(rememberEnabled && s.ip!=null){
 inputs.add(DialogInput.bool("remember",Component.text("Запомнить текущий IP на "+rememberDays+" дн.",GOLD),s.remember,"yes","no"));
 }
-body.add(DialogBody.plainMessage(Component.text("Не показывайте экран: Minecraft не скрывает пароль.",MUTED)));
-buttons.add(button("Далее  →","submit-password",MINT,150,"Перейти к PIN-коду"));
+body.add(DialogBody.plainMessage(Component.text("Пароль виден на экране.",MUTED),160));
+buttons.add(button("Далее →","submit-password",MINT,96,"Перейти к PIN-коду"));
 }else{
 int length=stage==Stage.LEGACY_PIN?legacyPinLength:4;
-body.add(DialogBody.plainMessage(Component.text(stage==Stage.LEGACY_PIN?"Введите прежний PIN.":create?"Придумайте PIN из четырёх цифр.":"Пароль подтверждён. Введите PIN.",NamedTextColor.WHITE)));
-body.add(DialogBody.plainMessage(accent("● ".repeat(s.digits.length())+"○ ".repeat(Math.max(0,length-s.digits.length())),GOLD)));
-for(int i=1;i<=9;i++)buttons.add(button(Integer.toString(i),"digit"+i,ICE,48,"Цифра "+i));
-buttons.add(button("⌫","back",ROSE,48,"Удалить цифру"));
-buttons.add(button("0","digit0",ICE,48,"Цифра 0"));
-buttons.add(button("✓","submit-pin",MINT,48,"Подтвердить PIN"));
+
+body.add(DialogBody.plainMessage(accent((stage==Stage.LEGACY_PIN?"Старый PIN: ":create?"Новый PIN: ":"PIN: ")+"● ".repeat(s.digits.length())+"○ ".repeat(Math.max(0,length-s.digits.length())),GOLD)));
+for(int i=1;i<=9;i++)buttons.add(button(Integer.toString(i),"digit"+i,ICE,32,"Цифра "+i));
+buttons.add(button("⌫","back",ROSE,32,"Удалить цифру"));
+buttons.add(button("0","digit0",ICE,32,"Цифра 0"));
+buttons.add(button("✓","submit-pin",MINT,32,"Подтвердить PIN"));
 }
 base.body(body);
 if(!inputs.isEmpty())base.inputs(inputs);

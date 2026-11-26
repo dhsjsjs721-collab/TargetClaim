@@ -1,5 +1,5 @@
 name: UnifiedAuth
-version: 1.6.3
+version: 1.6.4
 main: dev.unified.auth.UnifiedAuth
 api-version: '26.3'
 load: POSTWORLD
