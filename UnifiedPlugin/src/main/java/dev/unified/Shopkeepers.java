@@ -131,7 +131,7 @@ private void refresh(Shop s){for(Player p:Bukkit.getOnlinePlayers())if(p.getOpen
 if(!(e.getView().getTopInventory().getHolder() instanceof Menu m)||!(e.getWhoClicked() instanceof Player p))return;
 if(e.getRawSlot()>=27&&m.owner&&m.edit>=0&&(e.getClick()==ClickType.LEFT||e.getClick()==ClickType.RIGHT)){Shop editShop=shops.get(m.id);if(editShop!=null&&editShop.owner.equals(p.getUniqueId())&&near(p,editShop)&&editShop.walker==null&&owns(editShop.owner,editShop.home))return;}
 e.setCancelled(true);if(e.getRawSlot()<0||e.getRawSlot()>=27||!(e.getClick()==ClickType.LEFT||e.getClick()==ClickType.RIGHT))return;
-Shop s=shops.get(m.id);if(s==null||!near(p,s)||s.walker!=null||!owns(s.owner,s.home)){Bukkit.getScheduler().runTask(host,p::closeInventory);return;}
+Shop s=shops.get(m.id);if(s==null||!near(p,s)||s.walker!=null||!owns(s.owner,s.home)){Bukkit.getScheduler().runTask(host,()->p.closeInventory());return;}
 int slot=e.getRawSlot();
 if(!m.owner){if(slot==26&&s.owner.equals(p.getUniqueId())){Bukkit.getScheduler().runTask(host,()->open(p,s,true,-1));return;}for(int i=0;i<3;i++){if(slot==11+i*2)buy(p,s,i,Material.DIAMOND,s.diamonds[i]);if(slot==20+i*2)buy(p,s,i,Material.EMERALD,s.emeralds[i]);}refresh(s);return;}
 if(!s.owner.equals(p.getUniqueId()))return;
