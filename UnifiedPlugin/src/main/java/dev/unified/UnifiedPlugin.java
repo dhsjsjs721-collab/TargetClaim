@@ -148,7 +148,7 @@ event.getCommands().remove("minecraftunified:"+name);
 public boolean isMirrorReflection(org.bukkit.event.entity.EntityDamageEvent e){return mirrorArmor!=null&&mirrorArmor.isReflection(e);}
 public boolean isPeace(org.bukkit.Location l){return peace!=null&&peace.contains(l);}
 public List<org.bukkit.inventory.ItemStack> testRelics(){for(ModuleBridge module:enabledModules)if(module instanceof TalismanForgePlugin t)return t.testRelics();return List.of();}
-public boolean areClanmates(UUID a,UUID b){var claims=claimModule();return claims!=null&&claims.sameClan(a,b);}
+public boolean areClanmates(java.util.UUID a,java.util.UUID b){var claims=claimModule();return claims!=null&&claims.sameClan(a,b);}
 public TargetClaimPlugin claimModule(){for(ModuleBridge m:enabledModules)if(m instanceof TargetClaimPlugin c)return c;return null;}
 public List<org.bukkit.Location> getKoscheiEggLocations(){for(ModuleBridge m:enabledModules)if(m instanceof TalismanForgePlugin t)return t.getKoscheiEggLocations();return List.of();}
 private boolean enabled(String module){

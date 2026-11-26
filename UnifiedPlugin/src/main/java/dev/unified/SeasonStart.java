@@ -75,7 +75,7 @@ changing.add(p.getUniqueId());
 try{
 if(phase==Phase.LIVE){
 if(!p.getPersistentDataContainer().has(marker))return;
-Location selected=chosen(p);Location safe=selected==null?null:safeAt(selected);if(safe==null)safe=landing(p);p.teleport(safe);p.setFlying(false);p.setAllowFlight(false);p.setFlySpeed(.1f);p.setFallDistance(0);p.setGameMode(GameMode.SURVIVAL);p.getPersistentDataContainer().remove(marker);
+Location selected=chosen(p);if(selected!=null&&selected.isWorldLoaded()){World w=selected.getWorld();int cx=selected.getBlockX()>>4,cz=selected.getBlockZ()>>4;if(!w.isChunkLoaded(cx,cz)&&w.isChunkGenerated(cx,cz))w.getChunkAt(cx,cz);}Location safe=selected==null?null:safeAt(selected);if(safe==null)safe=landing(p);p.teleport(safe);p.setFlying(false);p.setAllowFlight(false);p.setFlySpeed(.1f);p.setFallDistance(0);p.setGameMode(GameMode.SURVIVAL);p.getPersistentDataContainer().remove(marker);
 title(p,"СЕЗОН НАЧАЛСЯ","Удачи в выживании!");return;
 }
 p.getPersistentDataContainer().set(marker,PersistentDataType.BYTE,(byte)1);p.leaveVehicle();p.setGliding(false);p.setGameMode(GameMode.ADVENTURE);p.setFallDistance(0);
