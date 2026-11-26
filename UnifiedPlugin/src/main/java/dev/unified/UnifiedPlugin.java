@@ -35,6 +35,7 @@ private MediaItems media;
 private MirrorArmor mirrorArmor;
 private Goblins goblins;
 private Verity verity;
+private Shopkeepers shops;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("claims","p"),Map.entry("p","p"),Map.entry("private","p"),
 Map.entry("team","team"),Map.entry("teams","team"),Map.entry("clan","team"),Map.entry("clans","team"),
@@ -99,6 +100,7 @@ media=new MediaItems(this);media.enable();
 mirrorArmor=new MirrorArmor(this);mirrorArmor.enable();
 goblins=new Goblins(this);goblins.enable();
 verity=new Verity(this);verity.enable();
+shops=new Shopkeepers(this);shops.enable();
 for(String name:List.of("skin","disc")){PluginCommand c=getCommand(name);if(c!=null)c.setExecutor((sender,command,label,args)->name.equals("skin")?media.skin(sender,args):media.disc(sender,args));}
 try{
 deepslateCrafts=new DeepslateCrafts(this);
@@ -167,6 +169,7 @@ sender.sendMessage("§e/u goblin [число] [forest|mushroom] §7— вызв�
 sender.sendMessage("§e/u map §7— карты; §e/u trap §7— обсидиановая ловушка");
 sender.sendMessage("§e/u mining §7— шахтёрская экипировка и метательные факелы");
 sender.sendMessage("§e/skin §7— смена скина; §e/disc §7— записать ссылку YouTube на пластинку");
+sender.sendMessage("§e/u shop §7— настройки личного торговца");
 sender.sendMessage("§e/u guide §7— краткое руководство игрока");
 }
 
@@ -212,7 +215,7 @@ private void claimGuide(CommandSender sender){
 sender.sendMessage("§6§lКак создать приват");
 sender.sendMessage("§71. Скрафти особую мишень: 3 бумаги сверху и 6 аметистов снизу.");
 if(sender.hasPermission("targetclaim.admin"))sender.sendMessage("§7Или получи её командой §e/u give claim§7.");
-sender.sendMessage("§72. Поставь мишень в выбранном месте. Между ядрами нужно 210 блоков вне спавна, 105 на спавне; смешанные — 158.");
+sender.sendMessage("§72. Поставь мишень в выбранном месте. Между ядрами нужно 210 блоков вне спавна, 48 на спавне; смешанные — 129.");
 sender.sendMessage("§73. §e/u claim §7— управление; §e/u claim border on §7— границы; §e/u claim upgrade §7— улучшение.");
 sender.sendMessage("§74. §e/u claim list §7— список, §e/u claim <номер> §7— выбрать.");
 }
@@ -249,6 +252,7 @@ String action=args[0].toLowerCase(Locale.ROOT);
 if(action.equals("spawn")||action.equals("mobs"))return spawnMob(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("frog"))return spawnMob(sender,new String[]{"frog"});
 if(action.equals("goblin")||action.equals("goblins"))return goblins==null?unavailable(sender):goblins.command(sender,Arrays.copyOfRange(args,1,args.length));
+if(action.equals("shop"))return shops==null?unavailable(sender):shops.command(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("give"))return giveShortcut(sender,args);
 if(action.equals("recipes")){recipes(sender);return true;}
 if(action.equals("guide")){claimGuide(sender);recipes(sender);return true;}
@@ -287,10 +291,11 @@ if(command.getName().equals("unifiedmsg")){var claims=claimModule();return claim
 if(command.getName().equals("unifiedreply"))return List.of();
 if(args.length<=1){
 String prefix=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-return List.of("help","guide","recipes","give","vfx","status","claim","team","clan","talisman","enchant","wildlife","spawn","frog","goblin","trader","map","trap","mining")
+return List.of("help","guide","recipes","give","vfx","status","claim","team","clan","talisman","enchant","wildlife","spawn","frog","goblin","trader","map","trap","mining","shop")
 .stream().filter(x->x.startsWith(prefix)).toList();
 }
 String action=args[0].toLowerCase(Locale.ROOT);
+if(action.equals("shop")&&args.length==2)return List.of("name","skin","style","give").stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
 if(action.equals("give")){if(args.length==2)return GIVE_ITEMS.stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();if(args.length==3)return Bukkit.getOnlinePlayers().stream().map(org.bukkit.entity.Player::getName).filter(x->x.toLowerCase(Locale.ROOT).startsWith(args[2].toLowerCase(Locale.ROOT))).toList();return List.of();}
 if(action.equals("spawn")||action.equals("mobs")){if(args.length==2)return List.of("frog","goblin","trader").stream().filter(x->x.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();if(args[1].equalsIgnoreCase("goblin")){if(args.length==3)return List.of("1","3","5","7","12").stream().filter(x->x.startsWith(args[2])).toList();if(args.length==4)return List.of("forest","mushroom").stream().filter(x->x.startsWith(args[3].toLowerCase(Locale.ROOT))).toList();}return List.of();}
 if(action.equals("goblin")){if(args.length==2)return List.of("1","3","5","7","12").stream().filter(x->x.startsWith(args[1])).toList();if(args.length==3)return List.of("forest","mushroom").stream().filter(x->x.startsWith(args[2].toLowerCase(Locale.ROOT))).toList();return List.of();}
@@ -318,6 +323,7 @@ return sub.tabComplete(sender,target,rest);
 }catch(Exception ex){return List.of();}
 }
 @Override public void onDisable(){
+if(shops!=null){shops.disable();shops=null;}
 if(verity!=null){verity.disable();verity=null;}
 if(mirrorArmor!=null){mirrorArmor.disable();mirrorArmor=null;}
 if(mining!=null){mining.disable();mining=null;}

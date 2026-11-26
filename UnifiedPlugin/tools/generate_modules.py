@@ -159,6 +159,11 @@ def convert(code,namespace,name,path):
         ]:
             code=swap(code,old,new,"peace claim cap")
 
+    if name=="TargetClaim":
+        code=swap(code,"public boolean isClaimed(Location place){","public boolean ownsShopLocation(UUID owner,Location place){Claim c=claimAt(place);return c!=null&&c.owner.equals(owner);}\npublic boolean isClaimed(Location place){","shop chest ownership")
+    if name=="EnchantmentForge" and path.endswith("WanderingTraderFeature.java"):
+        code=swap(code,"return recipes;","recipes.add(dev.unified.Shopkeepers.offer());\nreturn recipes;","personal merchant offer")
+
     # TalismanForge's previous shield and item state keys already use the
     # original namespace, via the explicit Keys above. No data migration.
     return code
