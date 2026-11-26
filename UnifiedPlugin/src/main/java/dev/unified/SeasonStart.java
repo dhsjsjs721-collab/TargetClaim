@@ -75,12 +75,12 @@ changing.add(p.getUniqueId());
 try{
 if(phase==Phase.LIVE){
 if(!p.getPersistentDataContainer().has(marker))return;
-Location selected=chosen(p);if(selected!=null&&selected.isWorldLoaded()){World w=selected.getWorld();int cx=selected.getBlockX()>>4,cz=selected.getBlockZ()>>4;if(!w.isChunkLoaded(cx,cz)&&w.isChunkGenerated(cx,cz))w.getChunkAt(cx,cz);}Location safe=selected==null?null:safeAt(selected);if(safe==null)safe=landing(p);p.teleport(safe);p.setFlying(false);p.setAllowFlight(false);p.setFlySpeed(.1f);p.setFallDistance(0);p.setGameMode(GameMode.SURVIVAL);p.getPersistentDataContainer().remove(marker);
+Location selected=chosen(p);if(selected!=null&&selected.isWorldLoaded()){World w=selected.getWorld();int cx=selected.getBlockX()>>4,cz=selected.getBlockZ()>>4;if(!w.isChunkLoaded(cx,cz)&&w.isChunkGenerated(cx,cz))w.getChunkAt(cx,cz);}Location safe=selected==null?null:safeAt(selected);if(safe==null)safe=Bukkit.getWorlds().getFirst().getSpawnLocation();p.teleport(safe);p.setFlying(false);p.setAllowFlight(false);p.setFlySpeed(.1f);p.setFallDistance(0);p.setGameMode(GameMode.SURVIVAL);p.getPersistentDataContainer().remove(marker);
 title(p,"СЕЗОН НАЧАЛСЯ","Удачи в выживании!");return;
 }
 p.getPersistentDataContainer().set(marker,PersistentDataType.BYTE,(byte)1);p.leaveVehicle();p.setGliding(false);p.setGameMode(GameMode.ADVENTURE);p.setFallDistance(0);
 p.setAllowFlight(phase==Phase.SCOUT);p.setFlySpeed(phase==Phase.SCOUT?.25f:.1f);p.setFlying(phase==Phase.SCOUT);
-if(phase==Phase.WAITING){p.teleport(p.getWorld().getSpawnLocation());p.setVelocity(new Vector());title(p,"LAND OF LOSERS","Дождитесь запуска сервера");}
+if(phase==Phase.WAITING){p.teleport(Bukkit.getWorlds().getFirst().getSpawnLocation());p.setVelocity(new Vector());title(p,"LAND OF LOSERS","Дождитесь запуска сервера");}
 else title(p,"РАЗВЕДКА МИРА","10 минут · /clan");
 }finally{changing.remove(p.getUniqueId());}
 }

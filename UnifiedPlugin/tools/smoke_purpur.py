@@ -104,6 +104,7 @@ def main():
         if "Season phase -> WAITING" not in output or "Season phase -> SCOUT" not in output:raise AssertionError("Season commands failed")
         if "SELFTEST test world OK" not in output:raise AssertionError("Test world generation or chest setup failed")
         if "SELFTEST clan viewer metadata OK" not in output:raise AssertionError("Clan metadata packet initialization failed")
+        if "SELFTEST spawn choices OK" not in output:raise AssertionError("Spawn choices setup failed")
         if "SELFTEST media OK" not in output:raise AssertionError("Media policy self-test failed")
         if "SELFTEST command policy OK" not in output:raise AssertionError("Command policy self-test failed")
         if "SELFTEST relic policies OK" not in output:raise AssertionError("Relic policy regression failed")

@@ -41,6 +41,7 @@ private DragonCycle dragons;
 private SeasonStart season;
 private TestWorld testWorld;
 private ClanGlow clanGlow;
+private SpawnChoices spawnChoices;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("claims","p"),Map.entry("p","p"),Map.entry("private","p"),
 Map.entry("team","team"),Map.entry("teams","team"),Map.entry("clan","team"),Map.entry("clans","team"),
@@ -122,8 +123,10 @@ getLogger().severe("WARNING: standalone TalismanForge detected. Remove its old J
 org.bukkit.inventory.ShapedRecipe verityRecipe=new org.bukkit.inventory.ShapedRecipe(new org.bukkit.NamespacedKey("minecraftunified","craft_verity"),Verity.item());verityRecipe.shape("GAG","ABA","GAG");verityRecipe.setIngredient('G',org.bukkit.Material.GOLD_BLOCK);verityRecipe.setIngredient('A',org.bukkit.Material.AMETHYST_SHARD);verityRecipe.setIngredient('B',org.bukkit.Material.POLISHED_BLACKSTONE);Bukkit.addRecipe(verityRecipe);
 org.bukkit.inventory.ShapedRecipe shopRecipe=new org.bukkit.inventory.ShapedRecipe(new org.bukkit.NamespacedKey("minecraftunified","craft_shop"),Shopkeepers.token());shopRecipe.shape("DED","ESE","DED");shopRecipe.setIngredient('D',org.bukkit.Material.DIAMOND_BLOCK);shopRecipe.setIngredient('E',org.bukkit.Material.EMERALD_BLOCK);shopRecipe.setIngredient('S',org.bukkit.Material.NAME_TAG);Bukkit.addRecipe(shopRecipe);
 dragons=new DragonCycle(this);dragons.enable();
+SpawnChoices.recipe(this);
 recipeGuide=new RecipeGuide(this);recipeGuide.enable();
 season=new SeasonStart(this);season.enable();
+spawnChoices=new SpawnChoices(this,season);spawnChoices.enable();
 for(String name:List.of("s","a")){PluginCommand c=getCommand(name);if(c!=null)c.setExecutor((sender,cmd,label,args)->season.command(sender,name.equals("a")));}
 new CommandPolicy(this).enable();
 clanGlow=new ClanGlow(this);clanGlow.enable();

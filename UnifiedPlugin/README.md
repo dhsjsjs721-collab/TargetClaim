@@ -1,3 +1,7 @@
+# Respawn choices and return scroll
+
+After scouting players go to their clan's selected point, or the overworld spawn if none exists. On death the player respawns at world spawn and receives an inventory menu for world/clan spawn, six individually saved beds and six anchors. Beds/anchors are registered on successful vanilla spawn setting. Points can be forgotten by right-click, destroyed/obstructed points are rejected, anchors require and consume one charge upon successful travel. The return scroll is crafted using 4 dried kelp around redstone; it opens the same selector, consumes one scroll only on successful teleport, requires five seconds stationary and 15 seconds out of combat. No extra client pack required, scroll uses vanilla eye icon. Test world stays isolated.
+
 # Disc editor
 
 Sneak-right-click any single music disc (including blank/unrecorded ones) or use `/disc` to open a native dialog. Paste a YouTube URL and optional name, save, open the recorded link or clear it. The dialog validates that the original held disc is unchanged. The jukebox no longer stops the vanilla track on insertion; nearby players also receive a clickable YouTube link. YouTube audio itself is not streamed to an unmodified client.
