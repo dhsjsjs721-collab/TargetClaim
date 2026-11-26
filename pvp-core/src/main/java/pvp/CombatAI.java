@@ -164,6 +164,34 @@ if(cost<best) { best=cost; chosen=move; }
 }
 return new MovementChoice(chosen,best);
 }
+/** Local dummy practice: prioritize stable spacing rather than circling a stationary target.
+ * Conservative four-tick model; this is not a full Minecraft physics simulation. */
+public static MovementChoice choosePracticeWalk(double dx,double dz,double viewYaw,double ownX,double ownZ,double targetX,double targetZ,double reach,AimModel.Movement last,BiPredicate<Double,Double> safe) {
+var hold=new AimModel.Movement(false,false,false,false);
+if(!Double.isFinite(dx) || !Double.isFinite(dz) || !Double.isFinite(viewYaw) || !Double.isFinite(ownX) || !Double.isFinite(ownZ) || !Double.isFinite(targetX) || !Double.isFinite(targetZ) || !Double.isFinite(reach) || reach<=0) return new MovementChoice(hold,Double.POSITIVE_INFINITY);
+double ideal=clamp(reach*.73,1.45,2.5),low=ideal-.18,high=ideal+.18;
+double yaw=Math.toRadians(viewYaw),fx=-Math.sin(yaw),fz=Math.cos(yaw),rx=-Math.cos(yaw),rz=-Math.sin(yaw);
+double best=Double.POSITIVE_INFINITY; var chosen=hold;
+for(int f=-1;f<=1;f++) for(int rr=-1;rr<=1;rr++) {
+double mag=Math.max(1,Math.hypot(f,rr)),ix=(fx*f+rx*rr)/mag*.22,iz=(fz*f+rz*rr)/mag*.22;
+double x=0,z=0,vx=clamp(ownX,-.5,.5),vz=clamp(ownZ,-.5,.5),score=0;
+boolean ok=true;
+for(int k=1;k<=4;k++) {
+vx=.45*vx+.55*ix; vz=.45*vz+.55*iz;
+if(!safe.test(x+vx*.5,z+vz*.5) || !safe.test(x+vx,z+vz)) { ok=false; break; }
+x+=vx; z+=vz;
+double d=Math.hypot(dx+clamp(targetX,-.35,.35)*k-x,dz+clamp(targetZ,-.35,.35)*k-z);
+double excess=Math.max(0,d-high),deficit=Math.max(0,low-d);
+score+=3*excess*excess+4*deficit*deficit+6*Math.pow(Math.max(0,d-reach),2)+12*Math.pow(Math.max(0,1.05-d),2);
+}
+if(!ok) continue;
+var movement=new AimModel.Movement(f>0,f<0,rr<0,rr>0);
+score+=.10*(Math.abs(f)+Math.abs(rr));
+if(last!=null && !movement.equals(last)) score+=.12;
+if(score<best) { best=score; chosen=movement; }
+}
+return new MovementChoice(chosen,best);
+}
 /** Select safe steps away from an opponent, while preserving the current facing. */
 public static MovementChoice chooseRetreat(double dx,double dz,double viewYaw,double ownX,double ownZ,AimModel.Movement last,BiPredicate<Double,Double> safe) {
 var hold=new AimModel.Movement(false,false,false,false);

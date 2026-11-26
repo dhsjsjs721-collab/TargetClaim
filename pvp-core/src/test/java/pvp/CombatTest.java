@@ -425,6 +425,23 @@ var invalidCharge=new CombatEngine.Frame(Double.NaN,true,0,false,false,true,true
 check(CombatEngine.practiceAction(invalidCharge,0,false,true,false,true,true,false,12,0,6,false,true,false)==CombatEngine.Action.WAIT_COOLDOWN);
 var unchargedFall=new CombatEngine.Frame(.92,false,.2,false,false,true,true,false,false,t);
 check(!CombatEngine.attackAction(CombatEngine.practiceAction(unchargedFall,1,false,true,false,true,true,false,12,4,6,false,true,false)));
+var stationaryWalk=CombatAI.choosePracticeWalk(0,2.19,0,0,0,0,0,3,null,(x,z)->true);
+check(stationaryWalk.movement().equals(new AimModel.Movement(false,false,false,false)));
+check(CombatAI.choosePracticeWalk(0,5,0,0,0,0,0,3,null,(x,z)->true).movement().forward());
+check(CombatAI.choosePracticeWalk(0,.8,0,0,0,0,0,3,null,(x,z)->true).movement().back());
+check(!Double.isFinite(CombatAI.choosePracticeWalk(0,5,0,0,0,0,0,3,null,(x,z)->false).cost()));
+var profile=new MotionProfile();
+for(int i=0;i<10;i++) profile.observe(i,new AimModel.Vec(i*.2,0,0));
+check(profile.samples()==8 && profile.trend()==MotionProfile.Trend.MOVING);
+check(profile.report().contains("velocity=0.0000"));
+profile.observe(10,new AimModel.Vec(1.6,0,0));
+check(profile.trend()==MotionProfile.Trend.REVERSING);
+profile.observe(15,new AimModel.Vec(0,0,0)); check(profile.trend()==MotionProfile.Trend.UNKNOWN);
+profile.reset(); check(profile.samples()==0);
+trace.clear(); trace.ghostWindow(1,true,false,true,1,CombatEngine.Action.WAIT_TARGET);
+trace.ghostWindow(2,true,true,true,1,CombatEngine.Action.WAIT_JUMP);
+trace.ghostWindow(3,true,true,true,1,CombatEngine.Action.NORMAL);
+check(trace.report().contains("Ghost windows: ready=2 planned=1 deferred=1 geometry/ray mismatch=1"));
 System.out.println("Combat tests passed");
 }
 }

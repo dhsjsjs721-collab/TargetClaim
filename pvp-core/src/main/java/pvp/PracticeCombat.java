@@ -77,6 +77,7 @@ private static final double AIM_RANGE=6.0,FOLLOW_RANGE=12.0;
 private record Pending(int entityId,long tick) {}
 private static final ArrayDeque<Pending> pending=new ArrayDeque<>();
 private static final CombatTrace trace=new CombatTrace();
+private static final MotionProfile ghostMotion=new MotionProfile();
 private static String previousReport="",previousReplay="";
 private static final CombatReplay replay=new CombatReplay();
 private static String replayGate="UNSAMPLED",replayPlan="NONE",replayMove="NONE";
@@ -89,7 +90,7 @@ private static double startWeaponDelay;
 private static long manualTick=-1;
 private static Object lastWeapon;
 private static double lastWeaponDelay=Double.NaN;
-static String diagnostics() { return "Current status: "+status+"\n"+(sessionActive?trace.report()+"\n"+replay.summary():previousReport.isEmpty()?trace.report()+"\n"+replay.summary():previousReport); }
+static String diagnostics() { return "Current status: "+status+"\n"+(sessionActive?trace.report()+"\n"+replay.summary()+"\n"+ghostMotion.report():previousReport.isEmpty()?trace.report()+"\n"+replay.summary():previousReport); }
 static String replayCsv() { return sessionActive || previousReplay.isEmpty()?replay.csv():previousReplay; }
 static void beginPractice(Minecraft mc) { resetWorld(mc); sessionActive=true; status="Practice started"; }
 static void finishPractice() { endSession(); }
@@ -187,7 +188,7 @@ private static boolean restricted(LocalPlayer self) {
 return self.isInWater() || self.isInLava() || self.isPassenger() || self.onClimbable() || self.isMobilityRestricted() || self.hasEffect(MobEffects.BLINDNESS) || self.isFallFlying() || self.getAbilities().flying;
 }
 private static void endSession() {
-if(sessionActive) { previousReport=trace.report()+"\n"+replay.summary(); previousReplay=replay.csv(); sessionActive=false; }
+if(sessionActive) { previousReport=trace.report()+"\n"+replay.summary()+"\n"+ghostMotion.report(); previousReplay=replay.csv(); sessionActive=false; }
 }
 private static void resetWorld(Minecraft mc) {
 endSession(); resetStyle(); recovery.reset();
@@ -196,7 +197,7 @@ lastHealth=mc.player==null?0:mc.player.getHealth();
 responseWindow=readyTicks=attackDelay=jumpDelay=descendingTicks=confirmedHits=expiredHits=jumpCount=blockedJumpTicks=readyWait=0;
 waitingTarget=null;
 jumpTiming.reset(); consecutiveNoRay=0;
-trackingTick=0; hitThisFall=false; angularError=Double.NaN; decision=CombatEngine.Decision.WAIT; pending.clear(); trace.clear(); replay.clear(); resetReplayFrame();
+trackingTick=0; hitThisFall=false; angularError=Double.NaN; decision=CombatEngine.Decision.WAIT; pending.clear(); trace.clear(); replay.clear(); ghostMotion.reset(); resetReplayFrame();
 startStrength=Float.NaN; startItem=null; startWeaponDelay=0; manualTick=-1; lastWeapon=null; lastWeaponDelay=Double.NaN;
 }
 static void tick(Minecraft mc,CombatSettings settings) {
@@ -250,6 +251,7 @@ else if(!Float.isFinite(cooldown) || cooldown<.95 || !itemReady) readyWait=0;
 else if(!inRange(self,target)) readyWait=0;
 else readyWait=Math.min(20,readyWait+1);
 var eye=self.getEyePosition();
+if(PracticeGhost.owns(mc,target)) ghostMotion.observe(trackingTick,new AimModel.Vec(target.getX(),target.getY(),target.getZ()));
 var bounds=target.getBoundingBox();
 var box=new AimModel.Box(new AimModel.Vec(bounds.minX,bounds.minY,bounds.minZ),new AimModel.Vec(bounds.maxX,bounds.maxY,bounds.maxZ));
 var origin=new AimModel.Vec(eye.x,eye.y,eye.z);
@@ -271,6 +273,10 @@ replayCharge=cooldown;
 replayGate=!inRange(self,target)?"OUT_OF_RANGE":!itemReady?"ITEM_BUSY":!Double.isFinite(cooldown) || cooldown<.95?"COOLDOWN":crosshair!=target?"READY_NO_RAY":attackDelay>0?"ATTACK_DELAY":"READY";
 replayPlan=action.name();
 trace.sample(cooldown,now,reach,angularError,crosshair==target);
+if(PracticeGhost.owns(mc,target)) {
+boolean geometry=AimModel.intersects(origin,new AimModel.Angles(self.getYRot(),self.getXRot()),box);
+trace.ghostWindow(trackingTick,geometry,crosshair==target,inRange(self,target),cooldown,action);
+}
 setStatus(action.name());
 switch(action) {
 case JUMP -> { requestedJumpTick=trackingTick; observedAscent=false; jumpRequested=true; jumpPressTicks=3; jumpDelay=5; jumpTarget=target; jumpItem=self.getMainHandItem().getItem(); jumpAge=0; }
@@ -427,7 +433,7 @@ java.util.function.BiPredicate<Double,Double> safe=(mx,mz)->{
 var next=self.getBoundingBox().move(mx,0,mz);
 return mc.level.noCollision(self,next) && !mc.level.noCollision(self,next.move(0,self.onGround()?-.7:-1.7,0));
 };
-var choice=retreating?CombatAI.chooseRetreat(dx,dz,self.getYRot(),velocity.x,velocity.z,lastMovement,safe):CombatAI.chooseFollow(dx,dz,aimTarget.getYRot(),self.getYRot(),velocity.x,velocity.z,targetX,targetZ,reach,lastMovement,orbitSide,safe);
+var choice=retreating?CombatAI.chooseRetreat(dx,dz,self.getYRot(),velocity.x,velocity.z,lastMovement,safe):PracticeGhost.owns(mc,aimTarget)?CombatAI.choosePracticeWalk(dx,dz,self.getYRot(),velocity.x,velocity.z,targetX,targetZ,reach,lastMovement,safe):CombatAI.chooseFollow(dx,dz,aimTarget.getYRot(),self.getYRot(),velocity.x,velocity.z,targetX,targetZ,reach,lastMovement,orbitSide,safe);
 if(!retreating && !Double.isFinite(choice.cost())) choice=CombatAI.choosePath(dx,dz,aimTarget.getYRot(),self.getYRot(),velocity.x,velocity.z,targetX,targetZ,reach-.65,reach,tracker.uncertainty(),lastMovement,safe);
 if(!retreating && self.onGround() && Math.hypot(dx,dz)>reach && (stuck>=5 || blockedMovementTicks>=3 || !Double.isFinite(choice.cost())) && trackingTick-lastDetour>=4) {
 lastDetour=trackingTick;
