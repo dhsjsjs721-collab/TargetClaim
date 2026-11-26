@@ -8,6 +8,7 @@ public record Frame(long tick,double hp,double targetHp,double dx,double dy,doub
 private final ArrayDeque<Frame> frames=new ArrayDeque<>();
 public void clear() { frames.clear(); }
 public int size() { return frames.size(); }
+public CombatReplay snapshot() { var copy=new CombatReplay(); copy.frames.addAll(frames); return copy; }
 public void add(Frame frame) {
 if(!frames.isEmpty() && frame.tick()<=frames.peekLast().tick()) return;
 if(frames.size()==CAPACITY) frames.removeFirst();

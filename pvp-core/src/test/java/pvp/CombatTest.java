@@ -484,6 +484,28 @@ check(observedSupport.interrupt()==SupportObservation.Result.INTERRUPTED && !obs
 check(SupportObservation.swapObserved(true,0,0,true,1,1));
 check(!SupportObservation.swapObserved(false,0,0,true,1,1));
 check(!SupportObservation.swapObserved(true,0,0,true,2,1));
+var fakeClock=new java.util.concurrent.atomic.AtomicLong(0);
+var probeCalls=new java.util.concurrent.atomic.AtomicInteger();
+var limitedProbes=new ProbeBudget((x,z)->{probeCalls.incrementAndGet(); return true;},2,100,fakeClock::get);
+check(limitedProbes.test(0.,0.) && limitedProbes.test(1.,1.) && !limitedProbes.test(2.,2.));
+check(limitedProbes.exhausted() && probeCalls.get()==2);
+var timedProbes=new ProbeBudget((x,z)->true,10,100,fakeClock::get);
+fakeClock.set(100); check(!timedProbes.test(0.,0.) && timedProbes.calls()==0);
+var detourBudget=new ProbeBudget((x,z)->true,20,100,()->0L);
+CombatAI.chooseDetour(0,4,0,0,0,2,detourBudget);
+check(detourBudget.calls()<=20);
+var spacing=new ApproachCalibration();
+for(int i=0;i<20;i++) spacing.observe(i,0,5-i*.1,0,-.1);
+check(spacing.samples(0)==18 && spacing.samples(2)==13);
+check(spacing.rms(0,1)<1e-9 && spacing.rms(2,2)<1e-9 && spacing.rms(2,0)>.5);
+long beforeGap=spacing.samples(2);
+spacing.observe(30,0,1,0,0); spacing.observe(31,0,1,0,0);
+check(spacing.samples(2)==beforeGap);
+spacing.reset(); check(spacing.samples(0)==0);
+var snapshotTest=roundtrip.snapshot();
+roundtrip.clear(); check(snapshotTest.size()==4 && roundtrip.size()==0);
+trace.clear(); trace.planner(2,1_000_000,true);
+check(trace.report().contains("Planner: samples=1 probes=2 limited=1"));
 System.out.println("Combat tests passed");
 }
 }

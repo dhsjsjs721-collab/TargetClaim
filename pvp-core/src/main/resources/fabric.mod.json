@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "pvp_practice",
-  "version": "1.10.9",
+  "version": "1.11.0",
   "name": "Land of Losers",
   "environment": "client",
   "entrypoints": {

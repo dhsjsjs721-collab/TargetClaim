@@ -240,7 +240,7 @@ var queue=new java.util.PriorityQueue<Node>(java.util.Comparator.comparingDouble
 cost[origin]=0; queue.add(new Node(origin,0));
 double initial=Math.max(0,Math.hypot(dx,dz)-ideal),best=initial*initial;
 int bestNode=-1,expanded=0;
-while(!queue.isEmpty() && expanded<180) {
+while(!queue.isEmpty() && expanded<180 && (!(safe instanceof ProbeBudget budget) || !budget.exhausted())) {
 var node=queue.remove(); int idx=node.index();
 if(node.cost()!=cost[idx]) continue;
 expanded++;
