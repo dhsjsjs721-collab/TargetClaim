@@ -811,7 +811,7 @@ final class MythicTalismans implements Listener {
     }
     private void conceal(Player p){
         if(!hidden.add(p.getUniqueId()))return;
-        for(Player viewer:Bukkit.getOnlinePlayers())if(viewer!=p)viewer.hidePlayer(plugin.host(),p);
+        for(Player viewer:Bukkit.getOnlinePlayers())if(viewer!=p&&!((dev.unified.UnifiedPlugin)plugin.host()).areClanmates(viewer.getUniqueId(),p.getUniqueId()))viewer.hidePlayer(plugin.host(),p);
         burst(p.getLocation(),Kind.KITSUNE,20);
     }
     private void reveal(Player p){
@@ -984,6 +984,7 @@ final class MythicTalismans implements Listener {
     }
     private void tick(){
         ticks+=5;long time=now();
+        if(ticks%20==0)for(UUID uid:hidden){Player target=Bukkit.getPlayer(uid);if(target==null)continue;for(Player viewer:Bukkit.getOnlinePlayers())if(viewer!=target){if(((dev.unified.UnifiedPlugin)plugin.host()).areClanmates(viewer.getUniqueId(),uid))viewer.showPlayer(plugin.host(),target);else viewer.hidePlayer(plugin.host(),target);}}
         tickRituals();if(ticks%10==0)detectRituals();
         for(Player p:Bukkit.getOnlinePlayers()){
             UUID id=p.getUniqueId();State bound=boundEggs.get(id);if(ticks%100==0&&bound!=null&&bound.egg!=null&&!bound.broken&&!bound.linkIssued){issueLink(p,bound,true);}
@@ -1040,7 +1041,7 @@ final class MythicTalismans implements Listener {
     }
     @EventHandler public void join(PlayerJoinEvent e){
         Player p=e.getPlayer();combat.put(p.getUniqueId(),now());
-        for(UUID uid:hidden){Player other=Bukkit.getPlayer(uid);if(other!=null&&other!=p)p.hidePlayer(plugin.host(),other);}
+        for(UUID uid:hidden){Player other=Bukkit.getPlayer(uid);if(other!=null&&other!=p&&!((dev.unified.UnifiedPlugin)plugin.host()).areClanmates(p.getUniqueId(),uid))p.hidePlayer(plugin.host(),other);}
         checkStorage(p.getEnderChest(),p);
     }
     @EventHandler public void quit(PlayerQuitEvent e){

@@ -25,12 +25,17 @@ private final NamespacedKey marker;
 private Phase phase;
 private long until;
 private final Set<UUID> changing=new HashSet<>();
+private record Pair(UUID viewer,UUID target){}
+private final Set<Pair> hidden=new HashSet<>();
+private ScoutMaps maps;
 SeasonStart(UnifiedPlugin h){host=h;marker=new NamespacedKey(h,"season_scout");}
 void enable(){
 try{phase=Phase.valueOf(host.getConfig().getString("season.phase","WAITING"));}catch(Exception ex){phase=Phase.WAITING;}
 until=host.getConfig().getLong("season.until",0);
 if(phase==Phase.SCOUT&&until<=System.currentTimeMillis()){phase=Phase.LIVE;save();}
 Bukkit.getPluginManager().registerEvents(this,host);
+maps=new ScoutMaps(host,this);maps.enable();
+Bukkit.getScheduler().runTaskTimer(host,this::visibility,1L,5L);
 for(Player p:Bukkit.getOnlinePlayers())apply(p);
 Bukkit.getScheduler().runTaskTimer(host,this::tick,20L,20L);
 host.getLogger().info("Season phase: "+phase+"; console /s (waiting), /a (10-minute exploration).");
@@ -38,6 +43,11 @@ host.getLogger().info("Season phase: "+phase+"; console /s (waiting), /a (10-min
 boolean locked(Player p){return phase!=Phase.LIVE&&!p.isOp();}
 boolean waiting(Player p){return phase==Phase.WAITING&&!p.isOp();}
 boolean active(){return phase!=Phase.LIVE;}
+boolean scouting(){return phase==Phase.SCOUT;}
+Location chosen(Player p){var c=host.claimModule();UUID id=c==null?null:c.clanId(p.getUniqueId());if(id==null)return null;try{return host.getConfig().getLocation("season.spawns."+id);}catch(Exception ex){return null;}}
+boolean choose(Player p,Location l){var c=host.claimModule();if(!scouting()||c==null||!c.clanLeader(p.getUniqueId()))return false;Location safe=safeAt(l);if(safe==null){p.sendMessage("§cВыбери безопасное место в загруженной области мира.");return false;}host.getConfig().set("season.spawns."+c.clanId(p.getUniqueId()),safe);host.saveConfig();p.sendMessage("§aСтарт клана: "+safe.getBlockX()+", "+safe.getBlockZ());for(Player q:Bukkit.getOnlinePlayers())if(host.areClanmates(p.getUniqueId(),q.getUniqueId()))q.sendMessage("§aЛидер выбрал точку старта.");return true;}
+private void visibility(){Set<Pair> next=new HashSet<>();if(scouting())for(Player a:Bukkit.getOnlinePlayers())if(!a.isOp())for(Player b:Bukkit.getOnlinePlayers())if(a!=b&&!host.areClanmates(a.getUniqueId(),b.getUniqueId())){Pair pair=new Pair(a.getUniqueId(),b.getUniqueId());next.add(pair);if(!hidden.contains(pair)||a.canSee(b))a.hidePlayer(host,b);}for(Pair pair:hidden)if(!next.contains(pair)){Player a=Bukkit.getPlayer(pair.viewer),b=Bukkit.getPlayer(pair.target);if(a!=null&&b!=null)a.showPlayer(host,b);}hidden.clear();hidden.addAll(next);}
+void disable(){for(Pair pair:hidden){Player a=Bukkit.getPlayer(pair.viewer),b=Bukkit.getPlayer(pair.target);if(a!=null&&b!=null)a.showPlayer(host,b);}hidden.clear();}
 boolean allowCommand(Player p,String root,String[] args){
 if(!locked(p))return true;
 String a=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
@@ -51,6 +61,7 @@ private void save(){host.getConfig().set("season.phase",phase.name());host.getCo
 boolean command(CommandSender sender,boolean admit){
 if(!(sender instanceof ConsoleCommandSender)&&!(sender instanceof RemoteConsoleCommandSender)){sender.sendMessage("§cТолько консоль сервера.");return true;}
 if(admit&&phase!=Phase.WAITING){sender.sendMessage("§cСначала /s. Текущий режим: "+phase);return true;}
+if(!admit)host.getConfig().set("season.spawns",null);
 phase=admit?Phase.SCOUT:Phase.WAITING;until=admit?System.currentTimeMillis()+SCOUT_MS:0;save();
 for(Player p:Bukkit.getOnlinePlayers()){p.closeInventory();apply(p);}
 sender.sendMessage("Season phase -> "+phase.name());
@@ -64,7 +75,7 @@ changing.add(p.getUniqueId());
 try{
 if(phase==Phase.LIVE){
 if(!p.getPersistentDataContainer().has(marker))return;
-Location safe=landing(p);p.teleport(safe);p.setFlying(false);p.setAllowFlight(false);p.setFlySpeed(.1f);p.setFallDistance(0);p.setGameMode(GameMode.SURVIVAL);p.getPersistentDataContainer().remove(marker);
+Location selected=chosen(p);Location safe=selected==null?null:safeAt(selected);if(safe==null)safe=landing(p);p.teleport(safe);p.setFlying(false);p.setAllowFlight(false);p.setFlySpeed(.1f);p.setFallDistance(0);p.setGameMode(GameMode.SURVIVAL);p.getPersistentDataContainer().remove(marker);
 title(p,"СЕЗОН НАЧАЛСЯ","Удачи в выживании!");return;
 }
 p.getPersistentDataContainer().set(marker,PersistentDataType.BYTE,(byte)1);p.leaveVehicle();p.setGliding(false);p.setGameMode(GameMode.ADVENTURE);p.setFallDistance(0);
@@ -73,11 +84,11 @@ if(phase==Phase.WAITING){p.teleport(p.getWorld().getSpawnLocation());p.setVeloci
 else title(p,"РАЗВЕДКА МИРА","10 минут · /clan");
 }finally{changing.remove(p.getUniqueId());}
 }
-private Location landing(Player p){
-Location l=p.getLocation();World w=l.getWorld();if(w!=null&&w.isChunkLoaded(l.getBlockX()>>4,l.getBlockZ()>>4)){
+private Location landing(Player p){Location safe=safeAt(p.getLocation());return safe==null?Bukkit.getWorlds().getFirst().getSpawnLocation():safe;}
+private Location safeAt(Location l){World w=l.getWorld();if(w!=null&&w.getEnvironment()==World.Environment.NORMAL&&w.getWorldBorder().isInside(l)&&w.isChunkLoaded(l.getBlockX()>>4,l.getBlockZ()>>4)){
 int top=w.getHighestBlockYAt(l,HeightMap.MOTION_BLOCKING_NO_LEAVES);Location t=new Location(w,l.getBlockX()+.5,top+1,l.getBlockZ()+.5,l.getYaw(),l.getPitch());
 if(top>=w.getMinHeight()&&top+2<w.getMaxHeight()&&t.getBlock().isPassable()&&!t.getBlock().isLiquid()&&t.clone().add(0,1,0).getBlock().isPassable()&&!t.clone().add(0,1,0).getBlock().isLiquid()&&w.getBlockAt(l.getBlockX(),top,l.getBlockZ()).getType().isSolid()&&!Set.of(Material.CACTUS,Material.MAGMA_BLOCK,Material.CAMPFIRE,Material.SOUL_CAMPFIRE,Material.POWDER_SNOW).contains(w.getBlockAt(l.getBlockX(),top,l.getBlockZ()).getType()))return t;}
-return Bukkit.getWorlds().getFirst().getSpawnLocation();
+return null;
 }
 private void tick(){
 if(phase==Phase.SCOUT&&System.currentTimeMillis()>=until){phase=Phase.LIVE;until=0;save();for(Player p:Bukkit.getOnlinePlayers())apply(p);Bukkit.broadcastMessage("§6§lСТАРТ! §fВыживание открыто.");return;}
@@ -105,7 +116,7 @@ else{if(!p.getAllowFlight())p.setAllowFlight(true);p.setFlySpeed(.25f);long sec=
 @EventHandler(priority=EventPriority.LOWEST) public void portal(PlayerPortalEvent e){if(locked(e.getPlayer()))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.LOWEST) public void mount(EntityMountEvent e){if(e.getEntity() instanceof Player p&&locked(p))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.LOWEST) public void mode(PlayerGameModeChangeEvent e){if(locked(e.getPlayer())&&!changing.contains(e.getPlayer().getUniqueId()))e.setCancelled(true);}
-private boolean safeMenu(Inventory i){var h=i.getHolder();if(h==null)return false;String n=h.getClass().getName();return n.equals("dev.targetclaim.TargetClaimPlugin$ClaimMenu")||n.equals("dev.unified.RecipeGuide$Menu");}
+private boolean safeMenu(Inventory i){var h=i.getHolder();if(h==null)return false;String n=h.getClass().getName();return n.equals("dev.targetclaim.TargetClaimPlugin$ClaimMenu")||n.equals("dev.unified.RecipeGuide$Menu")||n.equals("dev.unified.ScoutMaps$Selector");}
 @EventHandler(priority=EventPriority.LOWEST) public void inventory(InventoryOpenEvent e){if(e.getPlayer() instanceof Player p&&locked(p)&&!safeMenu(e.getInventory()))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.LOWEST) public void craft(CraftItemEvent e){if(e.getWhoClicked() instanceof Player p&&locked(p))e.setCancelled(true);}
 @EventHandler(priority=EventPriority.LOWEST) public void inventoryClick(InventoryClickEvent e){if(e.getWhoClicked() instanceof Player p&&locked(p)&&!safeMenu(e.getView().getTopInventory()))e.setCancelled(true);}
