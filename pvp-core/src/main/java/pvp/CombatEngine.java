@@ -34,7 +34,7 @@ public static Decision autoCritical(Frame frame,int descendingTicks,boolean hitT
 if(hitThisFall || descendingTicks < ((frame.opponentFalling() || frame.opponentRecentlyAttacked())?1:2)) return Decision.WAIT;
 return evaluate(Mode.CRITICAL,frame);
 }
-public enum Action { WAIT_TARGET, WAIT_COOLDOWN, WAIT_LANDING, WAIT_DESCENT, WAIT_JUMP, STOP_SPRINT, JUMP, CRITICAL, NORMAL }
+public enum Action { WAIT_TARGET, WAIT_COOLDOWN, WAIT_LANDING, WAIT_DESCENT, WAIT_JUMP, WAIT_SPRINT, STOP_SPRINT, JUMP, CRITICAL, COMBO, NORMAL }
 public static Action plan(Frame f,int descendingTicks,boolean hitThisFall,boolean canJump,boolean jumpPending,boolean attackReady,boolean jumpReady) {
 return plan(f,descendingTicks,hitThisFall,canJump,jumpPending,attackReady,jumpReady,false);
 }
@@ -78,6 +78,27 @@ if(charged && !f.restricted() && !f.sprinting() && f.fallDistance()>0 && descend
 if(charged && (urgent || f.restricted() || readyWait>=5)) return Action.NORMAL;
 if(!f.restricted() && f.sprinting()) return Action.STOP_SPRINT;
 return charged?Action.WAIT_DESCENT:Action.WAIT_COOLDOWN;
+}
+/** Distance hysteresis: a critical jump requires a comfortable reach margin. */
+public static boolean preferCombo(boolean previous,double now,double predicted,double reach,boolean underPressure) {
+if(!Double.isFinite(now) || !Double.isFinite(predicted) || !Double.isFinite(reach) || reach<=0) return false;
+double distance=Math.max(now,predicted);
+double enter=reach*(underPressure?.68:.78);
+double exit=reach*.62;
+return distance>(previous?exit:enter);
+}
+public static Action hybridPlan(Frame f,int descendingTicks,boolean hitThisFall,boolean canJump,boolean jumpPending,boolean attackReady,boolean jumpReady,boolean urgent,double weaponDelay,int readyWait,int jumpHorizon,boolean combo,boolean canSprint) {
+if(!combo) return adaptivePlan(f,descendingTicks,hitThisFall,canJump,jumpPending,attackReady,jumpReady,urgent,weaponDelay,readyWait,jumpHorizon);
+if(!TargetFilter.accepts(f.target()) || !f.inRange() || !f.crosshairOnTarget()) return Action.WAIT_TARGET;
+if(hitThisFall && !f.grounded()) return Action.WAIT_LANDING;
+if(!attackReady || !Double.isFinite(f.cooldown()) || f.cooldown()<.95) return Action.WAIT_COOLDOWN;
+if(f.grounded()) {
+if(f.restricted()) return Action.NORMAL;
+if(f.sprinting()) return Action.COMBO;
+return canSprint && readyWait<3?Action.WAIT_SPRINT:Action.NORMAL;
+}
+if(!f.restricted() && !f.sprinting() && f.fallDistance()>0 && descendingTicks>=1) return Action.CRITICAL;
+return urgent || readyWait>=4 || f.restricted()?Action.NORMAL:Action.WAIT_DESCENT;
 }
 private CombatEngine() {}
 }

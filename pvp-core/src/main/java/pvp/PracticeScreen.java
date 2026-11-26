@@ -21,7 +21,7 @@ int x=width/2-110;
 int step=Math.max(16,Math.min(24,(height-34)/9)), h=step-2;
 int y=Math.max(30,(height-(9*step+30))/2+30);
 addRenderableOnly(new StringWidget(x,y-28,220,12,Component.literal("LAND OF LOSERS").withStyle(ChatFormatting.GOLD,ChatFormatting.BOLD),font));
-addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Body Practice | 1.9.3 | R").withStyle(ChatFormatting.GRAY),font));
+addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Body Practice | 1.9.4 | R").withStyle(ChatFormatting.GRAY),font));
 addRenderableWidget(Button.builder(status("AimAssist",PracticeClient.settings.aimEnabled()),button -> {
 var s=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(!s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
@@ -31,7 +31,7 @@ addRenderableWidget(Button.builder(status("AutoCritical",PracticeClient.settings
 var s=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(s.aimEnabled(),!s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
 button.setMessage(status("AutoCritical",PracticeClient.settings.triggerEnabled()));
-}).tooltip(Tooltip.create(Component.literal("Weapon-aware critical and normal attack timing."))).bounds(x,y+1*step,220,h).build());
+}).tooltip(Tooltip.create(Component.literal("Adaptive sprint hits at range; critical jumps when close. Uses normal weapon cooldown."))).bounds(x,y+1*step,220,h).build());
 addRenderableWidget(Button.builder(Component.literal("FOV: "+(int)PracticeClient.settings.fov()),button -> {
 var s=PracticeClient.settings;
 double fov=s.fov()>=360?35:s.fov()<60?60:s.fov()<90?90:s.fov()<150?150:s.fov()<180?180:s.fov()<270?270:360;

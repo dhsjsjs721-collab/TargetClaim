@@ -252,6 +252,20 @@ var correction=AimModel.smoothTurn(from,to,new AimModel.Turn(rng.nextDouble()*18
 check(Math.abs(correction.yaw())<=Math.abs(AimModel.wrap(to.yaw()-from.yaw()))+1e-9);
 check(Math.abs(correction.pitch())<=Math.abs(to.pitch()-from.pitch())+1e-9);
 }
+check(!CombatEngine.preferCombo(false,1.5,1.7,3,false));
+check(CombatEngine.preferCombo(false,2.5,2.7,3,false));
+check(CombatEngine.preferCombo(true,2.0,2.1,3,false));
+check(!CombatEngine.preferCombo(true,1.6,1.7,3,false));
+check(CombatEngine.preferCombo(false,2.2,2.2,3,true));
+check(CombatEngine.hybridPlan(combo,0,false,true,false,true,true,false,12,1,6,true,true)==CombatEngine.Action.COMBO);
+check(CombatEngine.hybridPlan(normal,0,false,true,false,true,true,false,12,1,6,true,true)==CombatEngine.Action.WAIT_SPRINT);
+check(CombatEngine.hybridPlan(normal,0,false,true,false,true,true,false,12,3,6,true,true)==CombatEngine.Action.NORMAL);
+check(CombatEngine.hybridPlan(normal,0,false,true,false,true,true,false,12,1,6,false,true)==CombatEngine.Action.JUMP);
+check(CombatEngine.hybridPlan(crit,1,false,true,false,true,true,false,12,1,6,true,true)==CombatEngine.Action.CRITICAL);
+check(CombatEngine.hybridPlan(lostCrosshair,1,false,true,false,true,true,false,12,1,6,true,true)==CombatEngine.Action.WAIT_TARGET);
+check(CombatEngine.hybridPlan(crit,1,true,true,false,true,true,false,12,1,6,true,true)==CombatEngine.Action.WAIT_LANDING);
+trace.clear(); trace.style(true); trace.style(false); trace.attempt(1,false,true); trace.attempt(2,true,false);
+check(trace.report().contains("combo=1 critical=1 | attempts: sprint=1 critical=1"));
 System.out.println("Combat tests passed");
 }
 }
