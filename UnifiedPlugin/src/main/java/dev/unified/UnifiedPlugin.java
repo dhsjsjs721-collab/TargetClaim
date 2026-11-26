@@ -37,6 +37,7 @@ private Goblins goblins;
 private Verity verity;
 private Shopkeepers shops;
 private RecipeGuide recipeGuide;
+private DragonCycle dragons;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("claims","p"),Map.entry("p","p"),Map.entry("private","p"),
 Map.entry("team","team"),Map.entry("teams","team"),Map.entry("clan","team"),Map.entry("clans","team"),
@@ -115,6 +116,8 @@ deepslateCrafts=null;
 if(Bukkit.getPluginManager().getPlugin("TalismanForge")!=null){
 getLogger().severe("WARNING: standalone TalismanForge detected. Remove its old JAR from plugins to prevent duplicate abilities or command conflicts.");
 }
+org.bukkit.inventory.ShapedRecipe verityRecipe=new org.bukkit.inventory.ShapedRecipe(new org.bukkit.NamespacedKey("minecraftunified","craft_verity"),Verity.item());verityRecipe.shape("GAG","ABA","GAG");verityRecipe.setIngredient('G',org.bukkit.Material.GOLD_BLOCK);verityRecipe.setIngredient('A',org.bukkit.Material.AMETHYST_SHARD);verityRecipe.setIngredient('B',org.bukkit.Material.POLISHED_BLACKSTONE);Bukkit.addRecipe(verityRecipe);
+dragons=new DragonCycle(this);dragons.enable();
 recipeGuide=new RecipeGuide(this);recipeGuide.enable();
 getLogger().info("MinecraftUnified 1.1.22 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
@@ -264,6 +267,7 @@ if(action.equals("skin"))return media==null?unavailable(sender):media.skin(sende
 if(action.equals("disc"))return media==null?unavailable(sender):media.disc(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("shop"))return shops==null?unavailable(sender):shops.command(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("give"))return giveShortcut(sender,args);
+if(action.equals("dragon")){return dragons==null?unavailable(sender):dragons.status(sender);}
 if(action.equals("recipes")){if(sender instanceof org.bukkit.entity.Player p&&recipeGuide!=null)recipeGuide.open(p);else recipes(sender);return true;}
 if(action.equals("guide")){claimGuide(sender);recipes(sender);return true;}
 if(action.equals("vfx")){for(ModuleBridge m:enabledModules)if(m instanceof TalismanForgePlugin t)return t.onCommand(sender,getCommand("talismanforge"),"tf",new String[]{"vfx",args.length>=2?args[1]:""});return unavailable(sender);}
@@ -301,7 +305,7 @@ if(command.getName().equals("unifiedmsg")){var claims=claimModule();return claim
 if(command.getName().equals("unifiedreply"))return List.of();
 if(args.length<=1){
 String prefix=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-return List.of("help","guide","recipes","give","vfx","status","claim","team","clan","talisman","enchant","wildlife","spawn","frog","goblin","trader","map","trap","mining","shop","skin","disc","video")
+return List.of("help","guide","recipes","give","vfx","status","claim","team","clan","talisman","enchant","wildlife","spawn","frog","goblin","trader","map","trap","mining","shop","skin","disc","video","dragon")
 .stream().filter(x->x.startsWith(prefix)).toList();
 }
 String action=args[0].toLowerCase(Locale.ROOT);
@@ -333,6 +337,7 @@ return sub.tabComplete(sender,target,rest);
 }catch(Exception ex){return List.of();}
 }
 @Override public void onDisable(){
+if(dragons!=null){dragons.disable();dragons=null;}
 if(shops!=null){shops.disable();shops=null;}
 if(verity!=null){verity.disable();verity=null;}
 if(mirrorArmor!=null){mirrorArmor.disable();mirrorArmor=null;}

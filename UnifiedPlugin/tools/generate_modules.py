@@ -37,8 +37,11 @@ def swap(code,old,new,label,required=True):
 
 def convert(code,namespace,name,path):
     plugin_class=name+"Plugin"
+    if name=="SwampSky":
+        code=swap(code,"private void recipes(){","private void recipes(){\nShapedRecipe hide=new ShapedRecipe(new NamespacedKey(\"swampsky\",\"frog_hide\"),item(\"hide\",1));hide.shape(\"LSL\",\"SRS\",\"LSL\");hide.setIngredient(\'L\',Material.LEATHER);hide.setIngredient(\'S\',Material.SLIME_BALL);hide.setIngredient(\'R\',Material.RABBIT_HIDE);Bukkit.addRecipe(hide);","frog hide craft")
     if name=="TargetClaim":
         code=swap(code,'meta.setDisplayName("§d§l✦ Ядро привата ✦");','meta.setDisplayName("§d§l✦ Ядро привата ✦");meta.setItemModel(new NamespacedKey("targetclaim","claim_core"));',"core model")
+        code=swap(code,"Bukkit.addRecipe(keyRecipe);","Bukkit.addRecipe(keyRecipe);\nShapedRecipe independent=new ShapedRecipe(new NamespacedKey(\"targetclaim\",\"independent_recipe\"),independentTarget());independent.shape(\"DDD\",\"DAD\",\"DDD\");independent.setIngredient(\'D\',Material.DIAMOND);independent.setIngredient(\'A\',Material.DIAMOND_BLOCK);Bukkit.addRecipe(independent);","independent craft")
         code=swap(code,'meta.setDisplayName("§6§lНезависимый приват");','meta.setDisplayName("§6§lНезависимый приват");meta.setItemModel(new NamespacedKey("targetclaim","independent_core"));',"independent core model")
     if name=="EnchantmentForge":
         code=swap(code,"traderFeature.start();","traderFeature.start();\nregisterExtraCrafts();","register forge crafts")

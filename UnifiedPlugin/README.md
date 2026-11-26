@@ -1,3 +1,7 @@
+# Gameplay update
+
+Medusa: gaze does not require reciprocal eye contact; stun lasts 15 seconds even when damaged, shield reflects a front-facing gaze, boss/allied/peace-zone/shop exclusions remain. Old Koschei bindings retire when a new egg is placed; stale souls cannot work; old loaded eggs are deleted and unloaded eggs are cleaned on next load. Crafted mythic seals redeem unique saved relics. Extra recipes for independent claim, Verity and frog hide; the personal shop token remains a wandering trader exclusive. End dragon egg odds 100% first kill, 50% later; five-hour persistent respawn timer, starts the vanilla sequence when a player is in the End. `/u dragon` shows status.
+
 # Recipe and media update
 
 Personal merchant token is guaranteed in every wandering trader, including existing traders without an offer, for 32 diamonds. `/u recipes` opens a protected recipe viewer populated from registered custom recipes and unlocks the native recipe book. Added survival crafts for Soulbound, Triple Shot and return charm. Personal merchant, Verity and independent claims remain trader-exclusive; mythic talismans remain ritual rewards. `/skin` applies the Paper live profile update; `/disc` stores a link on a disc, `clear` removes it, and inserting the disc in a jukebox sends a clickable link to nearby players (32 blocks). `/u video <YouTube>` loads a static video thumbnail using ImageMaps. No streaming audio/video is implemented; vanilla clients need mods or a browser for actual playback.
