@@ -130,6 +130,13 @@ def convert(code,namespace,name,path):
 
 
 
+    if name=="TargetClaim":
+        # Empty inventory cells must really be empty; never use a custom item as background.
+        code=swap(code,'ItemStack black=guiItem(Material.BLACK_STAINED_GLASS_PANE," ");\nfor(int i=0;i<27;i++)inv.setItem(i,black);','inv.clear();',"plain chest menu")
+        code=code.replace('guiItem(Material.BLACK_STAINED_GLASS_PANE," ")','null')
+        code=swap(code,'private void fillTeamMenu(Inventory inv,Player player){','private void fillTeamMenu(Inventory inv,Player player){\nguiBase(inv);',"clear stale clan buttons")
+        code=swap(code,'if(slot<0||slot>=inv.getSize())return;','if(slot<0||slot>=inv.getSize()||inv.getItem(slot)==null||inv.getItem(slot).getType().isAir())return;',"ignore blank menu slots")
+
     # TalismanForge's previous shield and item state keys already use the
     # original namespace, via the explicit Keys above. No data migration.
     return code
