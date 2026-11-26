@@ -345,6 +345,13 @@ check(trace.report().contains("Geometry aligned: 1/2"));
 check(trace.report().contains("correction delta RMS=5.00 peak=5.00"));
 trace.clear();
 check(trace.report().contains("Geometry aligned: 0/0"));
+var refineEye=new AimModel.Vec(0,1.6,0);
+var refineBox=new AimModel.Box(new AimModel.Vec(-.3,0,2),new AimModel.Vec(.3,1.8,2.6));
+var refineView=new AimModel.Angles(18,5);
+var refineStep=AimModel.refinedTurn(refineEye,refineView,refineBox,new AimModel.Turn(0,0),smoothSettings,0);
+check(AimModel.intersects(refineEye,new AimModel.Angles(refineView.yaw()+refineStep.yaw(),refineView.pitch()+refineStep.pitch()),refineBox));
+check(AimModel.refinedTurn(refineEye,front,refineBox,new AimModel.Turn(2,3),smoothSettings,0).equals(new AimModel.Turn(0,0)));
+trace.clear(); trace.support("Inventory mismatch"); check(trace.report().contains("Inventory mismatch=1"));
 System.out.println("Combat tests passed");
 }
 }

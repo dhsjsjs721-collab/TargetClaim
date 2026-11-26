@@ -105,6 +105,30 @@ double yawLimit=32+12*moving,pitchLimit=20+8*moving;
 // Acquire the interior of the box directly when reachable within the bounded turn.
 return new Turn(clamp(dy,-yawLimit,yawLimit),clamp(dp,-pitchLimit,pitchLimit));
 }
+/** Select an interior correction with a small change in angular velocity.
+ * Retain the existing view when it intersects; use bounded acquisition if no feasible candidate exists. */
+public static Turn refinedTurn(Vec eye,Angles current,Box box,Turn previous,CombatSettings settings,double motion) {
+if(!settings.aimEnabled() || intersects(eye,current,box)) return new Turn(0,0);
+var desired=lockDirection(eye,current,box);
+if(error(current,desired)>settings.fov()/2) return new Turn(0,0);
+var direct=lockTurn(eye,current,box,previous,settings,motion);
+double dx=(box.max().x()-box.min().x())*.10,dy=(box.max().y()-box.min().y())*.10,dz=(box.max().z()-box.min().z())*.10;
+var inner=new Box(new Vec(box.min().x()+dx,box.min().y()+dy,box.min().z()+dz),new Vec(box.max().x()-dx,box.max().y()-dy,box.max().z()-dz));
+Turn best=null;
+double cost=Double.POSITIVE_INFINITY;
+double yawError=wrap(desired.yaw()-current.yaw()),pitchError=desired.pitch()-current.pitch();
+double maxYaw=Math.abs(direct.yaw()),maxPitch=Math.abs(direct.pitch());
+double[] scales={.45,.65,.85,1};
+double[] ys={direct.yaw()*scales[0],direct.yaw()*scales[1],direct.yaw()*scales[2],direct.yaw(),clamp(previous.yaw(),Math.min(0,direct.yaw()),Math.max(0,direct.yaw()))};
+double[] ps={direct.pitch()*scales[0],direct.pitch()*scales[1],direct.pitch()*scales[2],direct.pitch(),clamp(previous.pitch(),Math.min(0,direct.pitch()),Math.max(0,direct.pitch()))};
+for(double y:ys) for(double p:ps) {
+if(Math.abs(y)>maxYaw || Math.abs(p)>maxPitch) continue;
+if(!intersects(eye,new Angles(current.yaw()+y,clamp(current.pitch()+p,-90,90)),inner)) continue;
+double score=Math.hypot(y-previous.yaw(),p-previous.pitch())+.32*Math.hypot(y,p)+.08*Math.hypot(y-yawError,p-pitchError);
+if(score<cost) { cost=score; best=new Turn(y,p); }
+}
+return best==null?direct:best;
+}
 private static double slew(double error,double desired,double previous,double acceleration) {
 if(Math.abs(error)<.12) return 0;
 if(Math.signum(previous)!=Math.signum(error)) previous=0;

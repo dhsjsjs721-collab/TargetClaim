@@ -62,11 +62,12 @@ return new Result(aligned,first,longestMiss,Math.sqrt(sum/TICKS),peak,peakTurn);
 }
 public static void main(String[] args) {
 String[] names={"initial_turn","strafe","orbit","reversal","vertical","position_step","close","relative_motion"};
-String[] variants={"direct_1.9.8","legacy_smooth","experimental"};
+String[] variants={"direct_1.9.8","legacy_smooth","experimental","refined_1.10.0"};
 Controller[] controllers={
 (e,v,b,p,m)->AimModel.lockTurn(e,v,b,p,SETTINGS,m),
 (e,v,b,p,m)->AimModel.intersects(e,v,b)?ZERO:AimModel.smoothTurn(v,AimModel.lockDirection(e,v,b),p,SETTINGS,m),
-AimBenchmark::candidate
+AimBenchmark::candidate,
+(e,v,box,p,m)->AimModel.refinedTurn(e,v,box,p,SETTINGS,m)
 };
 System.out.println("AIM BENCHMARK | 20 Hz synthetic samples, no game physics");
 System.out.println("scenario,controller,aligned_pct,first_tick,longest_miss,rms_delta,peak_delta,peak_turn");

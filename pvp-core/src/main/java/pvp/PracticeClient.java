@@ -17,12 +17,13 @@ static boolean guiLocked;
 static CombatSettings settings=CombatSettings.defaults();
 private static Object hotkeyWorld,hotkeyPlayer;
 private static boolean hotkeyActive,hotkeyHeld,supportBusy;
+private static int hudTicks;
 static boolean hotkeyActive() { return hotkeyActive; }
 static void stopPractice(Minecraft mc) {
 var s=settings;
 settings=new CombatSettings(false,false,s.horizontalSpeed(),s.verticalSpeed(),s.fov());
 hotkeyActive=false; hotkeyWorld=null; hotkeyPlayer=null;
-PracticeSupport.reset(); supportBusy=false;
+PracticeSupport.reset(); supportBusy=false; hudTicks=0;
 PracticeCombat.autoMove=false;
 PracticeCombat.clearServerTarget();
 PracticeCombat.releaseInput(mc);
@@ -83,6 +84,10 @@ while(key.consumeClick()) {
 if(!guiLocked && client.player != null && client.gui.screen()==null) client.gui.setScreen(new PracticeScreen());
 }
 if(!supportBusy) PracticeCombat.tick(client,settings);
+if(hotkeyActive && client.gui.screen()==null && ++hudTicks>=20) {
+hudTicks=0;
+client.gui.hud.setOverlayMessage(Component.literal(PracticeCombat.targetSummary(client)+" | "+PracticeSupport.inventorySummary(client)),false);
+}
 });
 ScreenEvents.BEFORE_INIT.register((client,screen,w,h) -> {
 if(screen instanceof PracticeScreen) ScreenKeyboardEvents.beforeKeyPress(screen).register((s,event) -> {

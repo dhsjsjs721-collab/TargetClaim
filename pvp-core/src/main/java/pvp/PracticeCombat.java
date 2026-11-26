@@ -23,7 +23,22 @@ return serverTarget;
 }
 static boolean hasLockedTarget(Minecraft mc) { return currentServerTarget(mc)!=null; }
 static double supportDistance(Minecraft mc) { var target=currentServerTarget(mc); return target==null || mc.player==null?Double.NaN:Math.sqrt(mc.player.distanceToSqr(target.entity())); }
-static void supportPause(Minecraft mc,String reason) { trace.breakAimSequence(); clearJump(); readyWait=0; waitingTarget=null; releaseInput(mc); setStatus(reason); }
+static void supportPause(Minecraft mc,String reason) {
+if(mc.player==null || mc.level==null) return;
+if(lastPlayer!=mc.player || lastLevel!=mc.level) resetWorld(mc);
+sessionActive=true; trackingTick++; expirePending();
+if(mc.player.getHealth()<lastHealth) incomingDamage(); else if(responseWindow>0) responseWindow--;
+lastHealth=mc.player.getHealth();
+if(jumpDelay>0) jumpDelay--; if(attackDelay>0) attackDelay--; if(blockedJumpTicks>0) blockedJumpTicks--;
+if(mc.player.onGround()) hitThisFall=false;
+resetTracking(); clearJump(); readyWait=0; waitingTarget=null;
+releaseInput(mc); trace.support(reason); setStatus(reason);
+}
+static String targetSummary(Minecraft mc) {
+var selected=currentServerTarget(mc);
+if(selected==null || mc.player==null) return "";
+return selected.name()+" | HP "+String.format(java.util.Locale.ROOT,"%.1f",selected.entity().getHealth())+" | "+String.format(java.util.Locale.ROOT,"%.1f",supportDistance(mc))+" blocks | "+status;
+}
 static void clearServerTarget() { serverTarget=null; clearJump(); aimTarget=null; resetTracking(); resetStyle(); }
 static String selectNearestPracticeTarget(Minecraft mc) {
 if(mc.player==null || mc.level==null || mc.gameMode==null || !available(mc,mc.player)) return null;
@@ -109,13 +124,13 @@ private static float lastHealth;
 private static int responseWindow;
 private static final CombatEngine.Recovery recovery=new CombatEngine.Recovery();
 private static final CombatEngine.Exchange exchange=new CombatEngine.Exchange();
-private static int orbitSide;
+private static int orbitSide,blockedMovementTicks;
 private static LivingEntity orbitTarget;
 private static boolean retreating;
 private static void incomingDamage() { if(recovery.hit(trackingTick)) trace.event(trackingTick,"INCOMING_DAMAGE"); responseWindow=12; }
 private static boolean comboMode;
 private static LivingEntity styleTarget;
-private static void resetStyle() { comboMode=false; styleTarget=null; orbitTarget=null; orbitSide=0; retreating=false; exchange.reset(); }
+private static void resetStyle() { comboMode=false; styleTarget=null; orbitTarget=null; orbitSide=0; blockedMovementTicks=0; retreating=false; exchange.reset(); }
 private static int readyTicks;
 private static String status="Disabled";
 static String status() { return status; }
@@ -301,7 +316,7 @@ bestError=AimModel.error(current,best);
 angularError=bestError;
 boolean onTarget=AimModel.intersects(origin,current,box);
 if((locked || bestError>.12) && !onTarget) {
-turn=locked?AimModel.lockTurn(origin,current,box,turn,settings,motionAngle):AimModel.smoothTurn(current,best,turn,settings,motionAngle);
+turn=locked?AimModel.refinedTurn(origin,current,box,turn,settings,motionAngle):AimModel.smoothTurn(current,best,turn,settings,motionAngle);
 trace.aimCorrection(turn.yaw(),turn.pitch());
 self.setYRot(self.getYRot()+(float)turn.yaw());
 self.setXRot((float)Math.max(-90,Math.min(90,self.getXRot()+turn.pitch())));
@@ -362,7 +377,7 @@ if(before!=retreating) trace.event(trackingTick,retreating?"DISENGAGE_START":"DI
 if((combo || recovering || retreating) && self.onGround() && jumpRequested) clearJump();
 if(jumpTarget!=null && jumpItem!=self.getMainHandItem().getItem()) { clearJump(); trace.event(trackingTick,"JUMP_CANCEL_ITEM_CHANGE"); }
 boolean critActive=jumpTarget!=null && aimValid(self,jumpTarget) && !restricted(self);
-if(critActive || (!combo && combatTarget!=null && valid(self,combatTarget) && !restricted(self)) || (!self.onGround() && !hitThisFall && self.getDeltaMovement().y<0 && combatTarget!=null && valid(self,combatTarget) && !restricted(self))) {
+if(critActive || (!combo && !retreating && combatTarget!=null && valid(self,combatTarget) && !restricted(self)) || (!self.onGround() && !hitThisFall && self.getDeltaMovement().y<0 && combatTarget!=null && valid(self,combatTarget) && !restricted(self))) {
 if(mc.options.keySprint.isDown()) { mc.options.keySprint.setDown(false); forcedSprint=true; }
 self.setSprinting(false);
 }
@@ -380,15 +395,17 @@ var other=aimTarget.getDeltaMovement();
 double targetX=aimTarget==sampledTarget?targetMotion.x():other.x;
 double targetZ=aimTarget==sampledTarget?targetMotion.z():other.z;
 double reach=self.getAttackRangeWith(self.getMainHandItem()).effectiveMaxRange(self);
-if(orbitTarget!=aimTarget) { orbitTarget=aimTarget; orbitSide=0; }
+if(orbitTarget!=aimTarget) { orbitTarget=aimTarget; orbitSide=0; blockedMovementTicks=0; }
 orbitSide=CombatAI.orbitSide(dx,dz,aimTarget.getYRot(),orbitSide);
 java.util.function.BiPredicate<Double,Double> safe=(mx,mz)->{
 var next=self.getBoundingBox().move(mx,0,mz);
 return mc.level.noCollision(self,next) && !mc.level.noCollision(self,next.move(0,self.onGround()?-.7:-1.7,0));
 };
 var choice=retreating?CombatAI.chooseRetreat(dx,dz,self.getYRot(),velocity.x,velocity.z,lastMovement,safe):CombatAI.chooseFollow(dx,dz,aimTarget.getYRot(),self.getYRot(),velocity.x,velocity.z,targetX,targetZ,reach,lastMovement,orbitSide,safe);
+if(!retreating && !Double.isFinite(choice.cost())) choice=CombatAI.choosePath(dx,dz,aimTarget.getYRot(),self.getYRot(),velocity.x,velocity.z,targetX,targetZ,reach-.65,reach,tracker.uncertainty(),lastMovement,safe);
 var move=choice.movement();
 lastMovement=move;
+if(!Double.isFinite(choice.cost()) || Math.hypot(dx,dz)>reach && !move.forward() && !move.back() && !move.left() && !move.right()) { if(++blockedMovementTicks==8) trace.event(trackingTick,"MOVEMENT_STALLED"); } else blockedMovementTicks=0;
 if(Double.isFinite(choice.cost())) {
 trace.movement(retreating?"DISENGAGE":Math.hypot(dx,dz)>reach?"FOLLOW":move.left() || move.right()?"FLANK":move.forward()?"APPROACH":move.back()?"RETREAT":"HOLD");
 if(move.forward()) { mc.options.keyUp.setDown(true); forcedForward=true; }
