@@ -2,7 +2,7 @@
 
 **Precision. Control. Adaptation.**
 
-A compact Minecraft PvP practice client for offline solo practice.
+A compact Minecraft PvP practice client for solo and authorized server bot practice.
 
 - Adaptive aim assistance
 - Weapon-aware attack scheduling
@@ -21,4 +21,4 @@ Automated tests cover the mathematical model. Actual in-game performance has not
 
 FOV and golem practice preference are stored in `config/land-of-losers.properties`. Combat automation is never restored automatically. Disable all & close leaves the menu accessible for explicit reactivation.
 
-Version 1.9.0 restricts automation to unpublished integrated worlds and iron golem targets. Body geometry does not recenter an intersecting ray.
+Version 1.9.1 keeps local iron golem practice and adds explicit server/LAN practice target selection. On an authorized practice server, aim at your bot (player entity or iron golem) within interaction reach, open the menu with Down Arrow, click Select server practice target, enable the desired modules and close the menu. Only the selected entity UUID is eligible; selection is cleared on world/player changes and is not persisted. Click Clear target or Disable all & close to stop. Body geometry does not recenter an intersecting ray. No anti-cheat bypass or server compatibility guarantee.

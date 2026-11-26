@@ -12,6 +12,32 @@ import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 public final class PracticeCombat {
 static boolean golemTest;
 static boolean autoMove=false;
+private record ServerTarget(Object world,LocalPlayer player,java.util.UUID id,String name) {}
+private static ServerTarget serverTarget;
+private static boolean localPractice(Minecraft mc) {
+return mc.hasSingleplayerServer() && mc.getSingleplayerServer()!=null && !mc.getSingleplayerServer().isPublished();
+}
+private static ServerTarget currentServerTarget(Minecraft mc) {
+if(serverTarget!=null && (serverTarget.world()!=mc.level || serverTarget.player()!=mc.player || localPractice(mc))) serverTarget=null;
+return serverTarget;
+}
+static void clearServerTarget() { serverTarget=null; clearJump(); aimTarget=null; resetTracking(); }
+static String serverTargetLabel(Minecraft mc) {
+if(localPractice(mc)) return "Local practice only";
+var target=currentServerTarget(mc);
+return target==null?"Select server practice target":"Clear target: "+target.name();
+}
+static String toggleServerTarget(Minecraft mc) {
+if(localPractice(mc) || mc.player==null || mc.level==null || mc.gameMode==null) return "Join a practice server first";
+if(currentServerTarget(mc)!=null) { clearServerTarget(); return serverTargetLabel(mc); }
+var self=mc.player;
+var hit=pickTarget(mc,self);
+if(hit==null || !(hit.getEntity() instanceof LivingEntity target) || target==self || !target.isAlive() || target.isInvisible() || target.isSpectator() || !self.hasLineOfSight(target) || (!(target instanceof Player) && !isGolem(target)) || (target instanceof Player other && !self.canHarmPlayer(other))) return "Aim at your practice bot first";
+serverTarget=new ServerTarget(mc.level,self,target.getUUID(),target.getName().getString());
+clearJump(); aimTarget=null; resetTracking();
+return serverTargetLabel(mc);
+}
+private static boolean isGolem(LivingEntity target) { return "entity.minecraft.iron_golem".equals(target.getType().getDescriptionId()); }
 private static final double AIM_RANGE=6.0;
 private record Pending(int entityId,long tick) {}
 private static final ArrayDeque<Pending> pending=new ArrayDeque<>();
@@ -71,13 +97,17 @@ static int readyTicks() { return readyTicks; }
 static CombatEngine.Decision decision() { return decision; }
 private static boolean valid(LocalPlayer self,LivingEntity target) { return aimValid(self,target) && inRange(self,target); }
 private static boolean aimValid(LocalPlayer self,LivingEntity target) {
-return target!=self && golemTest && "entity.minecraft.iron_golem".equals(target.getType().getDescriptionId()) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && (!(target instanceof Player other) || self.canHarmPlayer(other)) && self.distanceToSqr(target)<=AIM_RANGE*AIM_RANGE;
+var mc=Minecraft.getInstance();
+var selected=currentServerTarget(mc);
+boolean chosen=selected!=null && selected.id().equals(target.getUUID());
+return target!=self && TargetFilter.practiceTarget(localPractice(mc),golemTest,isGolem(target),chosen) && target.isAlive() && !target.isSpectator() && !target.isInvisible() && self.hasLineOfSight(target) && (!(target instanceof Player other) || self.canHarmPlayer(other)) && self.distanceToSqr(target)<=AIM_RANGE*AIM_RANGE;
 }
 private static boolean inRange(LocalPlayer self, LivingEntity target) {
 return self.getAttackRangeWith(self.getMainHandItem()).isInRange(self,target.getBoundingBox(),0.0);
 }
 private static boolean enabled(Minecraft mc) {
-return mc.player!=null && mc.level!=null && mc.gameMode!=null && mc.hasSingleplayerServer() && mc.getSingleplayerServer()!=null && !mc.getSingleplayerServer().isPublished();
+var selected=currentServerTarget(mc);
+return mc.player!=null && mc.level!=null && mc.gameMode!=null && (localPractice(mc) || selected!=null);
 }
 private static boolean available(Minecraft mc,LocalPlayer self) {
 return mc.gui.screen()==null && !mc.isPaused() && mc.getCameraEntity()==self && self.isAlive() && !self.isSpectator() && !self.isCreative() && !self.isUsingItem() && !self.isHandsBusy();
@@ -99,7 +129,7 @@ trackingTick=0; hitThisFall=false; angularError=Double.NaN; decision=CombatEngin
 startStrength=Float.NaN; startItem=null; startWeaponDelay=0; manualTick=-1; lastWeapon=null; lastWeaponDelay=Double.NaN;
 }
 static void tick(Minecraft mc,CombatSettings settings) {
-if(!enabled(mc)) { if(sessionActive) resetWorld(mc); status="Not in enabled world"; return; }
+if(!enabled(mc)) { if(sessionActive) resetWorld(mc); status=mc.player!=null && !localPractice(mc)?"Select server practice target":"Not in enabled world"; return; }
 var self=mc.player;
 if(lastPlayer!=self || lastLevel!=mc.level) resetWorld(mc);
 sessionActive=true;
@@ -162,7 +192,7 @@ switch(action) {
 case JUMP -> { requestedJumpTick=trackingTick; observedAscent=false; jumpRequested=true; jumpPressTicks=3; jumpDelay=5; jumpTarget=target; jumpItem=self.getMainHandItem().getItem(); jumpAge=0; }
 case STOP_SPRINT -> self.setSprinting(false);
 case CRITICAL, NORMAL -> {
-if(attack(mc,self,hit)) {
+if(crosshair==target && attack(mc,self,hit)) {
 if(!self.onGround()) hitThisFall=true;
 attackDelay=2;
 clearJump();

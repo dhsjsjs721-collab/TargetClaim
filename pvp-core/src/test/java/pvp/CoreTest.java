@@ -17,6 +17,13 @@ check(!TargetFilter.accepts(new TargetFilter.Candidate(false,false,true,true,fal
 check(!TargetFilter.accepts(new TargetFilter.Candidate(true,true,true,true,false,false)));
 check(!TargetFilter.accepts(new TargetFilter.Candidate(true,false,false,true,false,false)));
 check(!TargetFilter.accepts(new TargetFilter.Candidate(true,false,true,true,true,false)));
+check(TargetFilter.practiceTarget(true,true,true,false));
+check(!TargetFilter.practiceTarget(true,false,true,false));
+check(!TargetFilter.practiceTarget(true,true,false,true));
+check(!TargetFilter.practiceTarget(false,true,true,false));
+check(!TargetFilter.practiceTarget(false,false,false,false));
+check(TargetFilter.practiceTarget(false,false,false,true));
+check(TargetFilter.practiceTarget(false,false,true,true));
 check(!CombatSettings.defaults().aimEnabled());
 System.out.println("Core tests passed");
 }

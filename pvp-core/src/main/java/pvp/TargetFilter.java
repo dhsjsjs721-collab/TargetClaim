@@ -4,5 +4,8 @@ public record Candidate(boolean player, boolean self, boolean alive, boolean vis
 public static boolean accepts(Candidate c) {
 return c != null && c.player() && !c.self() && c.alive() && c.visible() && !c.spectator() && !c.armorStand();
 }
+public static boolean practiceTarget(boolean local,boolean golemEnabled,boolean golem,boolean selected) {
+return local ? golemEnabled && golem : selected;
+}
 private TargetFilter() {}
 }

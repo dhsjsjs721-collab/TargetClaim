@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "pvp_practice",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "name": "Land of Losers",
   "environment": "client",
   "entrypoints": {
@@ -18,5 +18,5 @@
   "mixins": [
     "pvp_practice.mixins.json"
   ],
-  "description": "Local iron golem practice with hitbox geometry, training automation and local diagnostics. Disabled in multiplayer and LAN."
+  "description": "Local golem and explicitly selected server practice targets, hitbox geometry and local diagnostics."
 }

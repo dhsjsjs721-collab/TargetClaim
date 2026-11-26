@@ -21,12 +21,12 @@ int x=width/2-110;
 int step=Math.max(16,Math.min(24,(height-34)/9)), h=step-2;
 int y=Math.max(30,(height-(9*step+30))/2+30);
 addRenderableOnly(new StringWidget(x,y-28,220,12,Component.literal("LAND OF LOSERS").withStyle(ChatFormatting.GOLD,ChatFormatting.BOLD),font));
-addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Local Body Practice | 1.9.0").withStyle(ChatFormatting.GRAY),font));
+addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Body Practice | 1.9.1").withStyle(ChatFormatting.GRAY),font));
 addRenderableWidget(Button.builder(status("AimAssist",PracticeClient.settings.aimEnabled()),button -> {
 var s=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(!s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
 button.setMessage(status("AimAssist",PracticeClient.settings.aimEnabled()));
-}).tooltip(Tooltip.create(Component.literal("Local golem practice. Keeps the current aim when it intersects the hitbox."))).bounds(x,y,220,h).build());
+}).tooltip(Tooltip.create(Component.literal("Practice against local golems or a selected server bot. Keeps aim within the hitbox."))).bounds(x,y,220,h).build());
 addRenderableWidget(Button.builder(status("AutoCritical",PracticeClient.settings.triggerEnabled()),button -> {
 var s=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(s.aimEnabled(),!s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
@@ -41,12 +41,16 @@ PracticeClient.savePreferences();
 }).tooltip(Tooltip.create(Component.literal("Field of view for target selection."))).bounds(x,y+2*step,220,h).build());
 addRenderableWidget(Checkbox.builder(Component.literal("Iron Golem Test"),font).pos(x,y+3*step).selected(PracticeCombat.golemTest).onValueChange((checkbox,value)->{ PracticeCombat.golemTest=value; PracticeClient.savePreferences(); }).build());
 addRenderableWidget(Checkbox.builder(Component.literal("Auto Move"),font).pos(x+120,y+3*step).selected(PracticeCombat.autoMove).onValueChange((checkbox,value)->PracticeCombat.autoMove=value).build());
-addRenderableOnly(new StringWidget(x,y+4*step,220,h,Component.literal("Offline practice only").withStyle(ChatFormatting.GRAY),font));
+var mc=net.minecraft.client.Minecraft.getInstance();
+addRenderableWidget(Button.builder(Component.literal(PracticeCombat.serverTargetLabel(mc)),button -> {
+button.setMessage(Component.literal(PracticeCombat.toggleServerTarget(mc)));
+}).tooltip(Tooltip.create(Component.literal("For permitted server practice: aim at your bot before opening the menu. Select once per world; click again to clear."))).bounds(x,y+4*step,220,h).build());
 addRenderableWidget(Button.builder(Component.literal("Disable all & close"),button -> {
 var defaults=CombatSettings.defaults();
 var current=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(false,false,defaults.horizontalSpeed(),defaults.verticalSpeed(),current.fov());
 PracticeCombat.autoMove=false;
+PracticeCombat.clearServerTarget();
 PracticeCombat.releaseInput(net.minecraft.client.Minecraft.getInstance());
 onClose();
 }).bounds(x,y+5*step,220,h).build());
