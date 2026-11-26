@@ -22,6 +22,7 @@ return serverTarget;
 }
 static boolean hasLockedTarget(Minecraft mc) { return currentServerTarget(mc)!=null; }
 static double supportDistance(Minecraft mc) { var target=currentServerTarget(mc); return target==null || mc.player==null?Double.NaN:Math.sqrt(mc.player.distanceToSqr(target.entity())); }
+static void supportObservation(String reason) { if(sessionActive) { trace.support(reason); trace.event(trackingTick,reason); } }
 static void supportPause(Minecraft mc,String reason) { pauseControl(mc,"SUPPORT",reason,true); }
 static void controlPause(Minecraft mc,String gate,boolean advance) { pauseControl(mc,gate,gate,advance); }
 static boolean controlAvailable(Minecraft mc) { return enabled(mc) && available(mc,mc.player) && mc.player.containerMenu==mc.player.inventoryMenu && mc.player.inventoryMenu.getCarried().isEmpty(); }

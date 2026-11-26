@@ -86,7 +86,9 @@ boolean orbitPressed=false;
 while(orbit.consumeClick()) orbitPressed=true;
 if(orbitPressed && !orbitHeld && client.gui.screen()==null) PracticeFreeLook.toggle(client);
 orbitHeld=orbit.isDown();
-var owner=arbiter.begin(modulesEnabled(),PracticeCombat.controlAvailable(client),manualInput(client));
+boolean availableAtStart=PracticeCombat.controlAvailable(client),manualAtStart=manualInput(client);
+if(hotkeyActive) PracticeSupport.observe(client,!availableAtStart || manualAtStart);
+var owner=arbiter.begin(modulesEnabled(),availableAtStart,manualAtStart);
 if(owner==ActionArbiter.Owner.COMBAT) {
 if(hotkeyActive && arbiter.supportEligible() && PracticeSupport.tick(client,PracticeCombat.supportDistance(client))) {
 arbiter.claimSupport();

@@ -465,6 +465,25 @@ var owner=ownership.begin(enabled,available,manual);
 check(ownership.supportEligible()==(enabled && available && !manual));
 check(ownership.finish(endEnabled,endAvailable,endManual)==(owner==ActionArbiter.Owner.COMBAT && endEnabled && endAvailable && !endManual));
 }
+var observedSupport=new SupportObservation();
+var noEffect=SupportObservation.Effect.absent();
+var priorEffect=new SupportObservation.Effect(0,20);
+var snap=new SupportObservation.Snapshot(10,noEffect,priorEffect);
+observedSupport.begin(snap,SupportObservation.HEAL|SupportObservation.SPEED,3);
+check(observedSupport.observe(new SupportObservation.Snapshot(10,new SupportObservation.Effect(0,100),priorEffect))==SupportObservation.Result.PENDING);
+check(observedSupport.observe(new SupportObservation.Snapshot(12,noEffect,priorEffect))==SupportObservation.Result.OBSERVED);
+observedSupport.begin(snap,SupportObservation.STRENGTH,2);
+check(observedSupport.observe(new SupportObservation.Snapshot(10,noEffect,new SupportObservation.Effect(0,19)))==SupportObservation.Result.PENDING);
+check(observedSupport.observe(new SupportObservation.Snapshot(10,noEffect,new SupportObservation.Effect(0,200)))==SupportObservation.Result.OBSERVED);
+observedSupport.begin(snap,SupportObservation.HEAL|SupportObservation.SPEED,1);
+check(observedSupport.observe(new SupportObservation.Snapshot(12,noEffect,priorEffect))==SupportObservation.Result.PARTIAL);
+observedSupport.begin(snap,SupportObservation.SPEED,1);
+check(observedSupport.observe(snap)==SupportObservation.Result.NOT_OBSERVED);
+observedSupport.begin(snap,SupportObservation.HEAL,5);
+check(observedSupport.interrupt()==SupportObservation.Result.INTERRUPTED && !observedSupport.pending());
+check(SupportObservation.swapObserved(true,0,0,true,1,1));
+check(!SupportObservation.swapObserved(false,0,0,true,1,1));
+check(!SupportObservation.swapObserved(true,0,0,true,2,1));
 System.out.println("Combat tests passed");
 }
 }
