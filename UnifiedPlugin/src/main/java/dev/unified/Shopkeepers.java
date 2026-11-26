@@ -144,7 +144,7 @@ int column=i+2;ItemStack product=s.stock[i];
 if(m.owner){
 ItemStack shown=empty(product)?s.product[i]:product;
 inv.setItem(column,empty(shown)?icon(Material.LIME_STAINED_GLASS_PANE,"§a+ Положить товар","§7Shift+ЛКМ по предмету в инвентаре","§7Или возьми предмет курсором и нажми сюда","§7ПКМ без предмета — каталог"):preview(shown,"§7Остаток: "+(empty(product)?0:product.getAmount()),"§7Нажми с предметом — пополнить","§7ЛКМ пустой рукой — забрать остаток","§7ПКМ пустой рукой — выбрать товар"));
-inv.setItem(9+column,preview(cost(s,0,i),"§eЛКМ — выбрать валюту","§eПКМ — изменить число","§7Курсор с валютой — сразу установить цену по размеру стака","§7Shift+ПКМ — отключить цену"));
+inv.setItem(9+column,preview(cost(s,0,i),"§eЛКМ — выбрать валюту","§eПКМ — изменить число","§7Курсор с валютой — цена по размеру стака","§7/u shop price "+(i+1)+" <ID|hand> <цена>","§7Shift+ПКМ — отключить цену"));
 inv.setItem(18+column,s.price[1][i]>0?preview(cost(s,1,i),"§eДоп. цена · ЛКМ валюта, ПКМ число","§7Shift+ПКМ — отключить"):icon(Material.LIGHT_GRAY_STAINED_GLASS_PANE,"§7+ Вторая цена (необязательно)","§7ЛКМ — выбрать валюту"));
 }else if(!empty(product)){
 inv.setItem(column,preview(product,"§7В наличии: "+product.getAmount(),"§7За покупку: "+s.quantity[i]+" шт.",s.price[0][i]>0&&s.price[1][i]>0?"§eВыбери одну из цен ниже":"§eНажми — купить"));
@@ -276,19 +276,46 @@ if(!s.walker.getPathfinder().moveTo(dest,1.0))finishTrip(s);
 @EventHandler public void unloadChunk(ChunkUnloadEvent e){for(Entity entity:e.getChunk().getEntities()){UUID id=entityId(entity);if(id==null)continue;Shop s=shops.get(id);if(s!=null)removeEntities(s);else entity.remove();}}
 private String texture(String input){try{URI u=URI.create(input);if("https".equalsIgnoreCase(u.getScheme())&&"textures.minecraft.net".equalsIgnoreCase(u.getHost())&&u.getUserInfo()==null&&u.getPort()==-1&&u.getPath().matches("/texture/[a-fA-F0-9]{32,128}"))return "https://textures.minecraft.net"+u.getPath();}catch(Exception ignored){}return null;}
 private void setSkin(Player p,Shop s,String url,String model){String old=s.skin,oldModel=s.model;s.skin=url;s.model=model;if(save()){applyAppearance(s);say(p,"§aСкин сохранён.");}else{s.skin=old;s.model=oldModel;say(p,"§cОшибка сохранения.");}}
+private boolean priceCommand(Player p,Shop s,String[] a,int c){
+if(!canEdit(p,s)){say(p,"§cПодойди к своему торговцу.");return true;}
+if(a.length<2||a.length>5){say(p,"§e/u shop price <1-5> [ID|hand|off] [цена] [количество товара]");return true;}
+int i;try{i=Integer.parseInt(a[1])-1;}catch(NumberFormatException ex){i=-1;}if(i<0||i>=CAPACITY){say(p,"§cНомер товара: 1–5.");return true;}
+if(empty(s.product[i])&&empty(s.stock[i])){say(p,"§cСначала положи товар в слот "+(i+1)+".");return true;}
+final int slot=i;
+if(a.length==2){catalog(p,s,slot,c,0,"","Все");return true;}
+String raw=a[2].toLowerCase(Locale.ROOT);
+if(raw.equals("off")){
+if(a.length!=3){say(p,"§e/u shop price "+(i+1)+" off");return true;}
+int old=s.price[c][i];s.price[c][i]=0;if(!save()){s.price[c][i]=old;say(p,"§cОшибка сохранения.");}else say(p,"§aЦена отключена.");refresh(s);return true;}
+ItemStack currency;
+if(raw.equals("hand")){ItemStack held=p.getInventory().getItemInMainHand();if(empty(held)){say(p,"§cВозьми предмет оплаты в руку.");return true;}currency=held.asOne();}
+else{Material mat=Material.matchMaterial(raw);if(mat==null||mat.isAir()||!mat.isItem()||mat.isLegacy()){say(p,"§cНеизвестный ID предмета. Используй hand или каталог.");return true;}currency=new ItemStack(mat);}
+if(a.length==3){dialog(p,s,i,"price"+c,currency);return true;}
+int price,qty;try{price=Integer.parseInt(a[3]);qty=a.length==5?Integer.parseInt(a[4]):s.quantity[i];}catch(NumberFormatException ex){say(p,"§cЦена и количество — целые числа.");return true;}
+ItemStack product=empty(s.product[i])?s.stock[i]:s.product[i];
+int max=Math.min(MAX_PRICE,CAPACITY*currency.getMaxStackSize());
+if(price<1||price>max||qty<1||qty>product.getMaxStackSize()){say(p,"§cЦена 1–"+max+", количество 1–"+product.getMaxStackSize()+".");return true;}
+ItemStack oldCurrency=s.currency[c][i];int oldPrice=s.price[c][i],oldQty=s.quantity[i];
+s.currency[c][i]=currency;s.price[c][i]=price;s.quantity[i]=qty;
+if(!save()){s.currency[c][i]=oldCurrency;s.price[c][i]=oldPrice;s.quantity[i]=oldQty;say(p,"§cОшибка сохранения.");return true;}
+say(p,"§aТовар "+(i+1)+": "+qty+" × "+label(product)+" за "+price+" × "+label(currency)+".");refresh(s);return true;
+}
 boolean command(CommandSender sender,String[] a){
 if(!(sender instanceof Player p)){sender.sendMessage("Только в игре.");return true;}
 if(a.length>0&&a[0].equalsIgnoreCase("give")&&p.hasPermission("targetclaim.admin")){for(ItemStack rest:p.getInventory().addItem(token()).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);return true;}
 Shop s=shops.get(selected.get(p.getUniqueId()));if(s==null||!s.owner.equals(p.getUniqueId())||!near(p,s)){say(p,"§eПКМ по своему торговцу — открыть настройки.");return true;}
+if(!canEdit(p,s)){say(p,"§cНастройки доступны рядом с твоей лавкой после начала сезона.");return true;}
 if(a.length==0){open(p,s,true,-1);return true;}
 switch(a[0].toLowerCase(Locale.ROOT)){
+case "price","price2" -> {return priceCommand(p,s,a,a[0].equalsIgnoreCase("price2")?1:0);}
+case "catalog" -> {if(a.length!=2){say(p,"§e/u shop catalog <1-5>");return true;}try{int i=Integer.parseInt(a[1])-1;if(i<0||i>=CAPACITY)throw new IllegalArgumentException();catalog(p,s,i,0,0,"","Все");}catch(IllegalArgumentException ex){say(p,"§cНомер товара: 1–5.");}return true;}
 case "name" -> {String name=String.join(" ",Arrays.copyOfRange(a,1,a.length)).replaceAll("[\\p{Cntrl}§]","").strip();if(name.isBlank()||name.length()>64){say(p,"§cИмя: 1–64 символа, &-цвета.");return true;}String old=s.name;s.name=name;if(save())applyAppearance(s);else s.name=old;}
 case "style" -> {if(a.length!=2||!Set.of("normal","bold","italic").contains(a[1])){say(p,"§enormal | bold | italic");return true;}String old=s.style;s.style=a[1];if(save())applyAppearance(s);else s.style=old;}
 case "skin" -> {if(a.length<2){say(p,"§e/u shop skin self|reset|ник|ссылка [slim|classic]");return true;}String src=a[1],model=a.length>2&&a[2].equalsIgnoreCase("slim")?"slim":"classic";if(src.equalsIgnoreCase("reset")){setSkin(p,s,"",model);return true;}if(src.equalsIgnoreCase("self")){var t=p.getPlayerProfile().getTextures();if(t.getSkin()!=null)setSkin(p,s,t.getSkin().toString().replace("http://","https://"),t.getSkinModel()==PlayerTextures.SkinModel.SLIM?"slim":"classic");else say(p,"§cНет доступной текстуры.");return true;}
 String url=texture(src);if(url!=null){setSkin(p,s,url,model);return true;}if(!src.matches("[A-Za-z0-9_]{1,16}")){say(p,"§cНужен ник Minecraft или ссылка textures.minecraft.net.");return true;}
 long now=System.currentTimeMillis();if(now-skinRequests.getOrDefault(p.getUniqueId(),0L)<15000){say(p,"§cПодожди 15 секунд.");return true;}skinRequests.put(p.getUniqueId(),now);
 Bukkit.createProfile(src).update().orTimeout(15,java.util.concurrent.TimeUnit.SECONDS).whenComplete((profile,error)->{if(!host.isEnabled())return;Bukkit.getScheduler().runTask(host,()->{if(!p.isOnline()||!Objects.equals(skinRequests.get(p.getUniqueId()),now)||!shops.containsKey(s.id))return;if(error!=null||profile.getTextures().getSkin()==null){say(p,"§cСкин не найден.");return;}var t=profile.getTextures();setSkin(p,s,t.getSkin().toString().replace("http://","https://"),t.getSkinModel()==PlayerTextures.SkinModel.SLIM?"slim":"classic");});});}
-default -> say(p,"§e/u shop name | skin | style");
+default -> say(p,"§e/u shop price <1-5> <ID|hand> <цена> [количество] · price2 · catalog · name · skin · style");
 }return true;
 }
 }

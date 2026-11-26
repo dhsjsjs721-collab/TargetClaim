@@ -35,7 +35,7 @@ case "enchant","enchantments","ce" -> Set.of("","help","apply").contains(b);
 case "wildlife","swamp","swampsky","ss" -> Set.of("","help","repair").contains(b);
 case "repair" -> true;
 case "map","image","imagemap" -> !b.equals("file");
-case "shop" -> Set.of("","name","style","skin").contains(b);
+case "shop" -> Set.of("","name","style","skin","price","price2","catalog").contains(b);
 case "trap","trapka" -> Set.of("","help").contains(b);
 case "mining" -> b.isEmpty();
 default -> false;

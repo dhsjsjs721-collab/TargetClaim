@@ -1,3 +1,7 @@
+# Optional price commands
+
+Stock is always taken from the real inventory. After right-clicking your merchant, `/u shop price 1 diamond 10` sets 10 diamonds for offer 1; `/u shop price 1 hand 10 2` uses the exact item held in main hand, charging 10 for two goods. `/u shop price 1` opens the searchable currency selector; `price2` manages the optional alternative; `off` disables a price. Command and GUI use the same server-side checks, stock and persisted pricing. No items are created by selecting a currency. Tab completion is available to ordinary players.
+
 # Single-screen merchant
 
 Owner's main 36-slot menu has five actual stock positions, prices directly beneath each and optional second prices on the next row. Shift-click a real inventory item to deposit automatically, or put a real cursor stack onto a stock slot; left-click stock to withdraw, right-click an empty slot opens the optional searchable catalog. Click the currency row with a real item on the cursor to copy its template without taking it, or click to open catalog. Right-click configured price to edit amount and quantity; shift-right disables. No mandatory product/catalog setup. Buyers click a product if it has one payment option, or the chosen price if two. Previous surplus stock is available through a separate recovery menu; revenue preserved. Normal cursor movements are allowed only in the player's own inventory; all top-inventory operations are server validated and drag/number key blocked.
