@@ -17,7 +17,8 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class Verity implements Listener {
 private static final NamespacedKey ITEM=new NamespacedKey("minecraftunified","verity"),VISUAL=new NamespacedKey("minecraftunified","verity_visual");
 private static final String PREFIX="verity_block_";
-private static final Material BASE=Material.POLISHED_BLACKSTONE, PLACED=Material.GLASS;
+private static final Material BASE=Material.POLISHED_BLACKSTONE, PLACED=Material.NOTE_BLOCK;
+private static final String BLOCK_DATA="minecraft:note_block[instrument=custom_head,note=24,powered=false]";
 private static final String LINE="Пошёл нахуй, пёс";
 private static final List<Material> PRICES=List.of(
 Material.OAK_SAPLING,Material.SPRUCE_SAPLING,Material.BIRCH_SAPLING,Material.JUNGLE_SAPLING,Material.ACACIA_SAPLING,Material.DARK_OAK_SAPLING,Material.CHERRY_SAPLING,Material.MANGROVE_PROPAGULE,
@@ -48,24 +49,27 @@ void enable(){
 Bukkit.getPluginManager().registerEvents(this,host);
 for(World w:Bukkit.getWorlds())for(Chunk c:w.getLoadedChunks())load(c);
 Bukkit.getScheduler().runTaskTimer(host,this::tick,10L,5L);
-host.getLogger().info("Verity enabled: rare trader barter, persistent smiling block, strong mob fear.");
+host.getLogger().info("Verity enabled: rare trader barter, persistent smiling physical block, strong mob fear.");
 }
 void disable(){for(Placed p:active.values())removeDisplay(p);active.clear();}
 boolean give(CommandSender s,Player p){
 if(!s.hasPermission("minecraftunified.verity.admin")){s.sendMessage("§cНет прав.");return true;}
 for(ItemStack left:p.getInventory().addItem(item()).values())p.getWorld().dropItemNaturally(p.getLocation(),left);s.sendMessage("§aВерити выдан.");return true;
 }
-private boolean physical(Block b){return b!=null&&(b.getType()==BASE||b.getType()==PLACED);}
+private boolean physical(Block b){return b!=null&&(b.getType()==BASE||b.getType()==Material.GLASS||b.getType()==PLACED);}
 private boolean marked(Block b){return b.getChunk().getPersistentDataContainer().has(Pos.of(b).marker(),PersistentDataType.BYTE);}
 private void removeDisplay(Placed p){if(p.display!=null){Entity e=Bukkit.getEntity(p.display);if(e!=null)e.remove();p.display=null;}}
 private void forget(Pos pos,Placed p){if(active.remove(pos,p)){removeDisplay(p);Block b=pos.block();if(b!=null)b.getChunk().getPersistentDataContainer().remove(pos.marker());}}
 private void render(Pos pos,Placed p){
-if(p.display!=null&&Bukkit.getEntity(p.display) instanceof BlockDisplay d&&d.isValid())return;
-removeDisplay(p);
-Location l=pos.center();if(l==null)return;l.subtract(.51,.51,.51);
-BlockDisplay d=l.getWorld().spawn(l,BlockDisplay.class,e->{e.setPersistent(false);e.setInvulnerable(true);e.setGravity(false);e.setBillboard(Display.Billboard.FIXED);e.setViewRange(4f);e.setDisplayWidth(1.1f);e.setDisplayHeight(1.1f);e.setBrightness(new Display.Brightness(15,15));
-var t=e.getTransformation();t.getScale().set(1.02f);e.setTransformation(t);var data=(org.bukkit.block.data.type.StructureBlock)Material.STRUCTURE_BLOCK.createBlockData();data.setMode(org.bukkit.block.data.type.StructureBlock.Mode.DATA);e.setBlock(data);e.getPersistentDataContainer().set(VISUAL,PersistentDataType.BYTE,(byte)1);});p.display=d.getUniqueId();
+removeDisplay(p);Block b=pos.block();if(!physical(b))return;
+if(!b.getBlockData().getAsString().equals(BLOCK_DATA))b.setBlockData(Bukkit.createBlockData(BLOCK_DATA),false);
 }
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void noTune(org.bukkit.event.player.PlayerInteractEvent e){
+if(e.getAction()!=Action.RIGHT_CLICK_BLOCK||e.getClickedBlock()==null||!marked(e.getClickedBlock()))return;
+e.setUseInteractedBlock(Event.Result.DENY);
+}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void noNotes(NotePlayEvent e){if(marked(e.getBlock()))e.setCancelled(true);}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void noPhysics(BlockPhysicsEvent e){if(marked(e.getBlock()))e.setCancelled(true);}
 private void load(Chunk c){
 var data=c.getPersistentDataContainer();
 for(NamespacedKey k:new HashSet<>(data.getKeys()))if(k.getNamespace().equals("minecraftunified")&&k.getKey().startsWith(PREFIX)){
@@ -88,7 +92,7 @@ if(n>=4){e.setCancelled(true);e.getPlayer().sendMessage("§cНе больше 4 
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void place(BlockPlaceEvent e){
 if(!isItem(e.getItemInHand())||e.getBlockPlaced().getType()!=BASE)return;Block b=e.getBlockPlaced();Pos pos=Pos.of(b);b.getChunk().getPersistentDataContainer().set(pos.marker(),PersistentDataType.BYTE,(byte)1);
 Placed p=new Placed();Placed old=active.put(pos,p);if(old!=null)removeDisplay(old);
-Bukkit.getScheduler().runTask(host,()->{if(active.get(pos)==p&&physical(pos.block())){pos.block().setType(PLACED,false);render(pos,p);speak(pos.center(),p,true);}});
+Bukkit.getScheduler().runTask(host,()->{if(active.get(pos)==p&&physical(pos.block())){render(pos,p);host.getLogger().info("Verity placed at "+pos.x+","+pos.y+","+pos.z+" (real custom block)");speak(pos.center(),p,true);}});
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void suppressDrops(BlockBreakEvent e){
 if(marked(e.getBlock()))e.setDropItems(false);
@@ -124,10 +128,9 @@ private void tick(){
 ticks+=5;Map<Mob,Location> frightened=new HashMap<>();Set<Pos> nearby=new HashSet<>();int budget=128;
 for(var entry:new ArrayList<>(active.entrySet())){
 Pos pos=entry.getKey();Placed p=entry.getValue();Block b=pos.block();
-if(b==null)continue;if(!physical(b)){forget(pos,p);continue;}if(b.getType()==BASE)b.setType(PLACED,false);
+if(b==null)continue;if(!physical(b)){forget(pos,p);continue;}render(pos,p);
 Location center=pos.center();
 if(center.getWorld().getPlayers().stream().noneMatch(v->v.getLocation().distanceSquared(center)<80*80)){removeDisplay(p);continue;}
-render(pos,p);
 for(LivingEntity entity:center.getWorld().getNearbyLivingEntities(center,16,16,16)){
 if(!(entity instanceof Mob m)||shopMob(m)||!m.isValid()||m.isDead()||m.isInsideVehicle()||!m.getPassengers().isEmpty())continue;
 Location l=m.getLocation();double dist=l.distanceSquared(center);if(dist>256)continue;
