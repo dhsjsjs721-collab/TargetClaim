@@ -89,7 +89,12 @@ var stack=menu.getSlot(i).getItem();
 if(stack.is(Items.TOTEM_OF_UNDYING)) totems+=stack.getCount();
 if(stack.is(Items.SPLASH_POTION)) potions+=stack.getCount();
 }
-return "T "+totems+" P "+potions;
+return "T "+totems+" P "+potions+" | SPD "+effectTime(mc.player.getEffect(MobEffects.SPEED))+" STR "+effectTime(mc.player.getEffect(MobEffects.STRENGTH));
+}
+private static String effectTime(net.minecraft.world.effect.MobEffectInstance effect) {
+if(effect==null) return "-";
+int ticks=effect.getDuration();
+return (effect.getAmplifier()+1)+":"+(ticks<0?"inf":((ticks+19)/20)+"s");
 }
 private static int score(LocalPlayer self,ItemStack stack) {
 if(!stack.is(Items.SPLASH_POTION)) return 0;

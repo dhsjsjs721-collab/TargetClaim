@@ -372,6 +372,18 @@ for(int i=3;i<=2405;i++) replayTest.add(new CombatReplay.Frame(i,20,20,0,0,2,Dou
 check(replayTest.size()==CombatReplay.CAPACITY);
 check(!replayTest.csv().contains("NaN"));
 replayTest.clear(); check(replayTest.size()==0);
+var roundtrip=new CombatReplay();
+roundtrip.add(new CombatReplay.Frame(1,20,20,0,0,2,1,0,true,false,"READY_NO_RAY","WAIT_TARGET","a,\"b","HOLD",0,0));
+roundtrip.add(new CombatReplay.Frame(3,18,20,0,0,2,1,0,true,false,"READY_NO_RAY","WAIT_TARGET","test","HOLD",0,0));
+roundtrip.add(new CombatReplay.Frame(4,17,20,0,0,2,1,0,true,false,"READY","NORMAL","test","HOLD",1,0));
+roundtrip.add(new CombatReplay.Frame(5,17,18,0,0,2,1,0,true,false,"READY","WAIT_JUMP","test","HOLD",1,1));
+check(roundtrip.summary().contains("longest consecutive charged/no-ray=1"));
+check(roundtrip.summary().contains("gaps=1"));
+check(roundtrip.summary().contains("attack observed=1 | no attempt=1"));
+try {
+check(CombatReplay.readCsv(new java.io.StringReader(roundtrip.csv())).csv().equals(roundtrip.csv()));
+try { CombatReplay.readCsv(new java.io.StringReader("bad header")); throw new AssertionError("accepted invalid replay"); } catch(java.io.IOException expected) {}
+} catch(java.io.IOException ex) { throw new AssertionError(ex); }
 System.out.println("Combat tests passed");
 }
 }

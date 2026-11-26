@@ -205,7 +205,7 @@ var self=mc.player;
 if(lastPlayer!=self || lastLevel!=mc.level) resetWorld(mc);
 sessionActive=true;
 expirePending();
-if(!available(mc,self)) { clearJump(); descendingTicks=0; readyWait=0; waitingTarget=null; startStrength=Float.NaN; lastHealth=self.getHealth(); if(mc.gui.screen()==null) setStatus(unavailableReason(mc,self)); return; }
+if(!available(mc,self)) { replayGate="PAUSED_OR_UNAVAILABLE"; clearJump(); descendingTicks=0; readyWait=0; waitingTarget=null; startStrength=Float.NaN; lastHealth=self.getHealth(); if(mc.gui.screen()==null) setStatus(unavailableReason(mc,self)); return; }
 if(self.getHealth()<lastHealth) incomingDamage();
 else if(responseWindow>0) responseWindow--;
 lastHealth=self.getHealth();
@@ -227,9 +227,9 @@ if(falling && observedAscent && requestedJumpTick>=0) {
 if(!recovery.pressure(trackingTick)) jumpTiming.observe((int)(trackingTick-requestedJumpTick)); observedAscent=false; requestedJumpTick=-1;
 }
 if(jumpTarget!=null && (++jumpAge>26 || !aimValid(self,jumpTarget) || jumpItem!=self.getMainHandItem().getItem())) clearJump();
-if(!settings.triggerEnabled()) { clearJump(); readyWait=0; waitingTarget=null; setStatus(settings.aimEnabled()?(aimTarget!=null?"Aim only / target acquired":"Aim only / no target"):"Modules off"); return; }
+if(!settings.triggerEnabled()) { replayGate="ATTACK_DISABLED"; clearJump(); readyWait=0; waitingTarget=null; setStatus(settings.aimEnabled()?(aimTarget!=null?"Aim only / target acquired":"Aim only / no target"):"Modules off"); return; }
 if(mc.options.keyAttack.isDown() || CombatTrace.manualAction(startStrength,self.getAttackStrengthScale(.5f),startItem==self.getMainHandItem().getItem(),startWeaponDelay,self.getCurrentItemAttackStrengthDelay())) {
-manualTick=trackingTick; clearJump(); readyWait=0; setStatus("Manual attack / item change"); return;
+replayGate="MANUAL_OR_ITEM_CHANGE"; manualTick=trackingTick; clearJump(); readyWait=0; setStatus("Manual attack / item change"); return;
 }
 decision=CombatEngine.Decision.WAIT;
 EntityHitResult hit=pickTarget(mc,self);
