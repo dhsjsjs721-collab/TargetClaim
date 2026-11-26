@@ -28,6 +28,7 @@ private File file(Player p){return new File(dir,p.getUniqueId()+".yml");}
 private boolean session(Player p){return file(p).isFile();}
 private boolean in(World w){return w!=null&&WORLD.equals(w.getName());}
 boolean command(CommandSender sender,String[] args){
+if(args.length==1&&args[0].equalsIgnoreCase("setup")&&sender instanceof ConsoleCommandSender){try{ensure();int filled=0;for(int x=-12;x<=-5;x++)for(int z=-6;z<=1;z++)if(world.getBlockAt(x,81,z).getState() instanceof Chest c&&!c.getBlockInventory().isEmpty())filled++;if(filled<3)throw new IllegalStateException("missing test chests");sender.sendMessage("SELFTEST test world OK: "+filled+" stocked chests");}catch(Exception e){host.getLogger().severe("Test world setup failed: "+e);sender.sendMessage("§cОшибка создания тестовой платформы.");}return true;}
 if(!(sender instanceof Player p)||!p.isOp()){sender.sendMessage("§cТолько OP в игре.");return true;}
 if(args.length>0&&args[0].equalsIgnoreCase("exit")||args.length==0&&in(p.getWorld())){restore(p);return true;}
 if(args.length>0&&args[0].equalsIgnoreCase("refill")){
@@ -36,8 +37,8 @@ stock();p.sendMessage("§aСундуки пополнены.");return true;}
 if(args.length>0){p.sendMessage("§e/test · /test exit · /test refill");return true;}
 if(session(p)){if(!restore(p))return true;}
 try{ensure();}catch(Exception ex){p.sendMessage("§cНе удалось создать тестовый мир.");host.getLogger().warning("Test world: "+ex);return true;}
-if(!snapshot(p))return true;
-p.closeInventory();clear(p);
+p.closeInventory();if(!snapshot(p))return true;
+clear(p);
 switching.add(p.getUniqueId());boolean ok;try{ok=p.teleport(new Location(world,.5,81,.5));}finally{switching.remove(p.getUniqueId());}
 if(!ok){restore(p);return true;}
 p.setGameMode(GameMode.CREATIVE);p.setAllowFlight(true);p.setFlying(false);p.setFlySpeed(.15f);
@@ -52,7 +53,7 @@ try{y.save(tmp);try{Files.move(tmp.toPath(),dst.toPath(),StandardCopyOption.ATOM
 private void clear(Player p){p.getInventory().clear();p.getEnderChest().clear();p.setItemOnCursor(new ItemStack(Material.AIR));p.setLevel(0);p.setExp(0);p.setTotalExperience(0);for(PotionEffect e:p.getActivePotionEffects())p.removePotionEffect(e.getType());}
 private ItemStack[] items(List<?> list,int size){ItemStack[] result=new ItemStack[size];if(list!=null)for(int i=0;i<Math.min(size,list.size());i++)if(list.get(i) instanceof ItemStack item)result[i]=item.clone();return result;}
 boolean restore(Player p){
-if(!session(p)){if(in(p.getWorld())){clear(p);p.teleport(Bukkit.getWorlds().getFirst().getSpawnLocation());}return true;}
+if(!session(p)){if(in(p.getWorld())){clear(p);switching.add(p.getUniqueId());try{p.teleport(Bukkit.getWorlds().getFirst().getSpawnLocation());}finally{switching.remove(p.getUniqueId());}}return true;}
 YamlConfiguration y=YamlConfiguration.loadConfiguration(file(p));if(!y.contains("inventory")||!y.contains("mode")){p.sendMessage("§cРезервная копия тестовой сессии повреждена. Обратись к администратору.");return false;}
 Location destination;try{destination=y.getLocation("location");}catch(Exception ex){destination=null;}if(destination==null||!destination.isWorldLoaded()||in(destination.getWorld()))destination=Bukkit.getWorlds().getFirst().getSpawnLocation();
 p.closeInventory();clear(p);
@@ -89,6 +90,7 @@ while(it.hasNext()){Recipe r=it.next();if(r instanceof Keyed key&&namespaces.con
 crafted.sort(Comparator.comparing(i->i.getType().name()));
 for(int i=0;i<crafted.size();i+=27)chest(-10+(i/27)*3,-5,"Кастомные крафты "+(i/27+1),crafted.subList(i,Math.min(i+27,crafted.size())));
 chest(-10,-1,"Мифические реликвии",host.testRelics());
+ItemStack disc=new ItemStack(Material.MUSIC_DISC_13);var meta=disc.getItemMeta();meta.setDisplayName("§6Тестовая пластинка YouTube");meta.setItemModel(new NamespacedKey("minecraftunified","youtube_disc"));meta.getPersistentDataContainer().set(new NamespacedKey("minecraftunified","youtube_disc"),org.bukkit.persistence.PersistentDataType.STRING,"https://www.youtube.com/watch?v=MmB9b5njVbA");meta.setLore(List.of("§7Shift+ПКМ — открыть ссылку","§7/disc — сменить запись"));disc.setItemMeta(meta);chest(-7,-5,"Медиа",List.of(disc,new ItemStack(Material.JUKEBOX),new ItemStack(Material.MAP),new ItemStack(Material.FILLED_MAP)));
 chest(-7,-1,"Материалы и проверка",List.of(new ItemStack(Material.DIAMOND,64),new ItemStack(Material.DRAGON_EGG,16),new ItemStack(Material.TOTEM_OF_UNDYING,16),new ItemStack(Material.PHANTOM_MEMBRANE,64),new ItemStack(Material.EXPERIENCE_BOTTLE,64),new ItemStack(Material.SHIELD),new ItemStack(Material.BOW),new ItemStack(Material.ARROW,64),new ItemStack(Material.DIAMOND_SWORD),new ItemStack(Material.TORCH,64),new ItemStack(Material.MUSIC_DISC_13),new ItemStack(Material.JUKEBOX),new ItemStack(Material.MAP),new ItemStack(Material.ENDER_CHEST),new ItemStack(Material.AMETHYST_SHARD,64),new ItemStack(Material.ZOMBIE_SPAWN_EGG,16),new ItemStack(Material.SKELETON_SPAWN_EGG,16)));
 }
 @EventHandler(priority=EventPriority.LOWEST) public void join(PlayerJoinEvent e){if(session(e.getPlayer()))restore(e.getPlayer());else if(in(e.getPlayer().getWorld()))restore(e.getPlayer());}

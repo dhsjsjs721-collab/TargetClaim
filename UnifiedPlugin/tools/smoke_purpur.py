@@ -88,6 +88,9 @@ def main():
                 proc.stdin.write(cmd+"\n")
                 proc.stdin.flush()
                 time.sleep(.8)
+            proc.stdin.write("test setup\n");proc.stdin.flush()
+            until=time.monotonic()+90
+            while time.monotonic()<until and proc.poll() is None and not any("SELFTEST test world OK" in l or "Test world setup failed" in l for l in logs):time.sleep(.5)
             time.sleep(3)
         finally:
             if proc.poll() is None:
@@ -99,6 +102,7 @@ def main():
         output="\n".join(logs)
         if "SELFTEST koschei held-link OK" not in output:raise AssertionError("Koschei held-link test failed")
         if "Season phase -> WAITING" not in output or "Season phase -> SCOUT" not in output:raise AssertionError("Season commands failed")
+        if "SELFTEST test world OK" not in output:raise AssertionError("Test world generation or chest setup failed")
         if "SELFTEST media OK" not in output:raise AssertionError("Media policy self-test failed")
         if "SELFTEST command policy OK" not in output:raise AssertionError("Command policy self-test failed")
         if "SELFTEST relic policies OK" not in output:raise AssertionError("Relic policy regression failed")
