@@ -18,11 +18,13 @@ static CombatSettings settings=CombatSettings.defaults();
 private static Object hotkeyWorld,hotkeyPlayer;
 private static boolean hotkeyActive,hotkeyHeld,supportBusy;
 private static int hudTicks;
+private static boolean orbitHeld;
 static boolean hotkeyActive() { return hotkeyActive; }
 static void stopPractice(Minecraft mc) {
 var s=settings;
 settings=new CombatSettings(false,false,s.horizontalSpeed(),s.verticalSpeed(),s.fov());
 hotkeyActive=false; hotkeyWorld=null; hotkeyPlayer=null;
+PracticeFreeLook.stop(mc,true);
 PracticeCombat.finishPractice();
 PracticeSupport.reset(); supportBusy=false; hudTicks=0;
 PracticeCombat.autoMove=false;
@@ -70,12 +72,17 @@ loadPreferences();
 var category=KeyMapping.Category.register(Identifier.fromNamespaceAndPath("pvp_practice","practice"));
 var key=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.pvp_practice.open",InputConstants.Type.KEYBOARD,InputConstants.KEY_DOWN,category));
 var toggle=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.pvp_practice.toggle",InputConstants.Type.KEYBOARD,InputConstants.KEY_R,category));
+var orbit=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.pvp_practice.orbit",InputConstants.Type.KEYBOARD,InputConstants.KEY_F6,category));
 ClientTickEvents.START_CLIENT_TICK.register(client -> {
 checkHotkeySession(client);
 boolean pressed=false;
 while(toggle.consumeClick()) pressed=true;
 if(pressed && !hotkeyHeld && client.gui.screen()==null) togglePractice(client);
 hotkeyHeld=toggle.isDown();
+boolean orbitPressed=false;
+while(orbit.consumeClick()) orbitPressed=true;
+if(orbitPressed && !orbitHeld && client.gui.screen()==null) PracticeFreeLook.toggle(client);
+orbitHeld=orbit.isDown();
 supportBusy=hotkeyActive && PracticeSupport.tick(client,PracticeCombat.supportDistance(client));
 if(supportBusy) PracticeCombat.supportPause(client,PracticeSupport.status());
 else PracticeCombat.startTick(client,settings);
@@ -86,6 +93,7 @@ while(key.consumeClick()) {
 if(!guiLocked && client.player != null && client.gui.screen()==null) client.gui.setScreen(new PracticeScreen());
 }
 if(!supportBusy) PracticeCombat.tick(client,settings);
+PracticeFreeLook.tick(client);
 PracticeCombat.captureFrame(client);
 if(hotkeyActive && client.gui.screen()==null && ++hudTicks>=20) {
 hudTicks=0;

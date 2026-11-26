@@ -384,6 +384,12 @@ try {
 check(CombatReplay.readCsv(new java.io.StringReader(roundtrip.csv())).csv().equals(roundtrip.csv()));
 try { CombatReplay.readCsv(new java.io.StringReader("bad header")); throw new AssertionError("accepted invalid replay"); } catch(java.io.IOException expected) {}
 } catch(java.io.IOException ex) { throw new AssertionError(ex); }
+var orbitView=new OrbitView();
+orbitView.reset(179,0); orbitView.turn(20,1000);
+check(Math.abs(orbitView.yaw()+178)<.0001 && orbitView.pitch()==90);
+orbitView.turn(0,-2000); check(orbitView.pitch()==-90);
+orbitView.turn(Double.NaN,0); check(orbitView.pitch()==-90);
+orbitView.reset(Double.NaN,Double.POSITIVE_INFINITY); check(orbitView.yaw()==0 && orbitView.pitch()==0);
 System.out.println("Combat tests passed");
 }
 }

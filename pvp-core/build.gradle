@@ -1,7 +1,7 @@
 plugins {
 id 'net.fabricmc.fabric-loom' version '1.19-SNAPSHOT'
 }
-version = '1.10.2'
+version = '1.10.3'
 group = 'pvp'
 repositories { mavenCentral() }
 dependencies {
