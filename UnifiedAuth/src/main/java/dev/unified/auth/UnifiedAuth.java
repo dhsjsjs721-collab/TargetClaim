@@ -319,7 +319,8 @@ List<ActionButton> buttons=new ArrayList<>();
 List<DialogBody> body=new ArrayList<>();
 if(s.artReady&&getConfig().getBoolean("branding.auth-art-enabled",true)){
 Component art=Component.text("\uE100",NamedTextColor.WHITE).font(Key.key("landoflosers:auth_art"));
-body.add(DialogBody.plainMessage(art.append(Component.text("\n \n \n \n \n \n \n ")),280));
+Component spacer=Component.text("\n \n \n \n \n \n \n ").font(Key.key("minecraft:default"));
+body.add(DialogBody.plainMessage(Component.empty().append(art).append(spacer),280));
 }
 body.add(DialogBody.plainMessage(brand().append(Component.text(" · ",MUTED)).append(accent(getConfig().getString("branding.edition","Vanilla+"),GOLD))));
 body.add(DialogBody.plainMessage(accent(stage==Stage.LEGACY_PIN?"ОБНОВЛЕНИЕ • СТАРЫЙ PIN":password?"01 / 02  •  ПАРОЛЬ":"02 / 02  •  PIN-КОД",ROSE)));
