@@ -40,8 +40,9 @@ with zipfile.ZipFile(p) as z:
     for key in ("thor","anubis","koschei","kitsune","medusa","koschei_soul","koschei_block"):
         for suffix in ("","_awakened"):
             assert f"assets/talismanforge/items/mythic_{key}{suffix}.json" in names
-    for ns,key in [("targetclaim","claim_core"),("targetclaim","independent_core"),("minecraftunified","obsidian_trap"),("minecraftunified","youtube_disc"),("minecraftunified","shop_token"),("minecraftunified","mirror_chestplate"),("minecraftunified","miner_helmet"),("enchantmentforge","return_charm"),("enchantmentforge","soulbound"),("enchantmentforge","triple_shot")]:
+    for ns,key in [("targetclaim","claim_core"),("targetclaim","independent_core"),("minecraftunified","obsidian_trap"),("minecraftunified","youtube_disc"),("minecraftunified","shop_token"),("minecraftunified","mirror_chestplate"),("minecraftunified","mirror_chestplate_v2"),("minecraftunified","miner_helmet"),("enchantmentforge","return_charm"),("enchantmentforge","soulbound"),("enchantmentforge","triple_shot")]:
         assert f"assets/{ns}/items/{key}.json" in names
+    assert json.loads(z.read("assets/minecraftunified/equipment/mirror_chestplate_v2.json"))["layers"]["humanoid"][0]["texture"]=="minecraftunified:mirror_chestplate_v2"
     states=json.loads(z.read("assets/minecraft/blockstates/note_block.json"))["multipart"]
     assert any(x.get("when")=={"instrument":"custom_head","note":"23"} and x["apply"]["model"]=="talismanforge:block/reliquary" for x in states)
     assert any(x.get("when")=={"instrument":"custom_head","note":"24"} and x["apply"]["model"]=="minecraftunified:block/verity" for x in states)

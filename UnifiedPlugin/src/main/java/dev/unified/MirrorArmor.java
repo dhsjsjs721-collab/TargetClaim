@@ -1,6 +1,9 @@
 package dev.unified;
 
 import org.bukkit.*;
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.Equippable;
+import net.kyori.adventure.key.Key;
 import org.bukkit.attribute.*;
 import org.bukkit.command.CommandSender;
 import org.bukkit.damage.DamageSource;
@@ -19,6 +22,7 @@ import java.util.concurrent.ThreadLocalRandom;
 final class MirrorArmor implements Listener {
 private final UnifiedPlugin host;
 private final NamespacedKey id=new NamespacedKey("minecraftunified","mirror_chestplate"),recipe=id,armor=new NamespacedKey("minecraftunified","mirror_armor"),toughness=new NamespacedKey("minecraftunified","mirror_toughness");
+private static final Key VISUAL=Key.key("minecraftunified:mirror_chestplate_v2");
 private record Reflected(UUID target,UUID owner,double damage){}
 private Reflected reflected;
 MirrorArmor(UnifiedPlugin host){this.host=host;}
@@ -27,7 +31,7 @@ Bukkit.getPluginManager().registerEvents(this,host);
 Bukkit.removeRecipe(recipe);
 ShapedRecipe r=new ShapedRecipe(recipe,item());
 r.shape("G G","GGG","GGG");r.setIngredient('G',Material.TINTED_GLASS);
-Bukkit.addRecipe(r);Bukkit.getScheduler().runTaskTimer(host,()->{for(Player p:Bukkit.getOnlinePlayers())renameInventory(p.getInventory());},20L,100L);host.getLogger().info("MirrorArmor enabled: 1/3 full damage reflection; 7 armor, 1 toughness, 400 durability.");
+Bukkit.addRecipe(r);ItemStack checked=ItemStack.deserializeBytes(item().serializeAsBytes());if(!visualCorrect(checked))throw new IllegalStateException("Mirror armor component serialization failed");host.getLogger().info("SELFTEST mirror armor components OK: "+VISUAL.asString());Bukkit.getScheduler().runTaskTimer(host,()->{for(Player p:Bukkit.getOnlinePlayers())renameInventory(p.getInventory());},20L,100L);host.getLogger().info("MirrorArmor enabled: 1/3 full damage reflection; 7 armor, 1 toughness, 400 durability.");
 }
 void disable(){Bukkit.removeRecipe(recipe);}
 ItemStack item(){
@@ -35,17 +39,18 @@ ItemStack i=new ItemStack(Material.IRON_CHESTPLATE);var m=i.getItemMeta();
 m.setDisplayName("§b§lЗеркальная броня");
 m.setLore(List.of("§7Защита: 7 · Твёрдость: 1","§bПримерно 1 из 3 ударов отражается полностью","§7Отражённый урон не проходит по владельцу","§7Без атакующего — полное поглощение","§7Прочность: 400"));
 m.getPersistentDataContainer().set(id,PersistentDataType.BYTE,(byte)1);
-m.setItemModel(id);var eq=m.getEquippable();eq.setModel(id);m.setEquippable(eq);
+
 m.setAttributeModifiers(null);
 m.addAttributeModifier(Attribute.ARMOR,new AttributeModifier(armor,7,AttributeModifier.Operation.ADD_NUMBER,EquipmentSlotGroup.CHEST));
 m.addAttributeModifier(Attribute.ARMOR_TOUGHNESS,new AttributeModifier(toughness,1,AttributeModifier.Operation.ADD_NUMBER,EquipmentSlotGroup.CHEST));
 if(m instanceof Damageable d)d.setMaxDamage(400);
-i.setItemMeta(m);return i;
+i.setItemMeta(m);applyVisual(i);return i;
 }
 private boolean mirror(ItemStack i){return i!=null&&i.getType()==Material.IRON_CHESTPLATE&&i.hasItemMeta()&&i.getItemMeta().getPersistentDataContainer().has(id,PersistentDataType.BYTE);}
-private void renameInventory(Inventory inv){
-for(int slot=0;slot<inv.getSize();slot++){ItemStack i=inv.getItem(slot);if(!mirror(i))continue;var meta=i.getItemMeta();boolean changed=false;if(!id.equals(meta.getItemModel())){meta.setItemModel(id);changed=true;}var eq=meta.getEquippable();if(!id.equals(eq.getModel())){eq.setModel(id);meta.setEquippable(eq);changed=true;}if(!"§b§lЗеркальная броня".equals(meta.getDisplayName())){meta.setDisplayName("§b§lЗеркальная броня");changed=true;}if(!changed)continue;i.setItemMeta(meta);inv.setItem(slot,i);}
-}
+private static boolean visualCorrect(ItemStack i){Equippable eq=i.getData(DataComponentTypes.EQUIPPABLE);return VISUAL.equals(i.getData(DataComponentTypes.ITEM_MODEL))&&eq!=null&&eq.slot()==EquipmentSlot.CHEST&&VISUAL.equals(eq.assetId());}
+private static void applyVisual(ItemStack i){i.setData(DataComponentTypes.ITEM_MODEL,VISUAL);Equippable eq=i.getData(DataComponentTypes.EQUIPPABLE);i.setData(DataComponentTypes.EQUIPPABLE,(eq==null||eq.slot()!=EquipmentSlot.CHEST?Equippable.equippable(EquipmentSlot.CHEST):eq.toBuilder()).assetId(VISUAL).build());}
+private void renameInventory(Inventory inv){for(int slot=0;slot<inv.getSize();slot++){ItemStack i=inv.getItem(slot);if(!mirror(i)||visualCorrect(i))continue;applyVisual(i);inv.setItem(slot,i);}}
+@EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void pickup(org.bukkit.event.entity.EntityPickupItemEvent e){ItemStack i=e.getItem().getItemStack();if(mirror(i)&&!visualCorrect(i)){applyVisual(i);e.getItem().setItemStack(i);}}
 @EventHandler public void open(org.bukkit.event.inventory.InventoryOpenEvent e){renameInventory(e.getInventory());}
 @EventHandler public void join(org.bukkit.event.player.PlayerJoinEvent e){renameInventory(e.getPlayer().getInventory());renameInventory(e.getPlayer().getEnderChest());}
 boolean give(CommandSender sender,Player p){

@@ -109,6 +109,7 @@ def main():
         if "Season phase -> WAITING" not in output or output.count("Season phase -> SCOUT")<2 or "Season phase -> LIVE" not in output:raise AssertionError("Season commands failed")
         if "SELFTEST test world OK" not in output:raise AssertionError("Test world generation or chest setup failed")
         if "SELFTEST clan viewer metadata OK" not in output:raise AssertionError("Clan metadata packet initialization failed")
+        if "SELFTEST mirror armor components OK" not in output:raise AssertionError("Mirror armor item/equipment component serialization failed")
         if "SELFTEST spawn choices OK" not in output:raise AssertionError("Spawn choices setup failed")
         if "SELFTEST media OK" not in output:raise AssertionError("Media policy self-test failed")
         if "SELFTEST command policy OK" not in output:raise AssertionError("Command policy self-test failed")
