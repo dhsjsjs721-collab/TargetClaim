@@ -38,6 +38,7 @@ private Verity verity;
 private Shopkeepers shops;
 private RecipeGuide recipeGuide;
 private DragonCycle dragons;
+private SeasonStart season;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("claims","p"),Map.entry("p","p"),Map.entry("private","p"),
 Map.entry("team","team"),Map.entry("teams","team"),Map.entry("clan","team"),Map.entry("clans","team"),
@@ -120,11 +121,18 @@ org.bukkit.inventory.ShapedRecipe verityRecipe=new org.bukkit.inventory.ShapedRe
 org.bukkit.inventory.ShapedRecipe shopRecipe=new org.bukkit.inventory.ShapedRecipe(new org.bukkit.NamespacedKey("minecraftunified","craft_shop"),Shopkeepers.token());shopRecipe.shape("DED","ESE","DED");shopRecipe.setIngredient('D',org.bukkit.Material.DIAMOND_BLOCK);shopRecipe.setIngredient('E',org.bukkit.Material.EMERALD_BLOCK);shopRecipe.setIngredient('S',org.bukkit.Material.NAME_TAG);Bukkit.addRecipe(shopRecipe);
 dragons=new DragonCycle(this);dragons.enable();
 recipeGuide=new RecipeGuide(this);recipeGuide.enable();
+season=new SeasonStart(this);season.enable();
+for(String name:List.of("s","a")){PluginCommand c=getCommand(name);if(c!=null)c.setExecutor((sender,cmd,label,args)->season.command(sender,name.equals("a")));}
+new CommandPolicy(this).enable();
+if(!CommandPolicy.selftest())throw new IllegalStateException("Command policy self-test failed");getLogger().info("SELFTEST command policy OK");
 getLogger().info("MinecraftUnified 1.1.22 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
 @EventHandler public void resourcePackStatus(org.bukkit.event.player.PlayerResourcePackStatusEvent e){getLogger().info("Resource pack status: "+e.getPlayer().getName()+" -> "+e.getStatus());}
+public boolean seasonLocked(org.bukkit.entity.Player p){return season!=null&&season.locked(p);}
+public boolean seasonAllows(org.bukkit.entity.Player p,String root,String[] args){return season==null||season.allowCommand(p,root,args);}
 @EventHandler public void unifiedCommandList(PlayerCommandSendEvent event){
+if(event.getPlayer().isOp())return;
 String[] internal={"unified","allmods","mods","trap","trapka","p","claim","privat","team","tc",
 "talismanforge","tf","talismans","enchantmentforge","ce","enchants",
 "swampsky","wildlife","ss","imagemap","im"};
@@ -151,6 +159,7 @@ else sender.sendMessage("§c✗ "+name+" §7ошибка запуска: "+faile
 }
 }
 private void help(CommandSender sender){
+if(sender instanceof org.bukkit.entity.Player p&&!p.isOp()){sender.sendMessage("§dLand of Losers §8· §f/u recipes — крафты; /clan — клан; /u claim — приват; /u talisman — реликвии; /u dragon — дракон; /skin — скин; /disc — пластинка; /u map — карта; /msg и /r — личные сообщения.");return;}
 sender.sendMessage("§6§lMinecraftUnified §8» §7Все функции через §e/u");
 sender.sendMessage("§e/u status §7— состояние модулей");
 sender.sendMessage("§e/u claim §7— меню; §e/u claim list §7— список; §e/u recipes §7— рецепты");

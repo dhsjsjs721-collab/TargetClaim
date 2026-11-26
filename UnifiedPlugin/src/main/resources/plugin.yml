@@ -5,6 +5,13 @@ api-version: '26.3'
 author: MinecraftUnified
 description: All 5 Minecraft Paper gameplay systems in a single JAR
 commands:
+  s:
+    description: Console only - wait for season start
+    aliases: [start]
+    permission: minecraftunified.season.admin
+  a:
+    description: Console only - admit players for ten minute scouting
+    permission: minecraftunified.season.admin
   skin:
     description: Change own Minecraft skin
     usage: /skin <nickname or texture URL>
@@ -47,6 +54,8 @@ commands:
     description: Edit a map using an HTTPS image
     usage: /u map
 permissions:
+  minecraftunified.season.admin:
+    default: op
   minecraftunified.verity.admin:
     default: op
   minecraftunified.goblin.admin:

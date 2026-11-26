@@ -1,3 +1,7 @@
+# Season start and permissions
+
+Console `/s` (alias `/start`) enters WAITING; non-operators join and see a waiting title. Console `/a` enters a ten-minute global SCOUT phase (adventure, flight speed 0.25, clan creation, no combat, building, items, portals). At expiry players land and enter survival. The phase and deadline survive restart; operators are exempt. New installations begin WAITING. Public commands are allowlisted; admin roots and subcommands are hidden and blocked for non-OP, including module aliases. Public clan management remains available. `/u recipes` opens the live custom recipe menu.
+
 # Gameplay update
 
 Medusa: gaze does not require reciprocal eye contact; stun lasts 15 seconds even when damaged, shield reflects a front-facing gaze, boss/allied/peace-zone/shop exclusions remain. Old Koschei bindings retire when a new egg is placed; stale souls cannot work; old loaded eggs are deleted and unloaded eggs are cleaned on next load. Crafted mythic seals redeem unique saved relics. Extra recipes for independent claim, Verity and frog hide; the personal shop token is guaranteed at wandering traders (32 diamonds) and also has a more expensive craft (four diamond blocks, four emerald blocks, one name tag). Koschei saves the physical egg world UUID and refuses activation when a loaded egg block is missing. End dragon egg odds 100% first kill, 50% later; five-hour persistent respawn timer, starts the vanilla sequence when a player is in the End. `/u dragon` shows status.

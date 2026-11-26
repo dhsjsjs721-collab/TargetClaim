@@ -182,7 +182,7 @@ final class MythicTalismans implements Listener {
     }
     private Kind kind(ItemStack i){State s=state(i);return s==null?null:s.kind;}
     private boolean tagged(ItemStack i){return i!=null&&i.hasItemMeta()&&i.getItemMeta().getPersistentDataContainer().has(typeKey,PersistentDataType.STRING);}
-    private boolean usable(Player p){return p.getGameMode()==GameMode.SURVIVAL||p.getGameMode()==GameMode.ADVENTURE;}
+    private boolean usable(Player p){return !((dev.unified.UnifiedPlugin)plugin.host()).seasonLocked(p)&&(p.getGameMode()==GameMode.SURVIVAL||p.getGameMode()==GameMode.ADVENTURE);}
     private boolean canRitual(Player p){return usable(p)||p.getGameMode()==GameMode.CREATIVE&&p.hasPermission("talismanforge.admin");}
     private boolean peace(Location l){return ((dev.unified.UnifiedPlugin)plugin.host()).isPeace(l);}
     private State heldState(Player p){return selectHeld(p.getUniqueId(),p.getInventory().getItemInOffHand(),p.getInventory().getItemInMainHand());}
