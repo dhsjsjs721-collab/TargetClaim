@@ -104,6 +104,8 @@ private static AimModel.Movement lastMovement=new AimModel.Movement(false,false,
 private static AimModel.Turn turn=new AimModel.Turn(0,0);
 private static float lastHealth;
 private static int responseWindow;
+private static final CombatEngine.Recovery recovery=new CombatEngine.Recovery();
+private static void incomingDamage() { if(recovery.hit(trackingTick)) trace.event(trackingTick,"INCOMING_DAMAGE"); responseWindow=12; }
 private static boolean comboMode;
 private static LivingEntity styleTarget;
 private static void resetStyle() { comboMode=false; styleTarget=null; }
@@ -148,7 +150,7 @@ private static void endSession() {
 if(sessionActive) { previousReport=trace.report(); sessionActive=false; }
 }
 private static void resetWorld(Minecraft mc) {
-endSession(); resetStyle();
+endSession(); resetStyle(); recovery.reset();
 lastPlayer=mc.player; lastLevel=mc.level; clearJump(); aimTarget=null; resetTracking();
 lastHealth=mc.player==null?0:mc.player.getHealth();
 responseWindow=readyTicks=attackDelay=jumpDelay=descendingTicks=confirmedHits=expiredHits=jumpCount=blockedJumpTicks=readyWait=0;
@@ -164,7 +166,7 @@ if(lastPlayer!=self || lastLevel!=mc.level) resetWorld(mc);
 sessionActive=true;
 expirePending();
 if(!available(mc,self)) { clearJump(); descendingTicks=0; readyWait=0; waitingTarget=null; startStrength=Float.NaN; lastHealth=self.getHealth(); if(mc.gui.screen()==null) setStatus(unavailableReason(mc,self)); return; }
-if(self.getHealth()<lastHealth) responseWindow=12;
+if(self.getHealth()<lastHealth) incomingDamage();
 else if(responseWindow>0) responseWindow--;
 lastHealth=self.getHealth();
 if(jumpDelay>0) jumpDelay--;
@@ -182,7 +184,7 @@ if(self.getDeltaMovement().y>0) { jumpCount++; observedAscent=true; }
 else { requestedJumpTick=-1; observedAscent=false; }
 }
 if(falling && observedAscent && requestedJumpTick>=0) {
-jumpTiming.observe((int)(trackingTick-requestedJumpTick)); observedAscent=false; requestedJumpTick=-1;
+if(!recovery.pressure(trackingTick)) jumpTiming.observe((int)(trackingTick-requestedJumpTick)); observedAscent=false; requestedJumpTick=-1;
 }
 if(jumpTarget!=null && (++jumpAge>26 || !aimValid(self,jumpTarget) || jumpItem!=self.getMainHandItem().getItem())) clearJump();
 if(!settings.triggerEnabled()) { clearJump(); readyWait=0; waitingTarget=null; setStatus(settings.aimEnabled()?(aimTarget!=null?"Aim only / target acquired":"Aim only / no target"):"Modules off"); return; }
@@ -193,7 +195,7 @@ decision=CombatEngine.Decision.WAIT;
 EntityHitResult hit=pickTarget(mc,self);
 LivingEntity crosshair=hit!=null && hit.getEntity() instanceof LivingEntity living && aimValid(self,living)?living:null;
 LivingEntity target=crosshair!=null?crosshair:settings.aimEnabled() && aimTarget!=null && valid(self,aimTarget) && Double.isFinite(angularError) && angularError<9?aimTarget:null;
-if(target==null) { if(++consecutiveNoRay>=3) { readyWait=0; waitingTarget=null; } setStatus(localPractice(mc) && !golemTest?"Iron Golem Test off":aimTarget!=null?"Approach / align":"No valid target"); return; }
+if(target==null) { if(++consecutiveNoRay>=3) { readyWait=0; waitingTarget=null; } setStatus(localPractice(mc) && !golemTest && currentServerTarget(mc)==null?"Iron Golem Test off":aimTarget!=null?"Approach / align":"No valid target"); return; }
 consecutiveNoRay=0;
 boolean restricted=restricted(self);
 boolean canJump=!restricted && !self.isShiftKeyDown() && mc.level.noCollision(self,self.getBoundingBox().move(0,.35,0)) && blockedJumpTicks==0;
@@ -214,11 +216,13 @@ double now=AimModel.boxDistance(origin,box),future=AimModel.futureBoxDistance(or
 if(target==sampledTarget && tracker.uncertainty()>.35) future=Math.max(now,future);
 boolean urgent=crosshair==target && (future>reach-.18 && future>now+.04 || now>reach-.20 || blockedJumpTicks>0);
 var frame=new CombatEngine.Frame(cooldown,self.onGround(),falling?self.fallDistance:0,self.isSprinting(),restricted,crosshair==target || inRange(self,target),crosshair==target,!target.onGround() && target.getDeltaMovement().y<0,responseWindow>0,new TargetFilter.Candidate(true,false,true,true,false,false));
-boolean combo=updateStyle(self,target,now,future,reach);
-if(combo && jumpRequested && self.onGround()) clearJump();
+boolean recovering=updateRecovery(self,target);
+boolean combo=updateStyle(self,target,now,future,reach) || recovering && self.onGround();
+if((combo || recovering) && jumpRequested && self.onGround()) clearJump();
 boolean canSprint=!restricted && !self.isShiftKeyDown() && (mc.options.keyUp.isDown() || autoMove) && !mc.options.keyDown.isDown();
 var action=CombatEngine.hybridPlan(frame,descendingTicks,hitThisFall,canJump,jumpRequested,attackDelay==0 && itemReady,jumpDelay==0,urgent,self.getCurrentItemAttackStrengthDelay(),readyWait,jumpTiming.horizon(),combo,canSprint);
 trace.style(combo);
+trace.recovery(recovering);
 trace.sample(cooldown,now,reach,angularError,crosshair==target);
 setStatus(action.name());
 switch(action) {
@@ -236,7 +240,7 @@ while(pending.size()>32) { pending.removeFirst(); expiredHits++; trace.expire(tr
 status=action==CombatEngine.Action.CRITICAL?(counter?"Counter attempt":"Critical attempt"):action==CombatEngine.Action.COMBO?"Sprint hit attempt":"Normal attack";
 readyWait=0;
 decision=action==CombatEngine.Action.CRITICAL?CombatEngine.Decision.CRITICAL_WINDOW:action==CombatEngine.Action.COMBO?CombatEngine.Decision.COMBO_WINDOW:CombatEngine.Decision.NORMAL_WINDOW;
-responseWindow=0;
+// Incoming pressure is not cleared by our own attack.
 } else { trace.event(trackingTick,crosshair!=target?"ATTACK_TARGET_MISMATCH":"ATTACK_NOT_CONSUMED"); setStatus("Attack not consumed"); attackDelay=1; }
 }
 default -> {}
@@ -295,6 +299,11 @@ angularError=AimModel.error(new AimModel.Angles(self.getYRot(),self.getXRot()),b
 } else resetTracking();
 }
 }
+private static boolean updateRecovery(LocalPlayer self,LivingEntity target) {
+var v=self.getDeltaMovement();
+double away=target==null?0:CombatEngine.awaySpeed(target.getX()-self.getX(),target.getZ()-self.getZ(),v.x,v.z);
+return recovery.update(trackingTick,self.onGround(),away);
+}
 private static boolean updateStyle(LocalPlayer self,LivingEntity target,double now,double future,double reach) {
 if(styleTarget!=target) { comboMode=false; styleTarget=target; }
 comboMode=CombatEngine.preferCombo(comboMode,now,future,reach,responseWindow>0 || self.getHealth()<lastHealth);
@@ -329,8 +338,10 @@ updateAim(mc,self,settings);
 if(!settings.triggerEnabled() || mc.options.keyAttack.isDown()) { clearJump(); resetStyle(); return; }
 LivingEntity combatTarget=aimTarget;
 if(combatTarget==null) { var hit=pickTarget(mc,self); if(hit!=null && hit.getEntity() instanceof LivingEntity living && aimValid(self,living)) combatTarget=living; }
-boolean combo=updateStyle(self,combatTarget);
-if(combo && self.onGround() && jumpRequested) clearJump();
+if(self.getHealth()<lastHealth) incomingDamage();
+boolean recovering=updateRecovery(self,combatTarget);
+boolean combo=updateStyle(self,combatTarget) || recovering && self.onGround();
+if((combo || recovering) && self.onGround() && jumpRequested) clearJump();
 if(jumpTarget!=null && jumpItem!=self.getMainHandItem().getItem()) { clearJump(); trace.event(trackingTick,"JUMP_CANCEL_ITEM_CHANGE"); }
 boolean critActive=jumpTarget!=null && aimValid(self,jumpTarget) && !restricted(self);
 if(critActive || (!combo && combatTarget!=null && valid(self,combatTarget) && !restricted(self)) || (!self.onGround() && !hitThisFall && self.getDeltaMovement().y<0 && combatTarget!=null && valid(self,combatTarget) && !restricted(self))) {
@@ -391,7 +402,8 @@ return result instanceof EntityHitResult hit?hit:null;
 }
 public static void recordDamage(ClientboundDamageEventPacket packet) {
 var mc=Minecraft.getInstance();
-if(mc.player==null || mc.level==null || lastPlayer!=mc.player || lastLevel!=mc.level) return;
+if(mc.player==null || mc.level==null || lastPlayer!=mc.player || lastLevel!=mc.level || !sessionActive) return;
+if(packet.entityId()==mc.player.getId()) { incomingDamage(); return; }
 if(packet.sourceCauseId()!=mc.player.getId() || packet.sourceDirectId()!=mc.player.getId()) return;
 if(manualTick>=0 && trackingTick-manualTick<=2) { trace.event(trackingTick,"MANUAL_DAMAGE_UNATTRIBUTED"); return; }
 for(var it=pending.iterator();it.hasNext();) {

@@ -100,5 +100,31 @@ return canSprint && readyWait<3?Action.WAIT_SPRINT:Action.NORMAL;
 if(!f.restricted() && !f.sprinting() && f.fallDistance()>0 && descendingTicks>=1) return Action.CRITICAL;
 return urgent || readyWait>=4 || f.restricted()?Action.NORMAL:Action.WAIT_DESCENT;
 }
+/** Recovery is inferred from observed incoming damage, motion and landing. */
+public static final class Recovery {
+private long lastHit=-100,lastUpdate=Long.MIN_VALUE;
+private int stable;
+private boolean recovering;
+public void reset() { lastHit=-100; lastUpdate=Long.MIN_VALUE; stable=0; recovering=false; }
+public boolean hit(long tick) {
+if(tick-lastHit<2) return false;
+lastHit=tick; stable=0; recovering=true;
+return true;
+}
+public boolean pressure(long tick) { return tick>=lastHit && tick-lastHit<=12; }
+public boolean update(long tick,boolean grounded,double awaySpeed) {
+if(!pressure(tick)) { recovering=false; stable=0; return false; }
+if(lastUpdate==tick) return recovering;
+lastUpdate=tick;
+if(!grounded || (Double.isFinite(awaySpeed) && awaySpeed>.10)) { recovering=true; stable=0; }
+else if(++stable>=2) recovering=false;
+return recovering;
+}
+public boolean recovering() { return recovering; }
+}
+public static double awaySpeed(double dx,double dz,double vx,double vz) {
+double length=Math.hypot(dx,dz);
+return length>1e-6 && Double.isFinite(length) && Double.isFinite(vx) && Double.isFinite(vz)?-(dx*vx+dz*vz)/length:0;
+}
 private CombatEngine() {}
 }

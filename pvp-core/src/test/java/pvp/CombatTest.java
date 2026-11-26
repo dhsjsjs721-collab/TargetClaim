@@ -266,6 +266,26 @@ check(CombatEngine.hybridPlan(lostCrosshair,1,false,true,false,true,true,false,1
 check(CombatEngine.hybridPlan(crit,1,true,true,false,true,true,false,12,1,6,true,true)==CombatEngine.Action.WAIT_LANDING);
 trace.clear(); trace.style(true); trace.style(false); trace.attempt(1,false,true); trace.attempt(2,true,false);
 check(trace.report().contains("combo=1 critical=1 | attempts: sprint=1 critical=1"));
+var recovery=new CombatEngine.Recovery();
+check(!recovery.update(0,true,0));
+check(recovery.hit(1));
+check(!recovery.hit(1));
+check(recovery.update(1,false,.2));
+check(recovery.update(2,true,.25));
+check(recovery.update(3,true,0));
+check(recovery.update(3,true,0));
+check(!recovery.update(4,true,0));
+check(recovery.pressure(4));
+check(!recovery.pressure(14));
+check(recovery.hit(15));
+check(recovery.update(15,false,0));
+check(!recovery.update(28,false,.4));
+recovery.reset(); check(!recovery.pressure(0) && !recovery.recovering());
+check(Math.abs(CombatEngine.awaySpeed(3,0,-.3,0)-.3)<1e-9);
+check(CombatEngine.awaySpeed(0,0,1,1)==0);
+check(CombatEngine.awaySpeed(3,0,.3,0)<0);
+trace.clear(); trace.recovery(true); trace.recovery(false);
+check(trace.report().contains("Recovery ticks: 1"));
 System.out.println("Combat tests passed");
 }
 }
