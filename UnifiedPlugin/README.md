@@ -1,3 +1,7 @@
+# Full world atlas
+
+Uses the actual finite world border (up to 16384 blocks), otherwise configurable 3000-block width centered on world spawn. 128×128 surface image sampled from the real world, pre-rendered by bounded asynchronous chunk loads, cached by world identity and geometry, partial progress persisted. Console a refuses to start scouting until all pixels are rendered. Chunks are not permanently force-loaded. Map and menu coordinates use the same scale. Ordinary maps retain Shift+right-click image editor; special atlas and mirror are excluded, editor unavailable during season lock. Fixed null role in test NPC scanning.
+
 # Respawn choices and return scroll
 
 After scouting players go to their clan's selected point, or the overworld spawn if none exists. On death the player respawns at world spawn and receives an inventory menu for world/clan spawn, six individually saved beds and six anchors. Beds/anchors are registered on successful vanilla spawn setting. Points can be forgotten by right-click, destroyed/obstructed points are rejected, anchors require and consume one charge upon successful travel. The return scroll is crafted using 4 dried kelp around redstone; it opens the same selector, consumes one scroll only on successful teleport, requires five seconds stationary and 15 seconds out of combat. No extra client pack required, scroll uses vanilla eye icon. Test world stays isolated.

@@ -21,6 +21,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="purpur-263-smoke-") as wd_str:
         wd=Path(wd_str)
         (wd/"plugins").mkdir()
+        (wd/"plugins"/"MinecraftUnified").mkdir()
+        (wd/"plugins"/"MinecraftUnified"/"config.yml").write_text("scout-maps:\n  width: 128\n",encoding="utf8")
         relic_dir=wd/"plugins"/"TalismanForge"
         relic_dir.mkdir()
         relic_file=relic_dir/"mythic-artifacts.yml"
@@ -83,6 +85,9 @@ def main():
                 time.sleep(.5)
             if not any("Done (" in line for line in logs):
                 raise RuntimeError("Purpur did not fully start within 150s or crashed")
+            deadline=time.monotonic()+90
+            while time.monotonic()<deadline and proc.poll() is None and not any("SELFTEST world atlas READY" in line for line in logs):time.sleep(.5)
+            if not any("SELFTEST world atlas READY" in line for line in logs):raise AssertionError("Atlas never completed")
             print("Purpur started; testing universal routing",flush=True)
             for cmd in ["u status","s","a","u guide","u recipes","u give","u claim create","u talisman list","u talisman selftest","u vfx thor","u trap","u trap give nobody 1","u ss status","u tf","u tf give nobody thor","u ce help","u pig","u frog","u spawn","u spawn frog","u spawn goblin","u spawn trader","u trader","u help"]:
                 proc.stdin.write(cmd+"\n")

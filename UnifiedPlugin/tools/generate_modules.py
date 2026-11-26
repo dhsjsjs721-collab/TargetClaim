@@ -80,6 +80,14 @@ def convert(code,namespace,name,path):
     code=re.sub(r"runTask(Later|Timer|Asynchronously)?\(this,",r"runTask\1(host(),",code)
     code=code.replace("new GrapplingHookListener(this)","new GrapplingHookListener(host())")
     if name=="ImageMaps":
+        code=swap(code,"Material type=player.getInventory().getItemInMainHand().getType();\nreturn type==Material.MAP||type==Material.FILLED_MAP;","ItemStack held=player.getInventory().getItemInMainHand();Material type=held.getType();return (type==Material.MAP||type==Material.FILLED_MAP)&&!held.getItemMeta().getPersistentDataContainer().has(new NamespacedKey(\"minecraftunified\",\"scout_map\"),org.bukkit.persistence.PersistentDataType.STRING);","map editor 0")
+        code=swap(code,"@EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true)\npublic void sneakClickMap","@EventHandler(priority=EventPriority.HIGH)\npublic void sneakClickMap","map editor 1")
+        code=swap(code,"if(!hasMap(event.getPlayer()))return;","if(((dev.unified.UnifiedPlugin)host()).seasonLocked(event.getPlayer())||!hasMap(event.getPlayer()))return;","map editor 2")
+        code=swap(code,"event.setCancelled(true);\nopenEditor(event.getPlayer());","event.setCancelled(true);event.setUseInteractedBlock(org.bukkit.event.Event.Result.DENY);event.setUseItemInHand(org.bukkit.event.Event.Result.DENY);openEditor(event.getPlayer());","map editor 3")
+        code=swap(code,"private void openEditor(Player player){","private void openEditor(Player player){\nif(((dev.unified.UnifiedPlugin)host()).seasonLocked(player)){tell(player,\"§cРедактор доступен после разведки.\");return;}","map editor 4")
+        code=swap(code,"UUID id=player.getUniqueId();\nawaiting.remove(id);","UUID id=player.getUniqueId();\nif(((dev.unified.UnifiedPlugin)host()).seasonLocked(player)){tell(player,\"§cРедактор доступен после разведки.\");return;}\nawaiting.remove(id);","map editor 5")
+        code=swap(code,"if(!loading.add(id))return;","int heldSlot=player.getInventory().getHeldItemSlot();ItemStack original=player.getInventory().getItemInMainHand().clone();\nif(!loading.add(id))return;","map editor 6")
+        code=swap(code,"if(!hasMap(online)){tell(online,","if(((dev.unified.UnifiedPlugin)host()).seasonLocked(online)||!hasMap(online)||heldSlot!=online.getInventory().getHeldItemSlot()||!original.equals(online.getInventory().getItemInMainHand())){tell(online,","map editor 7")
         # If storage initialization fails, throw into the unified module
         # loader instead of disabling the entire host plugin.
         code=code.replace("getPluginManager().disablePlugin(this);return;",

@@ -36,7 +36,7 @@ return e;
 private void tick(){
 if(world==null)return;
 Map<String,LivingEntity> found=new HashMap<>();
-for(LivingEntity e:world.getLivingEntities()){String r=role(e);if(!ROLES.contains(r))continue;if(found.putIfAbsent(r,e)!=null)e.remove();}
+for(LivingEntity e:world.getLivingEntities()){String r=role(e);if(r==null||!ROLES.contains(r))continue;if(found.putIfAbsent(r,e)!=null)e.remove();}
 long now=System.currentTimeMillis();
 for(String r:ROLES){LivingEntity e=found.get(r);if(e==null||!e.isValid()||e.isDead()){if(now>=respawn.getOrDefault(r,0L)&&world.isChunkLoaded(home(r).getBlockX()>>4,home(r).getBlockZ()>>4)){e=spawn(r);respawn.remove(r);}else continue;}
 if(r.equals("attacker")&&e instanceof Zombie z){if(z.getLocation().distanceSquared(home(r))>18*18||z.getLocation().getY()<78){z.teleport(home(r));z.setTarget(null);}if(z.hasAI()){Player target=world.getPlayers().stream().filter(p->p.isOp()&&p.getGameMode()==GameMode.SURVIVAL&&p.getLocation().distanceSquared(z.getLocation())<16*16).min(Comparator.comparingDouble(p->p.getLocation().distanceSquared(z.getLocation()))).orElse(null);z.setTarget(target);}}
