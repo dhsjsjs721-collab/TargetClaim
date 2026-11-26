@@ -89,8 +89,9 @@ if(!world.getPopulators().contains(populator)) world.getPopulators().add(populat
 } else world.getPopulators().remove(populator);
 }
 @EventHandler public void worldLoad(WorldLoadEvent e) {register(e.getWorld());}
+private boolean clanmates(Player a,Player b){var host=Bukkit.getPluginManager().getPlugin("MinecraftUnified");if(host==null||!host.isEnabled())return false;try{return Boolean.TRUE.equals(host.getClass().getMethod("areClanmates",UUID.class,UUID.class).invoke(host,a.getUniqueId(),b.getUniqueId()));}catch(ReflectiveOperationException ex){return false;}}
 private boolean allowed(Player a,Player b) {
-if(a==b || a.getWorld()!=b.getWorld()) return false;
+if(a==b || a.getWorld()!=b.getWorld() || clanmates(a,b)) return false;
 if(a.hasPermission("unifiedantiesp.bypass")||b.hasPermission("unifiedantiesp.bypass")) return false;
 if(a.getGameMode()==GameMode.SPECTATOR || b.getGameMode()==GameMode.SPECTATOR) return false;
 double d=a.getLocation().distanceSquared(b.getLocation());
@@ -218,7 +219,7 @@ e.getCommands().removeIf(s->s.equalsIgnoreCase("seed")||s.toLowerCase(Locale.ROO
 @Override public boolean onCommand(CommandSender sender,Command command,String label,String[] args) {
 if(args.length>0 && args[0].equalsIgnoreCase("reload")) {configure();sender.sendMessage("UnifiedAntiESP reloaded; restart required for Paper Anti-Xray settings.");return true;}
 if(args.length>0 && args[0].equalsIgnoreCase("audit")){for(String line:PaperXrayAudit.inspect())sender.sendMessage(line);return true;}
-sender.sendMessage("UnifiedAntiESP 3.5: chunk mutations="+(getConfig().getBoolean("ore-shuffle.enabled",false)&&!getConfig().getBoolean("chunk-safety.disable-ore-worldgen",true)?"ON":"OFF"));
+sender.sendMessage("UnifiedAntiESP 3.6: chunk mutations="+(getConfig().getBoolean("ore-shuffle.enabled",false)&&!getConfig().getBoolean("chunk-safety.disable-ore-worldgen",true)?"ON":"OFF"));
 sender.sendMessage("UnifiedAntiESP: "+(active?"ON":"OFF")+" passes="+passes+" checks="+checks+" rays="+rays+" cachedPairs="+states.size()+" budgetStops="+budgetStops+" staleReveals="+revealed+" lastScanMicros="+lastMicros+" oreChunks="+populator.chunks()+" oreMoves="+populator.moved()+" | "+entityGuard.stats());
 return true;
 }
