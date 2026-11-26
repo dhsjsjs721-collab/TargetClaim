@@ -53,12 +53,12 @@ import java.util.UUID;
  * be mined without drops; original world blocks are never destroyed.
  */
 public final class TrapItems implements Listener {
-private static final long DURATION_MS=15_000L,COOLDOWN_MS=25_000L;
+private static final long DURATION_MS=15_000L,COOLDOWN_MS=60_000L;
 private static final int MAX_ACTIVE=40;
 private static final int RADIUS=3, WALL_HEIGHT=4;
 private final UnifiedPlugin plugin;
 private final TargetClaimPlugin claims;
-private final NamespacedKey itemKey,recipeKey;
+private final NamespacedKey itemKey,recipeKey,cooldownKey;
 private final File saveFile;
 private final Map<UUID,Trap> traps=new LinkedHashMap<>();
 private final Map<BlockKey,UUID> occupied=new HashMap<>();
@@ -78,11 +78,11 @@ public TrapItems(UnifiedPlugin host,TargetClaimPlugin claimModule){
 plugin=host;
 claims=claimModule;
 itemKey=new NamespacedKey("minecraftunified","obsidian_trap");
-recipeKey=new NamespacedKey("minecraftunified","craft_obsidian_trap");
+recipeKey=new NamespacedKey("minecraftunified","craft_obsidian_trap");cooldownKey=new NamespacedKey("minecraftunified","trap_ready_at");
 saveFile=new File(host.getDataFolder(),"temporary-traps.yml");
 }
 public void enable(){
-load();
+load();for(Player p:Bukkit.getOnlinePlayers())migrate(p);
 ShapedRecipe recipe=new ShapedRecipe(recipeKey,item());
 recipe.shape("OIO","IDI","OIO");
 recipe.setIngredient('O',Material.OBSIDIAN);
@@ -107,11 +107,11 @@ ItemMeta meta=stack.getItemMeta();
 meta.setDisplayName("§5§lОбсидиановая трапка");
 meta.setItemModel(new NamespacedKey("minecraftunified","obsidian_trap"));
 meta.setLore(List.of(
-"§7ПКМ рядом с игроком: PvP-зона",
+"§7ПКМ: клетка вокруг тебя",
 "§7из обсидиана 7×7 (по 3 блока в стороны).",
-"§7Стены можно сломать, но без дропа.",
+"§7Временные стены нерушимы.",
 "§7Действует 15 секунд.",
-"§8Одноразовая, перезарядка 25 секунд.",
+"§8Бесконечная · КД 60 секунд.",
 "§8Не работает в чужих приватах."
 ));
 meta.getPersistentDataContainer().set(itemKey,PersistentDataType.BYTE,(byte)1);
@@ -122,6 +122,8 @@ private boolean isTrapItem(ItemStack stack){
 return stack!=null&&stack.getType()==Material.ECHO_SHARD&&stack.hasItemMeta()
 &&Byte.valueOf((byte)1).equals(stack.getItemMeta().getPersistentDataContainer().get(itemKey,PersistentDataType.BYTE));
 }
+private void migrate(Player p){for(int i=0;i<p.getInventory().getSize();i++){ItemStack old=p.getInventory().getItem(i);if(!isTrapItem(old))continue;ItemMeta meta=old.getItemMeta();meta.setLore(item().getItemMeta().getLore());old.setItemMeta(meta);p.getInventory().setItem(i,old);}}
+@EventHandler public void join(org.bukkit.event.player.PlayerJoinEvent e){migrate(e.getPlayer());}
 private void send(Player player,String message){player.sendMessage("§5Трапка §8» §7"+message);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=false)
 public void use(PlayerInteractEvent event){
@@ -134,66 +136,25 @@ event.setUseItemInHand(Event.Result.DENY);
 Player caster=event.getPlayer();if(plugin.seasonLocked(caster))return;
 if(!caster.hasPermission("minecraftunified.trap.use")){send(caster,"§cНет прав.");return;}
 long now=System.currentTimeMillis();
-if(now<cooldown.getOrDefault(caster.getUniqueId(),0L)){
-send(caster,"§cПерезарядка ещё "+Math.max(1,(cooldown.get(caster.getUniqueId())-now+999)/1000)+" сек.");
+long ready=Math.max(cooldown.getOrDefault(caster.getUniqueId(),0L),caster.getPersistentDataContainer().getOrDefault(cooldownKey,PersistentDataType.LONG,0L));
+if(now<ready){
+send(caster,"§cПерезарядка ещё "+Math.max(1,(ready-now+999)/1000)+" сек.");
 return;
 }
 if(traps.size()>=MAX_ACTIVE){send(caster,"§cСлишком много активных ловушек.");return;}
 for(Trap t:traps.values())if(t.owner.equals(caster.getUniqueId())&&t.until>now){
 send(caster,"§cТвоя предыдущая трапка ещё действует.");return;
 }
-Player victim=findTarget(caster,event.getClickedBlock());
-if(victim==null){send(caster,"§cНажми рядом с игроком (до 6 блоков) или наведи на него взгляд.");return;}
-if(!prepare(caster,victim)){send(caster,"§cНевозможно поставить трапку: препятствие, приват или другая ловушка.");return;}
-if(caster.getGameMode()!=GameMode.CREATIVE){
-ItemStack inHand=event.getHand()==EquipmentSlot.HAND?caster.getInventory().getItemInMainHand():caster.getInventory().getItemInOffHand();
-if(!isTrapItem(inHand))return;
-if(inHand.getAmount()==1){
-if(event.getHand()==EquipmentSlot.HAND)caster.getInventory().setItemInMainHand(null);
-else caster.getInventory().setItemInOffHand(null);
-}else inHand.setAmount(inHand.getAmount()-1);
+if(caster.getGameMode()==GameMode.SPECTATOR||!caster.getWorld().getPVP())return;
+if(!prepare(caster)){send(caster,"§cНевозможно поставить трапку: препятствие, приват или другая ловушка.");return;}
+cooldown.put(caster.getUniqueId(),now+COOLDOWN_MS);caster.getPersistentDataContainer().set(cooldownKey,PersistentDataType.LONG,now+COOLDOWN_MS);
+caster.setCooldown(held,1200);
+send(caster,"§aКлетка 7×7 создана на 15 секунд. КД 60 секунд.");
+caster.getWorld().playSound(caster.getLocation(),Sound.BLOCK_ANVIL_PLACE,.9f,.8f);
 }
-cooldown.put(caster.getUniqueId(),now+COOLDOWN_MS);
-send(caster,"§aPvP-зона 7×7 создана на 15 секунд. Обсидиан ломается без дропа.");
-send(victim,"§cВокруг тебя PvP-зона на 15 секунд. Обсидиан можно сломать.");
-caster.getWorld().playSound(victim.getLocation(),Sound.BLOCK_ANVIL_PLACE,.9f,.8f);
-}
-private Player findTarget(Player player,Block clicked){
-if(!player.getWorld().getPVP()||player.getGameMode()==GameMode.SPECTATOR)return null;
-Player closest=null;
-double best=Double.MAX_VALUE;
-Vector forward=player.getEyeLocation().getDirection().normalize();
-for(Entity entity:player.getNearbyEntities(6.5,4.5,6.5)){
-if(!(entity instanceof Player other)||other==player||other.isDead()
-||other.getGameMode()==GameMode.CREATIVE||other.getGameMode()==GameMode.SPECTATOR)continue;
-if(other.getWorld()!=player.getWorld()||sameTeam(player,other))continue;
-if(!player.hasLineOfSight(other))continue;
-Vector to=other.getEyeLocation().toVector().subtract(player.getEyeLocation().toVector());
-if(to.lengthSquared()<.01||to.lengthSquared()>6.5*6.5)continue;
-boolean nearClick=clicked!=null
-&&clicked.getWorld().equals(other.getWorld())
-&&clicked.getLocation().clone().add(.5,.5,.5).distanceSquared(other.getLocation())<=3.5*3.5;
-boolean looking=forward.dot(to.normalize())>.83;
-if(!nearClick&&!looking)continue;
-double ranking=nearClick?clicked.getLocation().distanceSquared(other.getLocation()):player.getLocation().distanceSquared(other.getLocation())+100;
-if(ranking<best){closest=other;best=ranking;}
-}
-return closest;
-}
-private boolean sameTeam(Player a,Player b){
-org.bukkit.scoreboard.Team team=a.getScoreboard().getEntryTeam(a.getName());
-return team!=null&&team.equals(b.getScoreboard().getEntryTeam(b.getName()));
-}
-private boolean prepare(Player caster,Player victim){
-if(plugin.isPeace(caster.getLocation())||plugin.isPeace(victim.getLocation()))return false;
-Location feet=victim.getLocation().clone();
-// Put both PvP participants inside the arena when they are close enough.
-if(caster.getLocation().getWorld()==feet.getWorld()
-&&caster.getLocation().distanceSquared(feet)<=5.5*5.5
-&&Math.abs(caster.getLocation().getY()-feet.getY())<=2){
-feet.setX((caster.getLocation().getBlockX()+feet.getBlockX())/2.0);
-feet.setZ((caster.getLocation().getBlockZ()+feet.getBlockZ())/2.0);
-}
+private boolean prepare(Player caster){
+if(plugin.isPeace(caster.getLocation()))return false;
+Location feet=caster.getLocation().clone();
 World w=feet.getWorld();
 if(w==null||!w.equals(caster.getWorld()))return false;
 int x=feet.getBlockX(),y=feet.getBlockY(),z=feet.getBlockZ();
@@ -213,14 +174,13 @@ if(occupied.containsKey(key))return false;
 if(!w.isChunkLoaded(xx>>4,zz>>4))return false;
 Block block=w.getBlockAt(xx,yy,zz);
 if(!w.getWorldBorder().isInside(block.getLocation()))return false;
-if(plugin.isPeace(block.getLocation())||claims==null||!claims.allowsTemporaryStructure(caster,block.getLocation()))return false;
+if(plugin.isPeace(block.getLocation())||(!w.getName().equals(TestWorld.WORLD)||!caster.isOp())&&(claims==null||!claims.allowsTemporaryStructure(caster,block.getLocation())))return false;
 if(dy==-1){
 if(block.isLiquid()||(!block.getType().isSolid()&&!block.getType().isAir()))return false;
 t.protectedFloor.add(key);
 if(block.getType().isAir())t.original.put(key,block.getBlockData().getAsString());
 }else{
-if(!block.getType().isAir())return false;
-t.original.put(key,block.getBlockData().getAsString());
+if(block.getType().isAir()){t.original.put(key,block.getBlockData().getAsString());}else if(block.getType().isSolid()&&!(block.getState() instanceof org.bukkit.block.TileState)){t.protectedFloor.add(key);}else return false;
 }
 }
 
@@ -244,11 +204,7 @@ if(trap==null||trap.protectedFloor.contains(key)){
 e.setCancelled(true);
 return;
 }
-if(trap.original.containsKey(key)&&e.getBlock().getType()==Material.OBSIDIAN){
-e.setDropItems(false);
-e.setExpToDrop(0);
-return;
-}
+if(trap.original.containsKey(key)&&e.getBlock().getType()==Material.OBSIDIAN){e.setCancelled(true);return;}
 e.setCancelled(true);
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
@@ -359,9 +315,9 @@ sweep();
 public boolean handleCommand(CommandSender sender,String[] args){
 if(args.length==0){
 sender.sendMessage("§5Трапка §7| PvP-зона 7×7 (по 3 блока), высота 4, 15 сек.");
-sender.sendMessage("§7Стенки обсидиана ломаются без дропа; исходные блоки сохраняются.");
+sender.sendMessage("§7Нерушимая клетка, 15 секунд. Исходные блоки сохраняются.");
 sender.sendMessage("§7Рецепт: OIO / IDI / OIO (O — обсидиан, I — железо, D — алмаз).");
-sender.sendMessage("§7ПКМ по блоку рядом с игроком или наведи на игрока в радиусе 6 блоков.");
+sender.sendMessage("§7ПКМ — вокруг себя, даже без противника. Бесконечная, КД 60 секунд.");
 if(sender.hasPermission("minecraftunified.trap.admin"))sender.sendMessage("§7/u trap give <ник> [количество]");
 return true;
 }
