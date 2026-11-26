@@ -114,6 +114,7 @@ meta.setLore(List.of(
 "§8Бесконечная · КД 60 секунд.",
 "§8Не работает в чужих приватах."
 ));
+var use=meta.getUseCooldown();use.setCooldownSeconds(60f);use.setCooldownGroup(itemKey);meta.setUseCooldown(use);
 meta.getPersistentDataContainer().set(itemKey,PersistentDataType.BYTE,(byte)1);
 stack.setItemMeta(meta);
 return stack;
@@ -122,7 +123,7 @@ private boolean isTrapItem(ItemStack stack){
 return stack!=null&&stack.getType()==Material.ECHO_SHARD&&stack.hasItemMeta()
 &&Byte.valueOf((byte)1).equals(stack.getItemMeta().getPersistentDataContainer().get(itemKey,PersistentDataType.BYTE));
 }
-private void migrate(Player p){for(int i=0;i<p.getInventory().getSize();i++){ItemStack old=p.getInventory().getItem(i);if(!isTrapItem(old))continue;ItemMeta meta=old.getItemMeta();meta.setLore(item().getItemMeta().getLore());old.setItemMeta(meta);p.getInventory().setItem(i,old);}}
+private void migrate(Player p){for(int i=0;i<p.getInventory().getSize();i++){ItemStack old=p.getInventory().getItem(i);if(!isTrapItem(old))continue;ItemMeta meta=old.getItemMeta();ItemMeta fresh=item().getItemMeta();meta.setLore(fresh.getLore());meta.setUseCooldown(fresh.getUseCooldown());old.setItemMeta(meta);p.getInventory().setItem(i,old);}}
 @EventHandler public void join(org.bukkit.event.player.PlayerJoinEvent e){migrate(e.getPlayer());}
 private void send(Player player,String message){player.sendMessage("§5Трапка §8» §7"+message);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=false)
@@ -184,14 +185,13 @@ if(block.getType().isAir()){t.original.put(key,block.getBlockData().getAsString(
 }
 }
 
-// No changes are made until every block passes all checks.
-for(BlockKey key:t.original.keySet()){
-w.getBlockAt(key.x,key.y,key.z).setType(Material.OBSIDIAN,false);
-}
+// Persist the rollback journal before changing the world.
+if(t.original.isEmpty())return false;
 traps.put(t.id,t);
 for(BlockKey key:t.original.keySet())occupied.put(key,t.id);
 for(BlockKey key:t.protectedFloor)occupied.put(key,t.id);
-save();
+if(!save()){traps.remove(t.id);for(BlockKey key:t.original.keySet())occupied.remove(key);for(BlockKey key:t.protectedFloor)occupied.remove(key);return false;}
+for(BlockKey key:t.original.keySet())w.getBlockAt(key.x,key.y,key.z).setType(Material.OBSIDIAN,false);
 return true;
 }
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
@@ -263,7 +263,7 @@ for(BlockKey key:trap.protectedFloor)occupied.remove(key);
 traps.remove(trap.id);
 }
 }
-private void save(){
+private boolean save(){
 YamlConfiguration out=new YamlConfiguration();
 for(Trap trap:traps.values()){
 String path="traps."+trap.id+".";
@@ -278,8 +278,8 @@ for(BlockKey key:trap.protectedFloor)floors.add(key.encode());
 out.set(path+"floors",floors);
 }
 saveFile.getParentFile().mkdirs();
-try{out.save(saveFile);}
-catch(IOException error){plugin.getLogger().severe("Could not persist temporary PvP cages: "+error.getMessage());}
+try{java.nio.file.Path path=saveFile.toPath(),tmp=path.resolveSibling(saveFile.getName()+".tmp");out.save(tmp.toFile());try{java.nio.file.Files.move(tmp,path,java.nio.file.StandardCopyOption.REPLACE_EXISTING,java.nio.file.StandardCopyOption.ATOMIC_MOVE);}catch(java.nio.file.AtomicMoveNotSupportedException ex){java.nio.file.Files.move(tmp,path,java.nio.file.StandardCopyOption.REPLACE_EXISTING);}return true;}
+catch(IOException error){plugin.getLogger().severe("Could not persist temporary PvP cages: "+error.getMessage());return false;}
 }
 private BlockKey decode(String world,String coord){
 String[] p=coord.split(",",3);
