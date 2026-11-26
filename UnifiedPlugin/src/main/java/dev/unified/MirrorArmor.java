@@ -48,8 +48,9 @@ i.setItemMeta(m);applyVisual(i);return i;
 }
 private boolean mirror(ItemStack i){return i!=null&&i.getType()==Material.IRON_CHESTPLATE&&i.hasItemMeta()&&i.getItemMeta().getPersistentDataContainer().has(id,PersistentDataType.BYTE);}
 private static boolean visualCorrect(ItemStack i){Equippable eq=i.getData(DataComponentTypes.EQUIPPABLE);return VISUAL.equals(i.getData(DataComponentTypes.ITEM_MODEL))&&eq!=null&&eq.slot()==EquipmentSlot.CHEST&&VISUAL.equals(eq.assetId());}
-private static void applyVisual(ItemStack i){i.setData(DataComponentTypes.ITEM_MODEL,VISUAL);Equippable eq=i.getData(DataComponentTypes.EQUIPPABLE);i.setData(DataComponentTypes.EQUIPPABLE,(eq==null||eq.slot()!=EquipmentSlot.CHEST?Equippable.equippable(EquipmentSlot.CHEST):eq.toBuilder()).assetId(VISUAL).build());}
-private void renameInventory(Inventory inv){for(int slot=0;slot<inv.getSize();slot++){ItemStack i=inv.getItem(slot);if(!mirror(i)||visualCorrect(i))continue;applyVisual(i);inv.setItem(slot,i);}}
+private static void applyVisual(ItemStack i){i.setData(DataComponentTypes.ITEM_MODEL,VISUAL);i.setData(DataComponentTypes.EQUIPPABLE,Equippable.equippable(EquipmentSlot.CHEST).assetId(VISUAL).build());}
+private void renameInventory(Inventory inv){for(int slot=0;slot<inv.getSize();slot++){ItemStack i=inv.getItem(slot);if(!mirror(i)||visualCorrect(i))continue;applyVisual(i);inv.setItem(slot,i);}
+if(inv instanceof PlayerInventory playerInv){ItemStack head=playerInv.getHelmet();if(mirror(head)){ItemStack chest=playerInv.getChestplate();if(chest==null||chest.getType().isAir()){playerInv.setHelmet(null);playerInv.setChestplate(head);}else{int free=playerInv.firstEmpty();if(free>=0&&free<36){playerInv.setHelmet(null);playerInv.setItem(free,head);}}}}}
 @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void pickup(org.bukkit.event.entity.EntityPickupItemEvent e){ItemStack i=e.getItem().getItemStack();if(mirror(i)&&!visualCorrect(i)){applyVisual(i);e.getItem().setItemStack(i);}}
 @EventHandler public void open(org.bukkit.event.inventory.InventoryOpenEvent e){renameInventory(e.getInventory());}
 @EventHandler public void join(org.bukkit.event.player.PlayerJoinEvent e){renameInventory(e.getPlayer().getInventory());renameInventory(e.getPlayer().getEnderChest());}
