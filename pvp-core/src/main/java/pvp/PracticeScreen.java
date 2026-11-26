@@ -12,6 +12,7 @@ import net.minecraft.network.chat.Component;
 public final class PracticeScreen extends Screen {
 public PracticeScreen() { super(Component.literal("Land of Losers")); }
 private Button hitStatus,combatStatus;
+private static final java.util.concurrent.atomic.AtomicBoolean exporting=new java.util.concurrent.atomic.AtomicBoolean();
 private static Component status(String name, boolean value) { return Component.literal(name+": ").append(Component.literal(value?"ON":"OFF").withStyle(value?ChatFormatting.GREEN:ChatFormatting.GRAY)); }
 private static Component hitLabel() { return Component.literal("Hits: "+PracticeCombat.confirmedHits()+"/"+PracticeCombat.readyTicks()+" | Jump: "+PracticeCombat.jumpCount()); }
 private static Component combatLabel() { return Component.literal(PracticeCombat.status()+" | Timeout: "+PracticeCombat.expiredHits()); }
@@ -21,7 +22,7 @@ int x=width/2-110;
 int step=Math.max(16,Math.min(24,(height-34)/9)), h=step-2;
 int y=Math.max(30,(height-(9*step+30))/2+30);
 addRenderableOnly(new StringWidget(x,y-28,220,12,Component.literal("LAND OF LOSERS").withStyle(ChatFormatting.GOLD,ChatFormatting.BOLD),font));
-addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Body Practice | 1.11.0 | R / F6").withStyle(ChatFormatting.GRAY),font));
+addRenderableOnly(new StringWidget(x,y-15,220,10,Component.literal("Body Practice | 1.11.1 | R / F6").withStyle(ChatFormatting.GRAY),font));
 addRenderableWidget(Button.builder(status("AimAssist",PracticeClient.settings.aimEnabled()),button -> {
 var s=PracticeClient.settings;
 PracticeClient.settings=new CombatSettings(!s.aimEnabled(),s.triggerEnabled(),s.horizontalSpeed(),s.verticalSpeed(),s.fov());
@@ -61,18 +62,27 @@ combatStatus=Button.builder(combatLabel(),button -> {}).bounds(x,y+7*step,220,h)
 combatStatus.active=false;
 addRenderableWidget(combatStatus);
 addRenderableWidget(Button.builder(Component.literal("Save diagnostics"),button -> {
+if(!exporting.compareAndSet(false,true)) return;
+button.active=false;
 String report=PracticeCombat.diagnostics();
-System.out.println(report);
-try {
+var snapshot=PracticeCombat.replaySnapshot();
 var logs=FabricLoader.getInstance().getGameDir().resolve("logs");
+Thread worker=new Thread(()->{
+boolean success=false;
+try {
 Files.createDirectories(logs);
 Files.writeString(logs.resolve("land-of-losers-diagnostics.txt"),report);
-Files.writeString(logs.resolve("land-of-losers-replay.csv"),PracticeCombat.replayCsv());
-button.setMessage(Component.literal("Report saved").withStyle(ChatFormatting.GREEN));
-} catch(IOException | SecurityException e) {
-button.setMessage(Component.literal("Save failed").withStyle(ChatFormatting.RED));
-System.err.println("Land of Losers: "+e.getMessage());
+Files.writeString(logs.resolve("land-of-losers-replay.csv"),snapshot.csv());
+success=true;
+} catch(IOException | RuntimeException ex) { System.err.println("Land of Losers export: "+ex.getMessage()); }
+finally {
+boolean saved=success;
+exporting.set(false);
+mc.execute(()->{ button.active=true; button.setMessage(Component.literal(saved?"Report saved":"Save failed").withStyle(saved?ChatFormatting.GREEN:ChatFormatting.RED)); });
 }
+},"land-of-losers-export");
+worker.setDaemon(true);
+try { worker.start(); } catch(RuntimeException ex) { exporting.set(false); button.active=true; button.setMessage(Component.literal("Save failed")); }
 }).tooltip(Tooltip.create(Component.literal("Save diagnostics and replay CSV locally. No upload."))).bounds(x,y+8*step,136,h).build());
 addRenderableWidget(Button.builder(Component.literal("Close"),button -> onClose()).bounds(x+140,y+8*step,80,h).build());
 }

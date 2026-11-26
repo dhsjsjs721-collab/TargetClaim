@@ -506,6 +506,21 @@ var snapshotTest=roundtrip.snapshot();
 roundtrip.clear(); check(snapshotTest.size()==4 && roundtrip.size()==0);
 trace.clear(); trace.planner(2,1_000_000,true);
 check(trace.report().contains("Planner: samples=1 probes=2 limited=1"));
+var tickGuard=new TickWatchdog();
+check(!tickGuard.end());
+check(tickGuard.start() && tickGuard.end());
+check(tickGuard.start() && !tickGuard.start() && tickGuard.end());
+tickGuard.reset(); check(!tickGuard.end());
+check(TickWatchdog.elapsed(100,120)==20 && TickWatchdog.elapsed(120,100)==0);
+trace.callbackTime(true,6_000_000); trace.callbackTime(false,200_000);
+check(trace.report().contains("START callback: samples=1 avg_ms=6.00 max_ms=6.00 >=5ms=1"));
+var missReplay=new CombatReplay();
+missReplay.add(new CombatReplay.Frame(1,20,20,0,0,2,1,0,true,false,"READY","WAIT_JUMP","wait","HOLD",0,0));
+missReplay.add(new CombatReplay.Frame(2,20,20,0,0,2,1,0,true,false,"READY","NORMAL","Attack not consumed","HOLD",0,0));
+missReplay.add(new CombatReplay.Frame(3,20,20,0,0,2,1,0,true,false,"READY","WAIT_JUMP","wait","HOLD",0,0));
+check(missReplay.summary().contains("Attack plan without counter increase: 1"));
+check(missReplay.summary().contains("Ready deferrals by recorded plan: {NORMAL=1, WAIT_JUMP=1}"));
+try { missReplay.add(new CombatReplay.Frame(4,20,20,0,0,2,1,0,true,false,"READY","NORMAL","bad","HOLD",0,1)); throw new AssertionError("Invalid counters accepted"); } catch(IllegalArgumentException expectedError) {}
 System.out.println("Combat tests passed");
 }
 }

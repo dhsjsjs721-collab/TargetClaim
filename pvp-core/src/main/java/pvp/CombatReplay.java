@@ -10,6 +10,7 @@ public void clear() { frames.clear(); }
 public int size() { return frames.size(); }
 public CombatReplay snapshot() { var copy=new CombatReplay(); copy.frames.addAll(frames); return copy; }
 public void add(Frame frame) {
+if(frame.tick()<0 || frame.attempts()<0 || frame.confirmed()<0 || frame.confirmed()>frame.attempts()) throw new IllegalArgumentException("Invalid replay counters");
 if(!frames.isEmpty() && frame.tick()<=frames.peekLast().tick()) return;
 if(frames.size()==CAPACITY) frames.removeFirst();
 frames.addLast(frame);

@@ -18,6 +18,7 @@ static CombatSettings settings=CombatSettings.defaults();
 private static Object hotkeyWorld,hotkeyPlayer;
 private static boolean hotkeyActive,hotkeyHeld;
 private static final ActionArbiter arbiter=new ActionArbiter();
+private static final TickWatchdog watchdog=new TickWatchdog();
 private static int hudTicks;
 private static boolean orbitHeld;
 static boolean hotkeyActive() { return hotkeyActive; }
@@ -69,6 +70,24 @@ PracticeCombat.autoMove=false;
 }
 private static boolean modulesEnabled() { return settings.aimEnabled() || settings.triggerEnabled(); }
 private static boolean manualInput(Minecraft mc) { return mc.options.keyAttack.isDown() || mc.options.keyUse.isDown(); }
+private static void failClosed(Minecraft mc,String reason,RuntimeException failure) {
+PracticeCombat.controlFault(reason);
+try { stopPractice(mc); }
+finally { watchdog.reset(); arbiter.reset(); PracticeCombat.releaseInput(mc); }
+System.err.println("Land of Losers: "+reason);
+if(failure!=null) failure.printStackTrace(System.err);
+}
+private static void guarded(Minecraft mc,boolean start,Runnable callback) {
+boolean paired=start?watchdog.start():watchdog.end();
+if(!paired) {
+if(modulesEnabled() || hotkeyActive) failClosed(mc,start?"Missing END callback":"Missing START callback",null);
+return;
+}
+long begin=System.nanoTime();
+try { callback.run(); }
+catch(RuntimeException failure) { failClosed(mc,start?"START callback failed":"END callback failed",failure); }
+finally { PracticeCombat.callbackTime(start,TickWatchdog.elapsed(begin,System.nanoTime())); }
+}
 public void onInitializeClient() {
 loadPreferences();
 PracticeGhost.register();
@@ -76,7 +95,7 @@ var category=KeyMapping.Category.register(Identifier.fromNamespaceAndPath("pvp_p
 var key=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.pvp_practice.open",InputConstants.Type.KEYBOARD,InputConstants.KEY_DOWN,category));
 var toggle=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.pvp_practice.toggle",InputConstants.Type.KEYBOARD,InputConstants.KEY_R,category));
 var orbit=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.pvp_practice.orbit",InputConstants.Type.KEYBOARD,InputConstants.KEY_F6,category));
-ClientTickEvents.START_CLIENT_TICK.register(client -> {
+ClientTickEvents.START_CLIENT_TICK.register(client -> guarded(client,true,()->{
 checkHotkeySession(client);
 boolean pressed=false;
 while(toggle.consumeClick()) pressed=true;
@@ -96,8 +115,8 @@ PracticeCombat.supportPause(client,PracticeSupport.status());
 } else PracticeCombat.startTick(client,settings);
 } else if(owner!=ActionArbiter.Owner.IDLE) { PracticeSupport.idleTick(); PracticeCombat.controlPause(client,owner.name(),true); }
 else PracticeCombat.finishPractice();
-});
-ClientTickEvents.END_CLIENT_TICK.register(client -> {
+}));
+ClientTickEvents.END_CLIENT_TICK.register(client -> guarded(client,false,()->{
 PracticeCombat.releaseInput(client);
 while(key.consumeClick()) {
 if(!guiLocked && client.player != null && client.gui.screen()==null) client.gui.setScreen(new PracticeScreen());
@@ -113,7 +132,7 @@ if(hotkeyActive && client.gui.screen()==null && ++hudTicks>=20) {
 hudTicks=0;
 client.gui.hud.setOverlayMessage(Component.literal(PracticeCombat.targetSummary(client)+" | "+PracticeSupport.inventorySummary(client)),false);
 }
-});
+}));
 ScreenEvents.BEFORE_INIT.register((client,screen,w,h) -> {
 if(screen instanceof PracticeScreen) ScreenKeyboardEvents.beforeKeyPress(screen).register((s,event) -> {
 if(key.matches(event)) client.gui.setScreen(null);

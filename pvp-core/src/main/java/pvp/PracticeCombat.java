@@ -22,6 +22,9 @@ return serverTarget;
 }
 static boolean hasLockedTarget(Minecraft mc) { return currentServerTarget(mc)!=null; }
 static double supportDistance(Minecraft mc) { var target=currentServerTarget(mc); return target==null || mc.player==null?Double.NaN:Math.sqrt(mc.player.distanceToSqr(target.entity())); }
+static void controlFault(String reason) { if(sessionActive) { trace.event(trackingTick,"WATCHDOG: "+reason); setStatus(reason); } }
+static void callbackTime(boolean start,long nanos) { if(sessionActive) trace.callbackTime(start,nanos); }
+static CombatReplay replaySnapshot() { return (sessionActive || previousReplay==null?replay:previousReplay).snapshot(); }
 static void supportObservation(String reason) { if(sessionActive) { trace.support(reason); trace.event(trackingTick,reason); } }
 static void supportPause(Minecraft mc,String reason) { pauseControl(mc,"SUPPORT",reason,true); }
 static void controlPause(Minecraft mc,String gate,boolean advance) { pauseControl(mc,gate,gate,advance); }

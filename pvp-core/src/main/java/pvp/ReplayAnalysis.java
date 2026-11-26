@@ -8,6 +8,8 @@ int size=0,ready=0,noRay=0,streak=0,longest=0,readyWait=0,readyAttack=0,readyUnc
 int attempts=0,confirmed=0;
 long first=-1,last=-1;
 double hpLost=0,hpGained=0;
+var deferred=new TreeMap<String,Integer>(); var attemptResults=new TreeMap<String,Integer>();
+int invalidCounters=0,attackPlanWithoutAttempt=0,unattributedAttempts=0;
 var gates=new TreeMap<String,Integer>(); var plans=new TreeMap<String,Integer>(); var movement=new TreeMap<String,Integer>();
 CombatReplay.Frame prev=null;
 for(var f:frames) {
@@ -23,11 +25,18 @@ if("READY".equals(f.gate())) {
 ready++;
 if(!adjacent || f.attempts()<prev.attempts()) readyUnclassified++;
 else if(f.attempts()>prev.attempts()) readyAttack++;
-else readyWait++;
+else { readyWait++; deferred.merge(f.plan(),1,Integer::sum); }
 }
 if(adjacent) {
-if(f.attempts()>=prev.attempts()) attempts+=f.attempts()-prev.attempts();
-if(f.confirmed()>=prev.confirmed()) confirmed+=f.confirmed()-prev.confirmed();
+boolean countersValid=f.attempts()>=prev.attempts() && f.confirmed()>=prev.confirmed();
+if(!countersValid) invalidCounters++;
+else {
+int delta=f.attempts()-prev.attempts();
+attempts+=delta; confirmed+=f.confirmed()-prev.confirmed();
+boolean attackPlan=f.plan().equals("NORMAL") || f.plan().equals("CRITICAL") || f.plan().equals("COMBO");
+if(attackPlan && delta==0) { attackPlanWithoutAttempt++; attemptResults.merge(f.result(),1,Integer::sum); }
+if(delta>0 && !attackPlan) unattributedAttempts+=delta;
+}
 if(Double.isFinite(f.hp()) && Double.isFinite(prev.hp())) {
 double change=f.hp()-prev.hp();
 hpLost+=Math.max(0,-change); hpGained+=Math.max(0,change);
@@ -38,6 +47,9 @@ prev=f;
 return "Replay frames: "+size+" | ready="+ready+" | charged without ray="+noRay+" | longest consecutive charged/no-ray="+longest
 +"\nRecorded ticks: "+first+".."+last+" | gaps="+gaps
 +"\nReady ticks: attack observed="+readyAttack+" | no attempt="+readyWait+" | unclassified="+readyUnclassified
++"\nReady deferrals by recorded plan: "+deferred
++"\nAttack plan without counter increase: "+attackPlanWithoutAttempt+" | results="+attemptResults
++"\nUnattributed attempt increments="+unattributedAttempts+" | counter discontinuities="+invalidCounters
 +"\nAdjacent-frame counter increases: attempts="+attempts+" confirmed="+confirmed
 +"\nObserved health changes: lost="+String.format(Locale.ROOT,"%.2f",hpLost)+" gained="+String.format(Locale.ROOT,"%.2f",hpGained)
 +"\nReplay gates: "+gates+"\nReplay plans: "+plans+"\nReplay movement: "+movement
