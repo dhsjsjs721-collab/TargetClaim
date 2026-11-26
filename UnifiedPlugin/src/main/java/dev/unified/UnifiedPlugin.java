@@ -117,6 +117,7 @@ if(Bukkit.getPluginManager().getPlugin("TalismanForge")!=null){
 getLogger().severe("WARNING: standalone TalismanForge detected. Remove its old JAR from plugins to prevent duplicate abilities or command conflicts.");
 }
 org.bukkit.inventory.ShapedRecipe verityRecipe=new org.bukkit.inventory.ShapedRecipe(new org.bukkit.NamespacedKey("minecraftunified","craft_verity"),Verity.item());verityRecipe.shape("GAG","ABA","GAG");verityRecipe.setIngredient('G',org.bukkit.Material.GOLD_BLOCK);verityRecipe.setIngredient('A',org.bukkit.Material.AMETHYST_SHARD);verityRecipe.setIngredient('B',org.bukkit.Material.POLISHED_BLACKSTONE);Bukkit.addRecipe(verityRecipe);
+org.bukkit.inventory.ShapedRecipe shopRecipe=new org.bukkit.inventory.ShapedRecipe(new org.bukkit.NamespacedKey("minecraftunified","craft_shop"),Shopkeepers.token());shopRecipe.shape("DED","ESE","DED");shopRecipe.setIngredient('D',org.bukkit.Material.DIAMOND_BLOCK);shopRecipe.setIngredient('E',org.bukkit.Material.EMERALD_BLOCK);shopRecipe.setIngredient('S',org.bukkit.Material.NAME_TAG);Bukkit.addRecipe(shopRecipe);
 dragons=new DragonCycle(this);dragons.enable();
 recipeGuide=new RecipeGuide(this);recipeGuide.enable();
 getLogger().info("MinecraftUnified 1.1.22 started modules "+enabledModules.size()+"/"+modules.size()+
