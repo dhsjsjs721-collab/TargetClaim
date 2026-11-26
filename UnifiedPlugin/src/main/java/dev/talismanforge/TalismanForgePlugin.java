@@ -36,6 +36,7 @@ private final Map<UUID,UUID> holograms=new HashMap<>();
 private final Random random=new Random();
 private int pulses=0;
 private MythicTalismans myths;
+public List<ItemStack> testRelics(){return myths==null?List.of():myths.testRelics();}
 public List<Location> getKoscheiEggLocations(){return myths==null?List.of():myths.eggLocations();}
 private static final class Altar {
 UUID id=UUID.randomUUID(),owner,world;

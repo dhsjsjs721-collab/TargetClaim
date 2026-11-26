@@ -17,6 +17,7 @@ private static NamespacedKey model(ItemStack stack){
 if(stack==null||!stack.hasItemMeta())return null;
 var p=stack.getItemMeta().getPersistentDataContainer();
 return switch(stack.getType()){
+case NAME_TAG -> flag(p,"minecraftunified","shop_token")?k("minecraftunified","shop_token"):null;
 case TARGET -> flag(p,"targetclaim","claim_target")?k("targetclaim",flag(p,"targetclaim","independent_claim")?"independent_core":"claim_core"):null;
 case ECHO_SHARD -> flag(p,"minecraftunified","obsidian_trap")?k("minecraftunified","obsidian_trap"):flag(p,"enchantmentforge","inventory_charm")?k("enchantmentforge","return_charm"):null;
 case ENCHANTED_BOOK -> {String id=p.get(k("enchantmentforge","enchanted_book_kind"),PersistentDataType.STRING);yield "soulbound".equals(id)||"triple_shot".equals(id)?k("enchantmentforge",id):null;}

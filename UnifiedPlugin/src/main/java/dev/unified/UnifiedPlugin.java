@@ -39,6 +39,7 @@ private Shopkeepers shops;
 private RecipeGuide recipeGuide;
 private DragonCycle dragons;
 private SeasonStart season;
+private TestWorld testWorld;
 private static final Map<String,String> ROUTES=Map.ofEntries(
 Map.entry("claim","p"),Map.entry("claims","p"),Map.entry("p","p"),Map.entry("private","p"),
 Map.entry("team","team"),Map.entry("teams","team"),Map.entry("clan","team"),Map.entry("clans","team"),
@@ -124,6 +125,7 @@ recipeGuide=new RecipeGuide(this);recipeGuide.enable();
 season=new SeasonStart(this);season.enable();
 for(String name:List.of("s","a")){PluginCommand c=getCommand(name);if(c!=null)c.setExecutor((sender,cmd,label,args)->season.command(sender,name.equals("a")));}
 new CommandPolicy(this).enable();
+testWorld=new TestWorld(this);testWorld.enable();PluginCommand test=getCommand("test");if(test!=null){test.setExecutor((sender,cmd,label,args)->testWorld.command(sender,args));test.setTabCompleter((sender,cmd,alias,args)->sender.isOp()&&args.length==1?List.of("exit","refill").stream().filter(x->x.startsWith(args[0])).toList():List.of());}
 if(!CommandPolicy.selftest())throw new IllegalStateException("Command policy self-test failed");getLogger().info("SELFTEST command policy OK");
 getLogger().info("MinecraftUnified 1.1.22 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
@@ -143,6 +145,7 @@ event.getCommands().remove("minecraftunified:"+name);
 }
 public boolean isMirrorReflection(org.bukkit.event.entity.EntityDamageEvent e){return mirrorArmor!=null&&mirrorArmor.isReflection(e);}
 public boolean isPeace(org.bukkit.Location l){return peace!=null&&peace.contains(l);}
+public List<org.bukkit.inventory.ItemStack> testRelics(){for(ModuleBridge module:enabledModules)if(module instanceof TalismanForgePlugin t)return t.testRelics();return List.of();}
 public TargetClaimPlugin claimModule(){for(ModuleBridge m:enabledModules)if(m instanceof TargetClaimPlugin c)return c;return null;}
 public List<org.bukkit.Location> getKoscheiEggLocations(){for(ModuleBridge m:enabledModules)if(m instanceof TalismanForgePlugin t)return t.getKoscheiEggLocations();return List.of();}
 private boolean enabled(String module){
@@ -347,6 +350,7 @@ return sub.tabComplete(sender,target,rest);
 }catch(Exception ex){return List.of();}
 }
 @Override public void onDisable(){
+if(testWorld!=null)testWorld.disable();
 if(media!=null)media.disable();
 if(dragons!=null){dragons.disable();dragons=null;}
 if(shops!=null){shops.disable();shops=null;}

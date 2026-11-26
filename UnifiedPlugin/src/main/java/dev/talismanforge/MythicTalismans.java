@@ -192,6 +192,7 @@ final class MythicTalismans implements Listener {
     }
     private void give(Player p,ItemStack i){for(ItemStack rest:p.getInventory().addItem(i).values())protect(p.getWorld().dropItemNaturally(p.getLocation(),rest));}
     String issueRandom(Player p){Kind[] kinds=Kind.values();Kind k=kinds[random.nextInt(kinds.length)];return issue(p,k)?k.title:null;}
+    List<ItemStack> testRelics(){List<ItemStack> result=new ArrayList<>();for(Kind k:Kind.values())for(boolean awakened:new boolean[]{false,true}){State s=new State(k);s.serial=UUID.randomUUID().toString();s.awakened=awakened;s.charges=k==Kind.ANUBIS?500:cap(k,s);states.put(s.serial,s);if(save())result.add(item(s));else states.remove(s.serial);}return result;}
     boolean issue(Player p,Kind k){
         State s=new State(k);s.serial=UUID.randomUUID().toString();s.charges=k==Kind.ANUBIS?0:3;
         states.put(s.serial,s);if(!save()){states.remove(s.serial);return false;}

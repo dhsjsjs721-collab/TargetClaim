@@ -1,3 +1,7 @@
+# Isolated OP test world
+
+`/test` enters a separate void world with a 33x33 platform and chests of actual registered custom recipe results, all five base/awakened relics, and testing supplies. `/test exit` restores inventory, ender chest, location, XP and mode; `/test refill` restocks. Only OP can enter, including during waiting and scouting. A persistent snapshot is taken before entry; rejoining restores it. World-boundary teleports are blocked unless initiated by the test module. Operators remain trusted and can use administrative commands.
+
 # Clan fees
 
 Leaving costs 32 diamonds paid by the departing player; kicking costs 64 paid by the clan leader. Dissolving a clan costs 32 plus 64 per other member to prevent bypassing either fee. Only diamonds in the normal inventory are counted. Insufficient funds leave membership and inventory unchanged. A failed clan file save restores the old membership and diamonds; abrupt crashes between world/player saves are not atomic. All fees apply to OP players as well when using normal clan commands.

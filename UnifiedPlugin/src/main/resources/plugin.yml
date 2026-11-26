@@ -5,6 +5,10 @@ api-version: '26.3'
 author: MinecraftUnified
 description: All 5 Minecraft Paper gameplay systems in a single JAR
 commands:
+  test:
+    description: Isolated OP test world
+    usage: /test [exit|refill]
+    permission: minecraftunified.test.admin
   s:
     description: Console only - wait for season start
     aliases: [start]
@@ -54,6 +58,8 @@ commands:
     description: Edit a map using an HTTPS image
     usage: /u map
 permissions:
+  minecraftunified.test.admin:
+    default: op
   minecraftunified.season.admin:
     default: op
   minecraftunified.verity.admin:
