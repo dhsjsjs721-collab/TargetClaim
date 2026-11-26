@@ -42,9 +42,9 @@ i.setItemMeta(m);return i;
 }
 private void configure(Zombie z,boolean fresh){
 int style=variant(z);
-z.setBaby(false);z.setCanBreakDoors(false);z.setCanPickupItems(false);z.setShouldBurnInDay(false);z.setRemoveWhenFarAway(true);
+z.setBaby(true);z.setCanBreakDoors(false);z.setCanPickupItems(false);z.setShouldBurnInDay(false);z.setRemoveWhenFarAway(true);
 z.setInvisible(true);
-attribute(z,Attribute.SCALE,.68);attribute(z,Attribute.MAX_HEALTH,14);attribute(z,Attribute.MOVEMENT_SPEED,.32);attribute(z,Attribute.ATTACK_DAMAGE,1.5);attribute(z,Attribute.ARMOR,0);attribute(z,Attribute.ARMOR_TOUGHNESS,0);attribute(z,Attribute.SPAWN_REINFORCEMENTS,0);attribute(z,Attribute.FOLLOW_RANGE,28);
+attribute(z,Attribute.SCALE,1);attribute(z,Attribute.MAX_HEALTH,14);attribute(z,Attribute.MOVEMENT_SPEED,.32);attribute(z,Attribute.ATTACK_DAMAGE,1.5);attribute(z,Attribute.ARMOR,0);attribute(z,Attribute.ARMOR_TOUGHNESS,0);attribute(z,Attribute.SPAWN_REINFORCEMENTS,0);attribute(z,Attribute.FOLLOW_RANGE,28);
 if(fresh)z.setHealth(14);else if(z.getHealth()>14)z.setHealth(14);
 var eq=z.getEquipment();eq.setHelmet(skin(Material.LEATHER_HELMET,style));eq.setChestplate(skin(Material.LEATHER_CHESTPLATE,style));eq.setLeggings(skin(Material.LEATHER_LEGGINGS,style));eq.setBoots(skin(Material.LEATHER_BOOTS,style));eq.setItemInMainHand(new ItemStack(Material.IRON_SWORD));eq.setItemInOffHand(null);
 eq.setHelmetDropChance(0);eq.setChestplateDropChance(0);eq.setLeggingsDropChance(0);eq.setBootsDropChance(0);eq.setItemInMainHandDropChance(0);eq.setItemInOffHandDropChance(0);

@@ -44,7 +44,7 @@ i.setItemMeta(m);return i;
 }
 private boolean mirror(ItemStack i){return i!=null&&i.getType()==Material.IRON_CHESTPLATE&&i.hasItemMeta()&&i.getItemMeta().getPersistentDataContainer().has(id,PersistentDataType.BYTE);}
 private void renameInventory(Inventory inv){
-for(int slot=0;slot<inv.getSize();slot++){ItemStack i=inv.getItem(slot);if(!mirror(i))continue;var meta=i.getItemMeta();if(!"§b§lЗеркальный нагрудник".equals(meta.getDisplayName()))continue;meta.setDisplayName("§b§lЗеркальная броня");i.setItemMeta(meta);inv.setItem(slot,i);}
+for(int slot=0;slot<inv.getSize();slot++){ItemStack i=inv.getItem(slot);if(!mirror(i))continue;var meta=i.getItemMeta();boolean changed=false;if(!id.equals(meta.getItemModel())){meta.setItemModel(id);changed=true;}var eq=meta.getEquippable();if(!id.equals(eq.getModel())){eq.setModel(id);meta.setEquippable(eq);changed=true;}if(!"§b§lЗеркальная броня".equals(meta.getDisplayName())){meta.setDisplayName("§b§lЗеркальная броня");changed=true;}if(!changed)continue;i.setItemMeta(meta);inv.setItem(slot,i);}
 }
 @EventHandler public void open(org.bukkit.event.inventory.InventoryOpenEvent e){renameInventory(e.getInventory());}
 @EventHandler public void join(org.bukkit.event.player.PlayerJoinEvent e){renameInventory(e.getPlayer().getInventory());renameInventory(e.getPlayer().getEnderChest());}

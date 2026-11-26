@@ -630,7 +630,7 @@ final class MythicTalismans implements Listener {
         if(p==null)return;
         Kind k=active(p);
         if(k==Kind.ANUBIS){
-            if(!(entity instanceof ArmorStand)&&!(entity instanceof Mannequin)&&!entity.getPersistentDataContainer().has(summonKey,PersistentDataType.STRING)){
+            if(natural(entity)&&!peace(entity.getLocation())&&!peace(p.getLocation())&&(soul==null||soul.state()==activeState(p))){
                 State st=activeState(p);int old=st.charges;st.charges=Math.min(500,st.charges+soulValue(entity));
                 if(st.charges!=old){
                     if(!save())st.charges=old;
@@ -638,7 +638,7 @@ final class MythicTalismans implements Listener {
                 }
             }else if(now()-soulFeedback.getOrDefault(p.getUniqueId(),0L)>4000){
                 soulFeedback.put(p.getUniqueId(),now());var reason=entity.getEntitySpawnReason();
-                p.sendMessage("§7Анубис: служебная сущность не даёт душ ("+(reason==null?"UNKNOWN":reason.name())+").");
+                p.sendMessage("§7Анубис: неестественное появление или недопустимое убийство ("+(reason==null?"UNKNOWN":reason.name())+").");
             }
         }
         Credit credit=credits.remove(entity.getUniqueId());
@@ -751,7 +751,7 @@ final class MythicTalismans implements Listener {
     private Location safeEgg(Location l){
         for(int y=0;y<=2;y++)for(int x=-2;x<=2;x++)for(int z=-2;z<=2;z++){
             if(x==0&&z==0)continue;Location t=l.clone().add(x,y,z);
-            if(t.getBlock().isPassable()&&t.getBlock().getRelative(BlockFace.UP).isPassable()&&t.getBlock().getRelative(BlockFace.DOWN).getType().isSolid()&&!t.getBlock().isLiquid())return t.add(.5,0,.5);
+            if(t.getWorld()==null||t.getBlockY()<t.getWorld().getMinHeight()+1||t.getBlockY()>=t.getWorld().getMaxHeight()-2||!t.getWorld().isChunkLoaded(t.getBlockX()>>4,t.getBlockZ()>>4)||claimed(t)||peace(t))continue;Block feet=t.getBlock(),head=feet.getRelative(BlockFace.UP),ground=feet.getRelative(BlockFace.DOWN);if(feet.isPassable()&&head.isPassable()&&!feet.isLiquid()&&!head.isLiquid()&&ground.getType().isSolid()&&!Set.of(Material.MAGMA_BLOCK,Material.CACTUS,Material.CAMPFIRE,Material.SOUL_CAMPFIRE,Material.POWDER_SNOW).contains(ground.getType())&&!Set.of(Material.FIRE,Material.SOUL_FIRE,Material.POWDER_SNOW).contains(feet.getType())){t.add(.5,0,.5);t.setDirection(l.clone().add(.5,.5,.5).toVector().subtract(t.toVector()));return t;}
         }return null;
     }
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void useEgg(PlayerInteractEvent e){
@@ -899,6 +899,9 @@ final class MythicTalismans implements Listener {
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void frozenBreak(BlockBreakEvent e){if(isStone(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void frozenPlace(BlockPlaceEvent e){if(isStone(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void frozenInventory(InventoryClickEvent e){if(e.getWhoClicked() instanceof Player p&&isStone(p))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void frozenDrag(InventoryDragEvent e){if(e.getWhoClicked() instanceof Player p&&isStone(p))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void frozenSwap(PlayerSwapHandItemsEvent e){if(isStone(e.getPlayer()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void frozenDrop(PlayerDropItemEvent e){if(isStone(e.getPlayer()))e.setCancelled(true);}
     @EventHandler public void entitiesLoaded(EntitiesLoadEvent e){for(Entity entity:e.getEntities()){
         if(entity instanceof Item i)recoverItem(i);
         else if(entity instanceof ItemDisplay&&entity.getPersistentDataContainer().has(key("ritual_visual"),PersistentDataType.BYTE)&&ritualDisplays.values().stream().noneMatch(ids->ids.contains(entity.getUniqueId()))){entity.remove();continue;}
@@ -996,7 +999,7 @@ final class MythicTalismans implements Listener {
             mob.setTarget(nearest);
         }
         if(ticks%40==0)renderMarks();
-        if(ticks%200==0){soulHits.entrySet().removeIf(e->e.getValue().until()<time);generatedChunks.entrySet().removeIf(e->e.getValue()<time);soulVfx.entrySet().removeIf(e->time-e.getValue()>60000);soulFeedback.entrySet().removeIf(e->time-e.getValue()>60000);stoneImmune.entrySet().removeIf(e->e.getValue()<time);credits.entrySet().removeIf(e->e.getValue().until()<time);}
+        if(ticks%200==0){soulHits.entrySet().removeIf(e->e.getValue().until()<time);generatedChunks.entrySet().removeIf(e->e.getValue()<time);soulVfx.entrySet().removeIf(e->time-e.getValue()>60000);soulFeedback.entrySet().removeIf(e->time-e.getValue()>60000);stoneImmune.entrySet().removeIf(e->e.getValue()<time);stonePlayers.entrySet().removeIf(e->e.getValue()<time);credits.entrySet().removeIf(e->e.getValue().until()<time);}
     }
     @EventHandler public void join(PlayerJoinEvent e){
         Player p=e.getPlayer();combat.put(p.getUniqueId(),now());
@@ -1004,7 +1007,7 @@ final class MythicTalismans implements Listener {
         checkStorage(p.getEnderChest(),p);
     }
     @EventHandler public void quit(PlayerQuitEvent e){
-        Player p=e.getPlayer();show(p);effects(p,null);UUID id=p.getUniqueId();combat.remove(id);sneak.remove(id);kitsuneEquipped.remove(id);gazes.remove(id);stonePlayers.remove(id);storm.remove(id);stormInstance.remove(id);gazeInstance.remove(id);
+        Player p=e.getPlayer();show(p);effects(p,null);UUID id=p.getUniqueId();combat.remove(id);sneak.remove(id);kitsuneEquipped.remove(id);gazes.remove(id);storm.remove(id);stormInstance.remove(id);gazeInstance.remove(id);
     }
     void close(){
         for(Ritual r:new ArrayList<>(rituals.values()))abortRitual(r,"сервер выключается");

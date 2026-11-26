@@ -30,7 +30,7 @@ Block loaded(){World w=Bukkit.getWorld(world);return w!=null&&w.isChunkLoaded(x>
 String encode(){return world+","+x+","+y+","+z;}
 }
 private record Lease(String original,int level){}
-private record Flight(UUID owner,Location location,Vector velocity,int age){}
+private record Flight(UUID owner,Location location,Vector velocity,int age,Material material){}
 private final Map<Pos,Lease> lamps=new HashMap<>();
 private final Map<UUID,Flight> flights=new HashMap<>();
 private static final String LIGHT_PREFIX="temporary_light_";
@@ -119,8 +119,10 @@ if(seen.size()>=6)break;
 }
 private int level(ItemStack i){
 if(i==null)return 0;
-return switch(i.getType()){case TORCH,WALL_TORCH,GLOWSTONE,SEA_LANTERN,SHROOMLIGHT,LANTERN,END_ROD,JACK_O_LANTERN -> 14;case SOUL_TORCH,SOUL_LANTERN -> 10;case REDSTONE_TORCH -> 7;default -> 0;};
+return switch(i.getType()){case TORCH,WALL_TORCH,END_ROD -> 14;case GLOWSTONE,SEA_LANTERN,SHROOMLIGHT,LANTERN,JACK_O_LANTERN,OCHRE_FROGLIGHT,VERDANT_FROGLIGHT,PEARLESCENT_FROGLIGHT -> 15;case SOUL_TORCH,SOUL_WALL_TORCH,SOUL_LANTERN -> 10;case REDSTONE_TORCH,REDSTONE_WALL_TORCH -> 7;default -> 0;};
 }
+private boolean throwable(Material type){return type==Material.TORCH||type==Material.SOUL_TORCH||type==Material.REDSTONE_TORCH;}
+private Material wallTorch(Material type){return switch(type){case SOUL_TORCH->Material.SOUL_WALL_TORCH;case REDSTONE_TORCH->Material.REDSTONE_WALL_TORCH;default->Material.WALL_TORCH;};}
 private NamespacedKey leaseKey(Pos p){return new NamespacedKey("minecraftunified",LIGHT_PREFIX+(p.x()&15)+"_"+p.y()+"_"+(p.z()&15));}
 private void mark(Block b,Pos p,Lease l){b.getChunk().getPersistentDataContainer().set(leaseKey(p),PersistentDataType.STRING,l.level()+"|"+l.original());}
 private boolean restore(Pos p,Lease l){
@@ -153,7 +155,7 @@ if(!survival(p)||p.isDead())continue;var inv=p.getInventory();int light=Math.max
 if(is(inv.getHelmet(),"helmet"))light=Math.max(light,12);
 if(light==0)continue;
 Block b=p.getEyeLocation().getBlock();Pos pos=Pos.of(b);
-if(!b.getType().isAir()&&!lamps.containsKey(pos))continue;
+if(!b.getType().isAir()&&!lamps.containsKey(pos)){b=p.getLocation().getBlock();pos=Pos.of(b);if(!b.getType().isAir()&&!lamps.containsKey(pos))continue;}
 wanted.merge(pos,light,Math::max);
 }
 restoreUnwanted(wanted.keySet());
@@ -173,29 +175,29 @@ Light data=(Light)Material.LIGHT.createBlockData();data.setLevel(value);b.setBlo
 @EventHandler public void unload(ChunkUnloadEvent e){recover(e.getChunk());}
 @EventHandler public void load(ChunkLoadEvent e){recover(e.getChunk());}
 @EventHandler(priority=EventPriority.HIGHEST) public void throwTorch(PlayerInteractEvent e){
-Player p=e.getPlayer();if(e.getHand()!=EquipmentSlot.HAND||!p.isSneaking()||p.getGameMode()!=GameMode.SURVIVAL||e.getItem()==null||e.getItem().getType()!=Material.TORCH||!(e.getAction()==Action.RIGHT_CLICK_AIR||e.getAction()==Action.RIGHT_CLICK_BLOCK))return;
+Player p=e.getPlayer();if(e.getHand()!=EquipmentSlot.HAND||!p.isSneaking()||p.getGameMode()!=GameMode.SURVIVAL||e.getItem()==null||!throwable(e.getItem().getType())||!(e.getAction()==Action.RIGHT_CLICK_AIR||e.getAction()==Action.RIGHT_CLICK_BLOCK))return;
 if(e.getItem().hasItemMeta()||e.getAction()==Action.RIGHT_CLICK_BLOCK&&e.isCancelled())return;
 e.setCancelled(true);if(flights.containsKey(p.getUniqueId()))return;
-ItemStack stack=p.getInventory().getItemInMainHand();if(stack.getType()!=Material.TORCH||stack.getAmount()<1)return;
+ItemStack stack=p.getInventory().getItemInMainHand();if(!throwable(stack.getType())||stack.getAmount()<1)return;Material material=stack.getType();
 stack.setAmount(stack.getAmount()-1);p.getInventory().setItemInMainHand(stack.getAmount()==0?new ItemStack(Material.AIR):stack);
 Location start=p.getEyeLocation().clone();Vector v=start.getDirection().multiply(1.25);
-flights.put(p.getUniqueId(),new Flight(p.getUniqueId(),start,v,0));p.playSound(p.getLocation(),Sound.ENTITY_SNOWBALL_THROW,.7f,.9f);
+flights.put(p.getUniqueId(),new Flight(p.getUniqueId(),start,v,0,material));p.playSound(p.getLocation(),Sound.ENTITY_SNOWBALL_THROW,.7f,.9f);
 }
 private void refund(Flight f){
-Player p=Bukkit.getPlayer(f.owner());ItemStack torch=new ItemStack(Material.TORCH);
+Player p=Bukkit.getPlayer(f.owner());ItemStack torch=new ItemStack(f.material());
 if(p!=null){for(ItemStack rest:p.getInventory().addItem(torch).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);}
 else if(f.location().getWorld()!=null&&f.location().getWorld().isChunkLoaded(f.location().getBlockX()>>4,f.location().getBlockZ()>>4))f.location().getWorld().dropItemNaturally(f.location(),torch);
 }
 private boolean placeTorch(Flight f,RayTraceResult hit){
 Player p=Bukkit.getPlayer(f.owner());Block anchor=hit.getHitBlock();BlockFace face=hit.getHitBlockFace();
 if(p==null||p.getGameMode()!=GameMode.SURVIVAL||anchor==null||face==null||face==BlockFace.DOWN)return false;
-int tx=anchor.getX()+face.getModX(),ty=anchor.getY()+face.getModY(),tz=anchor.getZ()+face.getModZ();World world=anchor.getWorld();if(ty<world.getMinHeight()||ty>=world.getMaxHeight()||!world.isChunkLoaded(tx>>4,tz>>4))return false;Block target=world.getBlockAt(tx,ty,tz);if(!target.getType().isAir())return false;
+int tx=anchor.getX()+face.getModX(),ty=anchor.getY()+face.getModY(),tz=anchor.getZ()+face.getModZ();World world=anchor.getWorld();if(ty<world.getMinHeight()||ty>=world.getMaxHeight()||!world.isChunkLoaded(tx>>4,tz>>4))return false;Block target=world.getBlockAt(tx,ty,tz);Pos pos=Pos.of(target);Lease lease=lamps.get(pos);if(lease!=null&&restore(pos,lease))lamps.remove(pos);if(!target.getType().isAir())return false;
 if(host.claimModule()==null||!host.claimModule().allowsTemporaryStructure(p,target.getLocation()))return false;
-BlockData data=face==BlockFace.UP?Material.TORCH.createBlockData():Material.WALL_TORCH.createBlockData();
+BlockData data=face==BlockFace.UP?f.material().createBlockData():wallTorch(f.material()).createBlockData();
 if(data instanceof Directional d)d.setFacing(face);
 if(!target.canPlace(data))return false;
 BlockState previous=target.getState();target.setBlockData(data,false);
-BlockPlaceEvent event=new BlockPlaceEvent(target,previous,anchor,new ItemStack(Material.TORCH),p,true,EquipmentSlot.HAND);
+BlockPlaceEvent event=new BlockPlaceEvent(target,previous,anchor,new ItemStack(f.material()),p,true,EquipmentSlot.HAND);
 Bukkit.getPluginManager().callEvent(event);
 if(event.isCancelled()||!event.canBuild()){previous.update(true,false);return false;}
 target.getWorld().playSound(target.getLocation(),Sound.BLOCK_WOOD_PLACE,.75f,1.3f);return true;
@@ -206,9 +208,9 @@ Flight f=entry.getValue();Location l=f.location();World w=l.getWorld();Player p=
 Vector v=f.velocity();Location next=l.clone().add(v);
 if(p==null||p.getWorld()!=w||f.age()>=20||l.getY()<w.getMinHeight()||next.getY()>=w.getMaxHeight()||!w.isChunkLoaded(l.getBlockX()>>4,l.getBlockZ()>>4)||!w.isChunkLoaded(next.getBlockX()>>4,next.getBlockZ()>>4)){flights.remove(entry.getKey());refund(f);continue;}
 RayTraceResult hit=w.rayTraceBlocks(l,v.clone().normalize(),v.length(),FluidCollisionMode.NEVER,true);
-w.spawnParticle(Particle.FLAME,l,3,.04,.04,.04,.005);w.spawnParticle(Particle.SMOKE,l,1,0,0,0,.01);
+w.spawnParticle(f.material()==Material.SOUL_TORCH?Particle.SOUL_FIRE_FLAME:Particle.FLAME,l,3,.04,.04,.04,.005);w.spawnParticle(Particle.SMOKE,l,1,0,0,0,.01);
 if(hit!=null){flights.remove(entry.getKey());if(!placeTorch(f,hit))refund(f);continue;}
-flights.put(entry.getKey(),new Flight(f.owner(),next,v.clone().multiply(.98).add(new Vector(0,-.045,0)),f.age()+1));
+flights.put(entry.getKey(),new Flight(f.owner(),next,v.clone().multiply(.98).add(new Vector(0,-.045,0)),f.age()+1,f.material()));
 }
 }
 void disable(){for(Flight f:flights.values())refund(f);flights.clear();restoreUnwanted(Set.of());Bukkit.removeRecipe(helmetRecipe);Bukkit.removeRecipe(toolRecipe);}
