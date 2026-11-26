@@ -21,7 +21,7 @@ private static final int LIMIT=6;
 private static final long COMBAT_MS=15000;
 private final UnifiedPlugin host;
 private final SeasonStart season;
-private final NamespacedKey itemKey,deathKey;
+private final NamespacedKey itemKey,deathKey,importKey;
 private final Map<UUID,Long> combat=new HashMap<>();
 private final Map<UUID,Cast> casts=new HashMap<>();
 private record Point(String type,int index,Location block){}
@@ -33,7 +33,7 @@ Inventory inv;
 Menu(Player p,boolean death){owner=p.getUniqueId();this.death=death;held=p.getInventory().getHeldItemSlot();source=death?null:p.getInventory().getItemInMainHand().clone();}
 public Inventory getInventory(){return inv;}
 }
-SpawnChoices(UnifiedPlugin h,SeasonStart s){host=h;season=s;itemKey=new NamespacedKey(h,"return_scroll");deathKey=new NamespacedKey(h,"spawn_pending");}
+SpawnChoices(UnifiedPlugin h,SeasonStart s){host=h;season=s;itemKey=new NamespacedKey(h,"return_scroll");deathKey=new NamespacedKey(h,"spawn_pending");importKey=new NamespacedKey(h,"spawn_imported");}
 static ItemStack item(){ItemStack i=new ItemStack(Material.PAPER);var m=i.getItemMeta();m.displayName(Component.text("Свиток возвращения",net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));m.setItemModel(new NamespacedKey("minecraft","ender_eye"));m.lore(List.of(Component.text("ПКМ — выбрать точку телепортации",net.kyori.adventure.text.format.NamedTextColor.GRAY),Component.text("Одна штука · 5 секунд без движения",net.kyori.adventure.text.format.NamedTextColor.GRAY)));m.getPersistentDataContainer().set(new NamespacedKey("minecraftunified","return_scroll"),PersistentDataType.BYTE,(byte)1);i.setItemMeta(m);return i;}
 static void recipe(UnifiedPlugin h){ShapedRecipe r=new ShapedRecipe(new NamespacedKey(h,"return_scroll"),item());r.shape(" K ","KRK"," K ");r.setIngredient('K',Material.DRIED_KELP);r.setIngredient('R',Material.REDSTONE);Bukkit.addRecipe(r);}
 void enable(){Bukkit.getPluginManager().registerEvents(this,host);Bukkit.getScheduler().runTaskTimer(host,this::tick,5L,5L);host.getLogger().info("SELFTEST spawn choices OK: 6 beds, 6 anchors, return scroll recipe");}
@@ -85,10 +85,11 @@ if(!test(p))for(int i=0;i<LIMIT;i++){Location bed=stored(p,"bed",i),anchor=store
 m.inv.setItem(31,icon(Material.BARRIER,death?"§7Остаться на мировом спавне":"§7Отмена"));p.openInventory(m.inv);
 }
 @EventHandler(priority=EventPriority.HIGHEST) public void respawn(PlayerRespawnEvent e){Player p=e.getPlayer();if(test(p)||season.active()||e.getRespawnReason()!=PlayerRespawnEvent.RespawnReason.DEATH)return;
-e.setRespawnLocation(worldSpawn(p));p.getPersistentDataContainer().set(deathKey,PersistentDataType.BYTE,(byte)1);
-Bukkit.getScheduler().runTaskLater(host,()->open(p,true),2L);
+e.setRespawnLocation(worldSpawn(p));UUID id=p.getUniqueId();
+Bukkit.getScheduler().runTaskLater(host,()->{Player current=Bukkit.getPlayer(id);if(current!=null&&!current.isDead()&&live(current)&&!test(current)){current.getPersistentDataContainer().set(deathKey,PersistentDataType.BYTE,(byte)1);open(current,true);}},2L);
 }
-@EventHandler(priority=EventPriority.MONITOR) public void join(PlayerJoinEvent e){Player p=e.getPlayer();Bukkit.getScheduler().runTaskLater(host,()->{if(!p.isOnline()||!live(p)||test(p))return;if(waiting(p))open(p,true);},10L);}
+@EventHandler(priority=EventPriority.MONITOR) public void join(PlayerJoinEvent e){Player p=e.getPlayer();Bukkit.getScheduler().runTaskLater(host,()->{if(!p.isOnline()||!live(p)||test(p))return;if(!p.getPersistentDataContainer().has(importKey,PersistentDataType.BYTE)){Location old=p.getRespawnLocation(false);if(old==null||load(old)){if(old!=null){if(old.getBlock().getBlockData() instanceof Bed)remember(p,old,"bed");else if(old.getBlock().getType()==Material.RESPAWN_ANCHOR)remember(p,old,"anchor");}p.getPersistentDataContainer().set(importKey,PersistentDataType.BYTE,(byte)1);}}
+if(waiting(p))open(p,true);},10L);}
 @EventHandler(priority=EventPriority.HIGHEST) public void interact(PlayerInteractEvent e){if(e.getHand()!=EquipmentSlot.HAND||!e.getAction().isRightClick()||!scroll(e.getItem()))return;
 e.setCancelled(true);e.setUseInteractedBlock(Event.Result.DENY);e.setUseItemInHand(Event.Result.DENY);Player p=e.getPlayer();
 if(!live(p)||waiting(p)||p.isSleeping()||p.isInsideVehicle()||p.isGliding()||p.getGameMode()!=GameMode.SURVIVAL&&p.getGameMode()!=GameMode.ADVENTURE)return;
@@ -118,6 +119,6 @@ if(!p.teleport(dest,PlayerTeleportEvent.TeleportCause.PLUGIN))return false;
 if(before!=null){Block block=anchor.getBlock();if(block.getBlockData() instanceof RespawnAnchor now&&now.getCharges()>0){now.setCharges(now.getCharges()-1);block.setBlockData(now,false);}}
 p.setFallDistance(0);return true;}
 private void tick(){long now=System.currentTimeMillis();combat.entrySet().removeIf(e->now-e.getValue()>COMBAT_MS);for(var entry:new ArrayList<>(casts.entrySet())){Player p=Bukkit.getPlayer(entry.getKey());Cast c=entry.getValue();if(p==null){casts.remove(entry.getKey());continue;}if(!live(p)||p.isDead()||p.isSleeping()||p.isInsideVehicle()||p.isGliding()||!same(p,c.slot,c.item)||inCombat(p)||p.getWorld()!=c.from.getWorld()||p.getLocation().distanceSquared(c.from)>.09){cancel(p);continue;}if(now-c.started<5000)continue;
-casts.remove(entry.getKey());Location dest=destination(p,c.point);if(dest==null){p.sendMessage("§cТочка недоступна. Свиток сохранён.");continue;}if(travel(p,c.point,dest)){ItemStack hand=p.getInventory().getItemInMainHand();if(same(p,c.slot,c.item)){hand.setAmount(hand.getAmount()-1);p.getInventory().setItemInMainHand(hand.getAmount()==0?new ItemStack(Material.AIR):hand);}p.sendMessage("§aТелепортация завершена.");}}
+casts.remove(entry.getKey());Location dest=destination(p,c.point);if(dest==null){p.sendMessage("§cТочка недоступна. Свиток сохранён.");continue;}ItemStack hand=p.getInventory().getItemInMainHand().clone();ItemStack remaining=hand.clone();remaining.setAmount(hand.getAmount()-1);p.getInventory().setItemInMainHand(remaining.getAmount()==0?new ItemStack(Material.AIR):remaining);if(travel(p,c.point,dest)){p.sendMessage("§aТелепортация завершена.");}else{for(ItemStack rest:p.getInventory().addItem(hand.asOne()).values())p.getWorld().dropItemNaturally(p.getLocation(),rest);p.sendMessage("§cТелепортация отменена. Свиток возвращён.");}}
 }
 }
