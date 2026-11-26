@@ -117,6 +117,7 @@ getLogger().severe("WARNING: standalone TalismanForge detected. Remove its old J
 getLogger().info("MinecraftUnified 1.1.22 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
+@EventHandler public void resourcePackStatus(org.bukkit.event.player.PlayerResourcePackStatusEvent e){getLogger().info("Resource pack status: "+e.getPlayer().getName()+" -> "+e.getStatus());}
 @EventHandler public void unifiedCommandList(PlayerCommandSendEvent event){
 String[] internal={"unified","allmods","mods","trap","trapka","p","claim","privat","team","tc",
 "talismanforge","tf","talismans","enchantmentforge","ce","enchants",

@@ -60,10 +60,11 @@ private boolean marked(Block b){return b.getChunk().getPersistentDataContainer()
 private void removeDisplay(Placed p){if(p.display!=null){Entity e=Bukkit.getEntity(p.display);if(e!=null)e.remove();p.display=null;}}
 private void forget(Pos pos,Placed p){if(active.remove(pos,p)){removeDisplay(p);Block b=pos.block();if(b!=null)b.getChunk().getPersistentDataContainer().remove(pos.marker());}}
 private void render(Pos pos,Placed p){
-if(p.display!=null&&Bukkit.getEntity(p.display) instanceof ItemDisplay d&&d.isValid())return;
-Location l=pos.center();if(l==null)return;
-ItemDisplay d=l.getWorld().spawn(l,ItemDisplay.class,e->{e.setPersistent(false);e.setInvulnerable(true);e.setGravity(false);e.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);e.setBillboard(Display.Billboard.FIXED);e.setViewRange(1.6f);
-var t=e.getTransformation();t.getScale().set(1.04f);e.setTransformation(t);e.setItemStack(item());e.getPersistentDataContainer().set(VISUAL,PersistentDataType.BYTE,(byte)1);});p.display=d.getUniqueId();
+if(p.display!=null&&Bukkit.getEntity(p.display) instanceof BlockDisplay d&&d.isValid())return;
+removeDisplay(p);
+Location l=pos.center();if(l==null)return;l.subtract(.51,.51,.51);
+BlockDisplay d=l.getWorld().spawn(l,BlockDisplay.class,e->{e.setPersistent(false);e.setInvulnerable(true);e.setGravity(false);e.setBillboard(Display.Billboard.FIXED);e.setViewRange(4f);e.setDisplayWidth(1.1f);e.setDisplayHeight(1.1f);e.setBrightness(new Display.Brightness(15,15));
+var t=e.getTransformation();t.getScale().set(1.02f);e.setTransformation(t);var data=(org.bukkit.block.data.type.StructureBlock)Material.STRUCTURE_BLOCK.createBlockData();data.setMode(org.bukkit.block.data.type.StructureBlock.Mode.DATA);e.setBlock(data);e.getPersistentDataContainer().set(VISUAL,PersistentDataType.BYTE,(byte)1);});p.display=d.getUniqueId();
 }
 private void load(Chunk c){
 var data=c.getPersistentDataContainer();
@@ -105,7 +106,7 @@ Bukkit.getScheduler().runTask(host,()->{Block b=pos.block();if(b!=null&&!physica
 @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void unload(ChunkUnloadEvent e){
 Chunk c=e.getChunk();for(var it=active.entrySet().iterator();it.hasNext();){var ent=it.next();Pos p=ent.getKey();if(p.world.equals(c.getWorld().getUID())&&(p.x>>4)==c.getX()&&(p.z>>4)==c.getZ()){removeDisplay(ent.getValue());it.remove();}}
 }
-@EventHandler public void entities(EntitiesLoadEvent e){for(Entity entity:e.getEntities())if(entity instanceof ItemDisplay&&entity.getPersistentDataContainer().has(VISUAL,PersistentDataType.BYTE)&&active.values().stream().noneMatch(p->entity.getUniqueId().equals(p.display)))entity.remove();}
+@EventHandler public void entities(EntitiesLoadEvent e){for(Entity entity:e.getEntities())if(entity instanceof Display&&entity.getPersistentDataContainer().has(VISUAL,PersistentDataType.BYTE)&&active.values().stream().noneMatch(p->entity.getUniqueId().equals(p.display)))entity.remove();}
 private Location nearest(Mob m){
 Location l=m.getLocation(),nearest=null;double best=16*16;
 for(Pos pos:active.keySet())if(pos.world.equals(l.getWorld().getUID())){double x=l.getX()-pos.x-.5,y=l.getY()-pos.y-.5,z=l.getZ()-pos.z-.5,d=x*x+y*y+z*z;if(d<=best){best=d;nearest=pos.center();}}

@@ -1,3 +1,7 @@
+# Latest fixes
+
+Anubis receives 10 charge per gained XP; cap remains 500 and rescue costs 200 charge. Verity uses a full-size BlockDisplay with a resource-pack model for the admin-only structure-block DATA mode; ordinary survival block textures are unaffected. Resource pack status is logged per player for troubleshooting. Auth illustration requires UnifiedAuth 1.6.1 and compatible client pack ordering.
+
 # Anubis XP and TAB update
 
 Anubis charges from positive PlayerExpChangeEvent amounts while held (main or offhand, offhand priority), exactly one charge per received XP point, maximum 500. Normal player XP is retained; no duplicate charge from death attribution. Mob farms, mining, bottles and other vanilla XP pickups count. Creative/spectator do not. 200 XP rescue cost remains. Goblins now use visible baby-zombie bodies scaled to 1.20 and custom non-dyed armor. Verity excludes personal shop navigation villagers. TAB footer updated; numeric ping and clan-only HP/dimension maintained.
