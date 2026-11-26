@@ -129,6 +129,7 @@ private void refresh(Shop s){for(Player p:Bukkit.getOnlinePlayers())if(p.getOpen
 @EventHandler(priority=EventPriority.HIGHEST) public void drag(InventoryDragEvent e){if(e.getView().getTopInventory().getHolder() instanceof Menu)e.setCancelled(true);}
 @EventHandler(priority=EventPriority.HIGHEST) public void click(InventoryClickEvent e){
 if(!(e.getView().getTopInventory().getHolder() instanceof Menu m)||!(e.getWhoClicked() instanceof Player p))return;
+if(e.getRawSlot()>=27&&m.owner&&m.edit>=0&&(e.getClick()==ClickType.LEFT||e.getClick()==ClickType.RIGHT)){Shop editShop=shops.get(m.id);if(editShop!=null&&editShop.owner.equals(p.getUniqueId())&&near(p,editShop)&&editShop.walker==null&&owns(editShop.owner,editShop.home))return;}
 e.setCancelled(true);if(e.getRawSlot()<0||e.getRawSlot()>=27||!(e.getClick()==ClickType.LEFT||e.getClick()==ClickType.RIGHT))return;
 Shop s=shops.get(m.id);if(s==null||!near(p,s)||s.walker!=null||!owns(s.owner,s.home)){Bukkit.getScheduler().runTask(host,p::closeInventory);return;}
 int slot=e.getRawSlot();
@@ -163,6 +164,7 @@ double d=s.home.distanceSquared(c.getLocation().add(.5,.5,.5));if(d>distance)con
 }}
 return best;}
 private Location approach(Chest c,Location from){Location best=null;double d=Double.MAX_VALUE;for(var face:List.of(org.bukkit.block.BlockFace.NORTH,org.bukkit.block.BlockFace.SOUTH,org.bukkit.block.BlockFace.EAST,org.bukkit.block.BlockFace.WEST)){Block b=c.getBlock().getRelative(face);Location l=b.getLocation().add(.5,0,.5);if(!loaded(l)||!b.isPassable()||!b.getRelative(org.bukkit.block.BlockFace.UP).isPassable()||!b.getRelative(org.bukkit.block.BlockFace.DOWN).getType().isSolid())continue;double x=l.distanceSquared(from);if(x<d){d=x;best=l;}}return best;}
+private boolean atChest(Chest c,Location from){Location a=approach(c,from);return a!=null&&a.distanceSquared(from)<1.0;}
 private void unload(Shop s,Chest c){if(!owns(s.owner,c.getLocation()))return;Inventory inv=c.getBlockInventory();ItemStack[] next=inv.getStorageContents(),old=copy(s.money);boolean changed=false;for(int i=0;i<3;i++)if(!empty(s.money[i])){ItemStack[] result=insert(next,s.money[i]);if(result!=null){next=result;s.money[i]=null;changed=true;}}
 if(changed){if(save())inv.setStorageContents(next);else s.money=old;}}
 private void finishTrip(Shop s){if(s.walker!=null)s.walker.remove();s.walker=null;s.chest=null;s.returning=false;if(s.npc!=null&&s.npc.isValid()&&loaded(s.home))s.npc.teleport(s.home);s.nextTrip=tick+200;}
@@ -175,11 +177,11 @@ if(!s.walker.isValid()||tick>s.deadline){finishTrip(s);continue;}
 Location current=s.walker.getLocation();if(!loaded(current)||!s.npc.teleport(current)){finishTrip(s);continue;}
 if(s.returning){if(current.distanceSquared(s.home)<2.25){finishTrip(s);continue;}if(tick%20==0)s.walker.getPathfinder().moveTo(s.home,1.0);continue;}
 if(s.chest==null||!loaded(s.chest)||!(s.chest.getBlock().getState() instanceof Chest c)||!owns(s.owner,c.getLocation())){finishTrip(s);continue;}
-if(current.distanceSquared(c.getLocation().add(.5,.5,.5))<6.25){unload(s,c);s.returning=true;s.deadline=tick+300;s.walker.getPathfinder().moveTo(s.home,1.0);continue;}
+if(current.distanceSquared(c.getLocation().add(.5,.5,.5))<6.25&&atChest(c,current)){unload(s,c);s.returning=true;s.deadline=tick+300;s.walker.getPathfinder().moveTo(s.home,1.0);continue;}
 if(tick%20==0){Location dest=approach(c,current);if(dest==null){finishTrip(s);continue;}s.walker.getPathfinder().moveTo(dest,1.0);}continue;}
 if(tick<s.nextTrip||Arrays.stream(s.money).allMatch(this::empty))continue;s.nextTrip=tick+200;
 Chest c=nearest(s);if(c==null)continue;Location dest=approach(c,s.home);if(dest==null)continue;
-if(s.home.distanceSquared(c.getLocation().add(.5,.5,.5))<6.25){unload(s,c);continue;}
+if(atChest(c,s.home)){unload(s,c);continue;}
 s.walker=s.home.getWorld().spawn(s.home,Villager.class,e->{tag(e,s);e.setInvisible(true);e.setGravity(true);e.setAI(true);e.setAdult();});s.chest=c.getLocation();s.returning=false;s.deadline=tick+300;
 if(!s.walker.getPathfinder().moveTo(dest,1.0))finishTrip(s);
 }}
