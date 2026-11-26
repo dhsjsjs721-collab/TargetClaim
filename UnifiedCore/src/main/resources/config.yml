@@ -1,5 +1,0 @@
-join-message:
-  enabled: false
-  text: "Добро пожаловать на сервер!"
-# /ucsetspawn writes spawn.world + xyz + yaw + pitch automatically.
-# No global teleport; players use /ucspawn.
