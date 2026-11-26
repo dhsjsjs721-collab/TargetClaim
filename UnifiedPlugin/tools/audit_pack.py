@@ -42,4 +42,8 @@ with zipfile.ZipFile(p) as z:
             assert f"assets/talismanforge/items/mythic_{key}{suffix}.json" in names
     for ns,key in [("targetclaim","claim_core"),("targetclaim","independent_core"),("minecraftunified","obsidian_trap"),("minecraftunified","youtube_disc"),("minecraftunified","shop_token"),("minecraftunified","mirror_chestplate"),("minecraftunified","miner_helmet"),("enchantmentforge","return_charm"),("enchantmentforge","soulbound"),("enchantmentforge","triple_shot")]:
         assert f"assets/{ns}/items/{key}.json" in names
+    states=json.loads(z.read("assets/minecraft/blockstates/note_block.json"))["multipart"]
+    assert any(x.get("when")=={"instrument":"custom_head","note":"23"} and x["apply"]["model"]=="talismanforge:block/reliquary" for x in states)
+    assert any(x.get("when")=={"instrument":"custom_head","note":"24"} and x["apply"]["model"]=="minecraftunified:block/verity" for x in states)
+    resolve("talismanforge:block/reliquary","models",".json")
     print(f"Resource pack validated: {len(names)} files, SHA-1, ZIP/PNG CRC and custom references")
