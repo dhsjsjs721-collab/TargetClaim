@@ -89,7 +89,7 @@ def main():
             while time.monotonic()<deadline and proc.poll() is None and not any("SELFTEST world atlas READY" in line for line in logs):time.sleep(.5)
             if not any("SELFTEST world atlas READY" in line for line in logs):raise AssertionError("Atlas never completed")
             print("Purpur started; testing universal routing",flush=True)
-            for cmd in ["u status","s","a","u guide","u recipes","u give","u claim create","u talisman list","u talisman selftest","u vfx thor","u trap","u trap give nobody 1","u ss status","u tf","u tf give nobody thor","u ce help","u pig","u frog","u spawn","u spawn frog","u spawn goblin","u spawn trader","u trader","u help"]:
+            for cmd in ["u status","s","a","a status","a","a finish","u guide","u recipes","u give","u claim create","u talisman list","u talisman selftest","u vfx thor","u trap","u trap give nobody 1","u ss status","u tf","u tf give nobody thor","u ce help","u pig","u frog","u spawn","u spawn frog","u spawn goblin","u spawn trader","u trader","u help"]:
                 proc.stdin.write(cmd+"\n")
                 proc.stdin.flush()
                 time.sleep(.8)
@@ -106,7 +106,7 @@ def main():
             reader.join(timeout=5)
         output="\n".join(logs)
         if "SELFTEST koschei held-link OK" not in output:raise AssertionError("Koschei held-link test failed")
-        if "Season phase -> WAITING" not in output or "Season phase -> SCOUT" not in output:raise AssertionError("Season commands failed")
+        if "Season phase -> WAITING" not in output or output.count("Season phase -> SCOUT")<2 or "Season phase -> LIVE" not in output:raise AssertionError("Season commands failed")
         if "SELFTEST test world OK" not in output:raise AssertionError("Test world generation or chest setup failed")
         if "SELFTEST clan viewer metadata OK" not in output:raise AssertionError("Clan metadata packet initialization failed")
         if "SELFTEST spawn choices OK" not in output:raise AssertionError("Spawn choices setup failed")

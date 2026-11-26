@@ -127,7 +127,7 @@ SpawnChoices.recipe(this);
 recipeGuide=new RecipeGuide(this);recipeGuide.enable();
 season=new SeasonStart(this);season.enable();
 spawnChoices=new SpawnChoices(this,season);spawnChoices.enable();
-for(String name:List.of("s","a")){PluginCommand c=getCommand(name);if(c!=null)c.setExecutor((sender,cmd,label,args)->season.command(sender,name.equals("a")));}
+for(String name:List.of("s","a")){PluginCommand c=getCommand(name);if(c!=null)c.setExecutor((sender,cmd,label,args)->season.command(sender,name.equals("a"),args));}
 new CommandPolicy(this).enable();
 clanGlow=new ClanGlow(this);clanGlow.enable();
 testWorld=new TestWorld(this);testWorld.enable();PluginCommand test=getCommand("test");if(test!=null){test.setExecutor((sender,cmd,label,args)->testWorld.command(sender,args));test.setTabCompleter((sender,cmd,alias,args)->sender.isOp()&&args.length==1?List.of("exit","refill","reset","survival","creative").stream().filter(x->x.startsWith(args[0])).toList():List.of());}
