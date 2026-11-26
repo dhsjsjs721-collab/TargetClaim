@@ -67,7 +67,6 @@ if(found) break;
 if(!found) { feedback(mc,server,"Ghost NPC: clear ground required in front"); return; }
 npc.setCustomName(Component.literal("Ghost NPC"));
 npc.setCustomNameVisible(true);
-npc.setInvulnerable(false);
 npc.setHealth(npc.getMaxHealth());
 npc.setYRot(yaw+180);
 npc.setXRot(0);
