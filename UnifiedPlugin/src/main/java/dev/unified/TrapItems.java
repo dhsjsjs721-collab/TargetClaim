@@ -105,6 +105,7 @@ public ItemStack item(){
 ItemStack stack=new ItemStack(Material.ECHO_SHARD);
 ItemMeta meta=stack.getItemMeta();
 meta.setDisplayName("§5§lОбсидиановая трапка");
+meta.setItemModel(new NamespacedKey("minecraftunified","obsidian_trap"));
 meta.setLore(List.of(
 "§7ПКМ рядом с игроком: PvP-зона",
 "§7из обсидиана 7×7 (по 3 блока в стороны).",

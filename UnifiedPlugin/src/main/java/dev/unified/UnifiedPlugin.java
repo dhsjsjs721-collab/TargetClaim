@@ -51,6 +51,7 @@ getDataFolder().mkdirs();
 getConfig().addDefault("peace.world","world");getConfig().addDefault("peace.radius",250);getConfig().addDefault("peace.containers-per-chunk",16);getConfig().addDefault("mining.dynamic-light",true);getConfig().addDefault("goblins.world-cap",48);getConfig().addDefault("verity.speech",true);getConfig().options().copyDefaults(true);saveConfig();
 peace=new PeaceZone(this);peace.enable();
 Bukkit.getPluginManager().registerEvents(this,this);
+new AssetModels(this).enable();
 PluginCommand entry=getCommand("unified");
 if(entry!=null){entry.setExecutor(this);entry.setTabCompleter(this);}
 for(String name:List.of("unifiedmsg","unifiedreply")){PluginCommand cmd=getCommand(name);if(cmd!=null){cmd.setExecutor(this);cmd.setTabCompleter(this);}}
@@ -111,7 +112,7 @@ deepslateCrafts=null;
 if(Bukkit.getPluginManager().getPlugin("TalismanForge")!=null){
 getLogger().severe("WARNING: standalone TalismanForge detected. Remove its old JAR from plugins to prevent duplicate abilities or command conflicts.");
 }
-getLogger().info("MinecraftUnified 1.1.21 started modules "+enabledModules.size()+"/"+modules.size()+
+getLogger().info("MinecraftUnified 1.1.22 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
 }
 @EventHandler public void unifiedCommandList(PlayerCommandSendEvent event){
@@ -132,7 +133,7 @@ for(ModuleBridge m:enabledModules)if(m.getName().equals(module))return true;
 return false;
 }
 private void status(CommandSender sender){
-sender.sendMessage("§aMinecraftUnified 1.1.21 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
+sender.sendMessage("§aMinecraftUnified 1.1.22 §7| Запущено модулей: §f"+enabledModules.size()+"/5");
 sender.sendMessage(trapItems!=null?"§a✓ PvP-трапки §7активны":"§c✗ PvP-трапки §7не активны");
 sender.sendMessage(deepslateCrafts!=null?"§a✓ Крафт сланца §7активен":"§c✗ Крафт сланца §7не запущен");
 for(String name:List.of("TargetClaim","TalismanForge","EnchantmentForge","SwampSky","ImageMaps")){

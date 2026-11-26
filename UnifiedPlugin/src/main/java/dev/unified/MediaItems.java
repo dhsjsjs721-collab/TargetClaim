@@ -56,7 +56,7 @@ if(args.length==0){tell(p,"§e/disc <ссылка YouTube> [название]");
 String url=youtube(args[0]);if(url==null){tell(p,"§cНужна HTTPS-ссылка на отдельное видео YouTube.");return true;}
 String name=args.length>1?String.join(" ",Arrays.copyOfRange(args,1,args.length)):"YouTube";
 name=name.replaceAll("[\\p{Cntrl}§]","").strip();if(name.length()>48)name=name.substring(0,48);
-var meta=hand.getItemMeta();meta.getPersistentDataContainer().set(discKey,PersistentDataType.STRING,url);meta.displayName(Component.text(name,NamedTextColor.GOLD));meta.lore(List.of(Component.text("YouTube · Shift+ПКМ — открыть",NamedTextColor.GRAY),Component.text("Встроенного аудио пока нет",NamedTextColor.DARK_GRAY)));hand.setItemMeta(meta);p.getInventory().setItemInMainHand(hand);tell(p,"§aСсылка записана.");return true;
+var meta=hand.getItemMeta();meta.getPersistentDataContainer().set(discKey,PersistentDataType.STRING,url);meta.setItemModel(new NamespacedKey("minecraftunified","youtube_disc"));meta.displayName(Component.text(name,NamedTextColor.GOLD));meta.lore(List.of(Component.text("YouTube · Shift+ПКМ — открыть",NamedTextColor.GRAY),Component.text("Встроенного аудио пока нет",NamedTextColor.DARK_GRAY)));hand.setItemMeta(meta);p.getInventory().setItemInMainHand(hand);tell(p,"§aСсылка записана.");return true;
 }
 @EventHandler(priority=EventPriority.HIGHEST)
 public void playLink(PlayerInteractEvent e){

@@ -31,23 +31,25 @@ jobs:
         run: python3 UnifiedPlugin/tools/generate_modules.py
       - name: Compile one fully-integrated plugin JAR
         run: gradle -p UnifiedPlugin build --no-daemon
+      - name: Validate all resource-pack references
+        run: python3 UnifiedPlugin/tools/audit_pack.py
       - name: Package one JAR with current unified resource pack
         run: |
           mkdir -p dist/plugins dist/resourcepacks
-          cp UnifiedPlugin/build/libs/MinecraftUnified-1.1.21.jar dist/plugins/
+          cp UnifiedPlugin/build/libs/MinecraftUnified-1.1.22.jar dist/plugins/
           cat resourcepacks/TalismanForge-2.0.0-ResourcePack.zip > dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.zip
           cat resourcepacks/TalismanForge-2.0.0-ResourcePack.sha1 > dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.sha1
           python -m zipfile -t dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.zip
           test "$(sha1sum dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.zip | cut -d ' ' -f 1)" = "$(cat dist/resourcepacks/TalismanForge-2.0.0-ResourcePack.sha1)"
-          python -c "import zipfile; z=zipfile.ZipFile('UnifiedPlugin/build/libs/MinecraftUnified-1.1.21.jar'); assert 'dev/talismanforge/MythicTalismans.class' in z.namelist(); assert not any('FiveTalismanService' in n or 'CombatShields' in n for n in z.namelist())"
+          python -c "import zipfile; z=zipfile.ZipFile('UnifiedPlugin/build/libs/MinecraftUnified-1.1.22.jar'); assert 'dev/talismanforge/MythicTalismans.class' in z.namelist(); assert not any('FiveTalismanService' in n or 'CombatShields' in n for n in z.namelist())"
       - uses: actions/upload-artifact@v4
         with:
-          name: MinecraftUnified-1.1.21-Full
+          name: MinecraftUnified-1.1.22-Full
           path: dist/
       - uses: actions/upload-artifact@v4
         with:
-          name: MinecraftUnified-1.1.21-JAR
-          path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.21.jar
+          name: MinecraftUnified-1.1.22-JAR
+          path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.22.jar
       - name: Export complete unified source
         run: |
           mkdir -p dist-source/UnifiedPlugin/src/main/java dist-source/UnifiedPlugin/src/main/resources
@@ -59,11 +61,11 @@ jobs:
           cp -a dist/resourcepacks dist-source/
       - uses: actions/upload-artifact@v4
         with:
-          name: MinecraftUnified-1.1.21-Source
+          name: MinecraftUnified-1.1.22-Source
           path: dist-source/
       - name: Start real Purpur 26.3 and verify all modules
         run: python3 UnifiedPlugin/tools/smoke_purpur.py
       - uses: actions/upload-artifact@v4
         with:
           name: MinecraftUnified-One-JAR
-          path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.21.jar
+          path: UnifiedPlugin/build/libs/MinecraftUnified-1.1.22.jar

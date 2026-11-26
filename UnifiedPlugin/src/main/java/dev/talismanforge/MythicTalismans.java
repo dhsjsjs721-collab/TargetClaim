@@ -142,11 +142,11 @@ final class MythicTalismans implements Listener {
         m.setMaxStackSize(1);m.setEnchantmentGlintOverride(s.awakened);
         m.getPersistentDataContainer().set(typeKey,PersistentDataType.STRING,k.key());
         m.getPersistentDataContainer().set(serialKey,PersistentDataType.STRING,s.serial);
-        if(plugin.getConfig().getBoolean("mythic-custom-models",true))m.setItemModel(new NamespacedKey("talismanforge","mythic_"+k.key()+(s.awakened?"_awakened":"")));
+        if(plugin.getConfig().getBoolean("mythic-custom-models",true))m.setItemModel(new NamespacedKey("talismanforge","mythic_"+k.key()+(link?"_soul":"")+(s.awakened?"_awakened":"")));
         List<String> lore=new ArrayList<>(List.of("§8МИФИЧЕСКАЯ РЕЛИКВИЯ", "§7"+(s.awakened?"Пробуждена":"Способна пробудиться"),"§7Заряды: §f"+chargeText(k,s)));
         switch(k){
             case THOR -> {lore.add("§bМолния · +13% некритического урона");lore.add("§7Естественная молния восстанавливает заряд");lore.add("§cВ Незере: Слабость I");}
-            case ANUBIS -> {lore.add("§6Души любых мобов · 200 за спасение");lore.add("§7Видит места гибели");lore.add("§cПод дождём: −15% скорости");}
+            case ANUBIS -> {lore.add("§6Души естественных мобов · 200 за спасение");lore.add("§7Видит места гибели");lore.add("§cПод дождём: −15% скорости");}
             case KOSCHEI -> {lore.add(link?"§aСвязана с установленным яйцом. Держи в руке.":"§aУстанови вне любого привата, чтобы получить Душу Кощея");lore.add("§7Мембрана фантома восстанавливает заряд");lore.add("§c−1 сердце, −25% питания");}
             case KITSUNE -> {lore.add("§6Невидимость · 180с / Shift 30с");lore.add("§730 минут в хранилище за заряд");lore.add("§cВне маскировки: +10% входящего урона");}
             case MEDUSA -> {lore.add("§dКаменный взгляд · 20 убитых статуй за заряд");lore.add("§7ПКМ-щит отражает взгляд");}

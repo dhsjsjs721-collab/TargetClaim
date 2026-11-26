@@ -37,7 +37,14 @@ def swap(code,old,new,label,required=True):
 
 def convert(code,namespace,name,path):
     plugin_class=name+"Plugin"
+    if name=="TargetClaim":
+        code=swap(code,'meta.setDisplayName("§d§l✦ Ядро привата ✦");','meta.setDisplayName("§d§l✦ Ядро привата ✦");meta.setItemModel(new NamespacedKey("targetclaim","claim_core"));',"core model")
+        code=swap(code,'meta.setDisplayName("§6§lНезависимый приват");','meta.setDisplayName("§6§lНезависимый приват");meta.setItemModel(new NamespacedKey("targetclaim","independent_core"));',"independent core model")
+    if name=="EnchantmentForge":
+        code=swap(code,'meta.setDisplayName("§dКнига: "+enchant.title);','meta.setDisplayName("§dКнига: "+enchant.title);meta.setItemModel(new NamespacedKey("enchantmentforge",enchant.id));',"book model")
     if name=="WanderingTraderFeature":
+        code=swap(code,'meta.setDisplayName("§bОберег возвращения");','meta.setDisplayName("§bОберег возвращения");meta.setItemModel(new NamespacedKey("enchantmentforge","return_charm"));',"charm model")
+        code=swap(code,'meta.setDisplayName("§6§lНезависимый приват");','meta.setDisplayName("§6§lНезависимый приват");meta.setItemModel(new NamespacedKey("targetclaim","independent_core"));',"trader core model")
         code=swap(code,"for (Offer offer:selected) recipes.add(recipe(offer));","for (Offer offer:selected) recipes.add(recipe(offer));\nif(random.nextDouble()<.05)recipes.add(dev.unified.Verity.offer(random));","rare Verity trade")
     if name in ("GrapplingHookListener","WanderingTraderFeature"):
         if name=="GrapplingHookListener":
