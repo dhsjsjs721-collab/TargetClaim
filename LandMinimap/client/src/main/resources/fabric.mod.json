@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "landminimap",
+  "version": "0.4.1",
+  "name": "Land Minimap",
+  "description": "Compact clan minimap with loaded surface terrain and visited-only cave layers",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.landminimap.LandMinimap"
+    ]
+  },
+  "mixins": [
+    "landminimap.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.20.1",
+    "minecraft": "26.3",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}

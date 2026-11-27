@@ -1,0 +1,12 @@
+plugins { id 'net.fabricmc.fabric-loom' version '1.19.6' }
+group = 'dev.landminimap'
+version = '0.4.1'
+base { archivesName = 'LandMinimap-Fabric' }
+repositories { mavenCentral(); maven { url = 'https://maven.fabricmc.net/' } }
+dependencies {
+minecraft 'com.mojang:minecraft:26.3'
+implementation 'net.fabricmc:fabric-loader:0.20.1'
+implementation 'net.fabricmc.fabric-api:fabric-api:0.166.2+26.3'
+}
+java { toolchain.languageVersion = JavaLanguageVersion.of(25) }
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
