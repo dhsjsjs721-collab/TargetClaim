@@ -1,4 +1,4 @@
-plugins { id 'net.fabricmc.fabric-loom' version '1.19-SNAPSHOT' }
+plugins { id 'net.fabricmc.fabric-loom' version '1.19.6' }
 group = 'dev.landminimap'
 version = '0.1.0'
 base { archivesName = 'LandMinimap-Fabric' }
