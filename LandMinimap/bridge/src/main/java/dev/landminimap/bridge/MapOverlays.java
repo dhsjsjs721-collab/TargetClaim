@@ -67,6 +67,10 @@ final class MapOverlays {
                 UUID owner=(UUID)field(c,"owner");
                 if(!p.getUniqueId().equals(owner)&&!(group!=null&&Boolean.TRUE.equals(field(c,"teamBuild"))&&group.equals(clan.apply(owner))))continue;
                 String name=(String)field(c,"ownerName");
+                int level=((Number)field(c,"level")).intValue();boolean independent=Boolean.TRUE.equals(field(c,"independent"));
+                String price=independent?"фикс.":switch(level){case 0->"23 амет.";case 1->"64 амет.";case 2->"3 незер.";case 3->"яйцо";default->"макс.";};
+                try{Method max=module.getClass().getDeclaredMethod("maxLevel",c.getClass());max.setAccessible(true);if(level>=((Number)max.invoke(module,c)).intValue())price="макс.";}catch(ReflectiveOperationException ignored){}
+                name=name+" L"+level+" · "+price;
                 out.add(new Zone(3,bound(c,"minX"),bound(c,"minZ"),bound(c,"maxX"),bound(c,"maxZ"),bound(c,"minY"),bound(c,"maxY"),"Приват "+name));
             }
         }catch(ReflectiveOperationException|RuntimeException ignored){/* Unknown claim schema fails closed. */}
@@ -81,6 +85,12 @@ final class MapOverlays {
         storedPoints(p,points);
         try{point(points,world,p.getRespawnLocation(false),5,"Текущий спавн");}catch(RuntimeException ignored){}
         try{point(points,world,p.getLastDeathLocation(),6,"Последняя смерть");}catch(RuntimeException ignored){}
+        String history=p.getPersistentDataContainer().getOrDefault(new NamespacedKey("landminimapbridge","death_history"),PersistentDataType.STRING,"");
+        int death=0;for(String row:history.split("\\n"))try{
+            String[] v=row.split(",");if(v.length!=5||!world.getUID().equals(UUID.fromString(v[0])))continue;
+            point(points,world,new Location(world,Integer.parseInt(v[1]),Integer.parseInt(v[2]),Integer.parseInt(v[3])),6,"Смерть "+(++death));
+            if(death>=5)break;
+        }catch(RuntimeException ignored){}
         if(world.getEnvironment()==World.Environment.NORMAL&&world.getName().equals(host.getConfig().getString("peace.world","world"))){
             Location s=world.getSpawnLocation();int r=Math.max(16,Math.min(1000,host.getConfig().getInt("peace.radius",250)));
             zones.add(new Zone(1,s.getBlockX()-r,s.getBlockZ()-r,s.getBlockX()+r-1,s.getBlockZ()+r-1,world.getMinHeight(),world.getMaxHeight()-1,"Мирная зона"));

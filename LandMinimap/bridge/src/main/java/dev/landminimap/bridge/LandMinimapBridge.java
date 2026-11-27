@@ -23,8 +23,9 @@ public final class LandMinimapBridge extends JavaPlugin implements Listener {
     private Plugin clans;
     private Method areClanmates,claimModule,clanId;
     private MapOverlays overlays;
+    private ClanFeatures features;
     private int overlayTick;
-    private record Marker(UUID id,UUID owner,UUID clan,UUID world,int x,int z,String label){}
+    private record Marker(UUID id,UUID owner,UUID clan,UUID world,int x,int y,int z,String label){}
     private record Access(UUID owner,UUID viewer){}
     private record Permit(UUID clan,long expires){}
     private final Map<UUID,Marker> markers=new LinkedHashMap<>();
@@ -55,6 +56,7 @@ public final class LandMinimapBridge extends JavaPlugin implements Listener {
         getServer().getMessenger().registerOutgoingPluginChannel(this,CHANNEL);
         getServer().getMessenger().registerOutgoingPluginChannel(this,MapOverlays.CHANNEL);
         overlays=new MapOverlays((JavaPlugin)clans,this,claimModule,this::clan);
+        features=new ClanFeatures(this,this::clan);
         getServer().getMessenger().registerIncomingPluginChannel(this,ACTION,(channel,player,bytes)->{
             if(bytes.length>128||bytes.length<26)return;
             byte[] copy=bytes.clone();
@@ -91,12 +93,15 @@ public final class LandMinimapBridge extends JavaPlugin implements Listener {
             int op=in.readUnsignedByte();UUID id=uuid(in);int x=in.readInt(),z=in.readInt(),n=in.readUnsignedByte();
             if(n>96||in.available()!=n)return;
             String name=new String(in.readNBytes(n),StandardCharsets.UTF_8);
+            if(features.action(p,op,x,z,name))return;
             UUID ownClan=clan(p.getUniqueId());if(ownClan==null){msg(p,"Сначала вступи в клан.");return;}
-            if(op==1){
+            if(op==1||op==10){
+                int y=op==10?(int)id.getLeastSignificantBits():p.getLocation().getBlockY();
+                if(y<p.getWorld().getMinHeight()||y>=p.getWorld().getMaxHeight()){msg(p,"Недопустимая высота.");return;}
                 name=clean(name);
                 if(name==null||Math.abs((long)x)>30000000||Math.abs((long)z)>30000000||!p.getWorld().getWorldBorder().isInside(new Location(p.getWorld(),x+.5,p.getY(),z+.5))){msg(p,"Недопустимая метка.");return;}
                 if(markers.size()>=4096||markers.values().stream().filter(m->m.clan.equals(ownClan)).count()>=32){msg(p,"Лимит командных меток: 32.");return;}
-                Marker m=new Marker(UUID.randomUUID(),p.getUniqueId(),ownClan,p.getWorld().getUID(),x,z,name);
+                Marker m=new Marker(UUID.randomUUID(),p.getUniqueId(),ownClan,p.getWorld().getUID(),x,y,z,name);
                 markers.put(m.id,m);if(!saveMarkers()){markers.remove(m.id);msg(p,"Не удалось сохранить метку.");return;}
                 msg(p,"Командная метка создана.");return;
             }
@@ -163,6 +168,7 @@ public final class LandMinimapBridge extends JavaPlugin implements Listener {
     }
     private void broadcast(){
         boolean sendOverlays=++overlayTick%4==0;
+        if(features!=null)features.tick();
         long now=System.currentTimeMillis();
         requests.entrySet().removeIf(e->e.getValue().expires<now||!e.getValue().clan.equals(clan(e.getKey().owner))||!e.getValue().clan.equals(clan(e.getKey().viewer)));
         for(Access a:new ArrayList<>(permissions.keySet()))if(!allowed(a,now)){permissions.remove(a);closeAccess(a);}
@@ -181,10 +187,10 @@ public final class LandMinimapBridge extends JavaPlugin implements Listener {
             try{
                 ByteArrayOutputStream bytes=new ByteArrayOutputStream();
                 try(DataOutputStream out=new DataOutputStream(bytes)){
-                    out.writeInt(2);uuid(out,viewer.getUniqueId());uuid(out,world);out.writeByte(team.size());
+                    out.writeInt(viewer.getListeningPluginChannels().contains(ClanFeatures.CHANNEL)?3:2);uuid(out,viewer.getUniqueId());uuid(out,world);out.writeByte(team.size());
                     for(Player target:team){uuid(out,target.getUniqueId());label(out,target.getName());Location pos=target.getLocation();out.writeDouble(pos.getX());out.writeDouble(pos.getY());out.writeDouble(pos.getZ());}
                     out.writeByte(visible.size());
-                    for(Marker m:visible){uuid(out,m.id);uuid(out,m.owner);out.writeInt(m.x);out.writeInt(m.z);label(out,m.label);}
+                    for(Marker m:visible){uuid(out,m.id);uuid(out,m.owner);out.writeInt(m.x);out.writeInt(m.z);if(viewer.getListeningPluginChannels().contains(ClanFeatures.CHANNEL))out.writeInt(m.y);label(out,m.label);}
                 }
                 viewer.sendPluginMessage(this,CHANNEL,bytes.toByteArray());
                 if(sendOverlays)overlays.send(viewer);
@@ -199,7 +205,7 @@ public final class LandMinimapBridge extends JavaPlugin implements Listener {
             try{
                 var q=root.getConfigurationSection(k);if(q==null)continue;
                 String name=clean(q.getString("label",""));if(name==null)continue;
-                Marker m=new Marker(UUID.fromString(k),UUID.fromString(q.getString("owner")),UUID.fromString(q.getString("clan")),UUID.fromString(q.getString("world")),q.getInt("x"),q.getInt("z"),name);
+                Marker m=new Marker(UUID.fromString(k),UUID.fromString(q.getString("owner")),UUID.fromString(q.getString("clan")),UUID.fromString(q.getString("world")),q.getInt("x"),q.getInt("y",64),q.getInt("z"),name);
                 if(Math.abs((long)m.x)<=30000000&&Math.abs((long)m.z)<=30000000)markers.put(m.id,m);
             }catch(RuntimeException ignored){}
         }
@@ -207,13 +213,13 @@ public final class LandMinimapBridge extends JavaPlugin implements Listener {
     private boolean saveMarkers(){
         try{
             Files.createDirectories(getDataFolder().toPath());var y=new YamlConfiguration();
-            for(Marker m:markers.values()){String k="markers."+m.id+".";y.set(k+"owner",m.owner.toString());y.set(k+"clan",m.clan.toString());y.set(k+"world",m.world.toString());y.set(k+"x",m.x);y.set(k+"z",m.z);y.set(k+"label",m.label);}
+            for(Marker m:markers.values()){String k="markers."+m.id+".";y.set(k+"owner",m.owner.toString());y.set(k+"clan",m.clan.toString());y.set(k+"world",m.world.toString());y.set(k+"x",m.x);y.set(k+"y",m.y);y.set(k+"z",m.z);y.set(k+"label",m.label);}
             Path file=getDataFolder().toPath().resolve("markers.yml"),tmp=getDataFolder().toPath().resolve("markers.tmp");
             y.save(tmp.toFile());try{Files.move(tmp,file,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}catch(AtomicMoveNotSupportedException e){Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING);}return true;
         }catch(IOException e){getLogger().warning("Could not save markers");return false;}
     }
     @Override public void onDisable(){
         for(Snapshot s:new ArrayList<>(snapshots.values()))closeAccess(new Access(s.owner,s.viewer));
-        permissions.clear();requests.clear();getServer().getMessenger().unregisterIncomingPluginChannel(this);getServer().getMessenger().unregisterOutgoingPluginChannel(this);
+        if(features!=null)features.save();permissions.clear();requests.clear();getServer().getMessenger().unregisterIncomingPluginChannel(this);getServer().getMessenger().unregisterOutgoingPluginChannel(this);
     }
 }
