@@ -33,3 +33,9 @@ Both JARs should be updated to 0.3.0. An independent, versioned overlays channel
 - Team HUD: health, max health, armor, hunger, dead/cross-world flags, and optional voice activity using the existing voicechat API (microphone activity only, no audio recording). Race text is read from server-owned PDC landminimapbridge:race if a race plugin provides it; no race assignments or abilities are fabricated.
 - Quick pings Help/Danger/Come here use the sender's actual location, expire after 30 seconds, and are delivered only to their current clan. Death and low-health alerts are clan-only. Own five most recent deaths are persisted on the player. Claim overlay shows level and next upgrade material; use existing /u claim for actual upgrades.
 - Both JARs should be updated together. Runtime testing is required; CI compilation alone is insufficient.
+
+## 0.4.1 (client)
+- 72 GUI-pixel HUD, surface map by default; 3D labels off by default; compact teammate info moved into map tabs.
+- Incrementally sample only exposed surface blocks in already loaded client chunks, 320 columns per tick maximum; cave layers still record visited floor only. No forced chunk loading or subsurface scans. Existing cache remains compatible.
+- Compact tabbed map controls, preparation outside render, local surface map survives a temporary team packet timeout after the initial bridge handshake. Team positions still expire after 3 seconds.
+- Compatible with LandMinimap-Bridge 0.4.0; replace only client JAR. In-game validation still required.

@@ -17,13 +17,18 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import java.util.*;
 
 public final class LandMinimap implements ClientModInitializer {
-    static final int CELL=4, SIZE=64, PIXEL=2, WIDTH=SIZE*PIXEL;
+    static final int CELL=4, SIZE=72, PIXEL=1, WIDTH=SIZE*PIXEL;
+    private static final int SURVEY_RADIUS=38, SURVEY_BUDGET=320;
+    private static final List<int[]> SURVEY=surveyOffsets();
+    private static int surveyX,surveyZ,surveyCursor;
+    private static boolean surveyStarted;
     static final int FOG=0xff15191e, ALLY=0xff48e39a;
     private static ClientLevel level;
     private static TeamPayload packet;
@@ -31,7 +36,7 @@ public final class LandMinimap implements ClientModInitializer {
     private static FeaturePayload features;
     private static long featureReceived;
     static final int SURFACE=10000;
-    static boolean waypoints=true;
+    static boolean waypoints=false;
     static int currentLayer=SURFACE;
     private static Path mapDir;
     private static final LinkedHashMap<Integer,Exploration> layers=new LinkedHashMap<>(8,.75f,true);
@@ -85,32 +90,66 @@ public final class LandMinimap implements ClientModInitializer {
         Minecraft mc=Minecraft.getInstance();
         return active(mc) && entity instanceof Player && entity!=mc.player && allies.contains(entity.getUUID());
     }
+    static boolean localReady(Minecraft mc){return mc.player!=null&&mc.level!=null&&mc.level==level&&mapDir!=null&&Objects.equals(viewer,mc.player.getUUID());}
     private static void reset() {
+        surveyStarted=false;surveyCursor=0;
         for(var l:layers.values())l.flush();layers.clear();mapDir=null;
         features=null;featureReceived=0;currentLayer=SURFACE;
         packet=null;overlay=null;overlayReceived=0;allies=Set.of();map=null;localMarks=null;level=null;world=null;viewer=null;received=0;ticks=0;
     }
     static int cell(int coordinate){return Math.floorDiv(coordinate,CELL);}
+    private static List<int[]> surveyOffsets(){
+        List<int[]> result=new ArrayList<>();
+        for(int z=-SURVEY_RADIUS;z<=SURVEY_RADIUS;z++)for(int x=-SURVEY_RADIUS;x<=SURVEY_RADIUS;x++)result.add(new int[]{x,z});
+        result.sort(Comparator.comparingInt(a->a[0]*a[0]+a[1]*a[1]));
+        return List.copyOf(result);
+    }
+    private static void surveySurface(Minecraft mc,int cx,int cz){
+        if(!surveyStarted||Math.abs(cx-surveyX)>6||Math.abs(cz-surveyZ)>6||surveyCursor>=SURVEY.size()){
+            surveyStarted=true;surveyX=cx;surveyZ=cz;surveyCursor=0;
+            map.prepare(cx,cz,SURVEY_RADIUS+1);
+        }
+        for(int n=0;n<SURVEY_BUDGET&&surveyCursor<SURVEY.size();n++){
+            int[] offset=SURVEY.get(surveyCursor++);
+            int x=surveyX+offset[0],z=surveyZ+offset[1],bx=x*CELL+CELL/2,bz=z*CELL+CELL/2;
+            if(!mc.level.getChunkSource().hasChunk(Math.floorDiv(bx,16),Math.floorDiv(bz,16)))continue;
+            // Only the exposed top block of a client-loaded column. No subsurface scans,
+            // no ores below the surface, no generation or remote chunk requests.
+            int y=mc.level.getHeight(Heightmap.Types.WORLD_SURFACE,bx,bz)-1;
+            BlockPos at=new BlockPos(bx,y,bz);
+            var state=mc.level.getBlockState(at);
+            if(state.isAir())continue;
+            int color=state.getMapColor(mc.level,at).col;
+            if(color!=0)map.visit(x,z,0xff000000|color);
+        }
+    }
     private static void tick(Minecraft mc) {
         if(level!=null && mc.level!=level){reset();return;}
-        while(mapKey.consumeClick())if(active(mc)&&mc.gui.screen()==null)mc.gui.setScreen(new MapScreen());
-        if(!active(mc))return;
-        if(++ticks%5!=0)return;
+        while(mapKey.consumeClick())if(mc.gui.screen()==null){
+            if(localReady(mc))mc.gui.setScreen(new MapScreen());
+            else notice("Мост сервера не подключён. Проверь версии и перезайди.");
+        }
+        if(!localReady(mc))return;
+        ticks++;
         BlockPos pos=mc.player.blockPosition();
         int x=cell(pos.getX()),z=cell(pos.getZ());
-        currentLayer=featureReady()?features.actualLayer():Math.floorDiv(pos.getY(),16);
-        map=layerMap(currentLayer);
-        if(!(mc.gui.screen() instanceof MapScreen))map.prepare(x,z,SIZE/2+1);
-        if(ticks%40==0&&featureReady()){if(mc.gui.screen() instanceof MapScreen screen)screen.request();else request(currentLayer,x,z,40);}
-        // Only the cell physically occupied by the local player is recorded. No chunk scans.
+        currentLayer=SURFACE;
+        map=layerMap(SURFACE);
         if(!mc.player.isSpectator()){
-            BlockPos floor=pos.below();
-            var block=mc.level.getBlockState(floor);
-            if(!block.isAir()){
-                int color=block.getMapColor(mc.level,floor).col;
-                if(color!=0)map.visit(x,z,0xff000000|color);
+            surveySurface(mc,x,z);
+            // Cave layers remain visited-only: record just the floor occupied by the player.
+            if(ticks%5==0&&featureReady()&&features.actualLayer()!=SURFACE){
+                BlockPos floor=pos.below();var block=mc.level.getBlockState(floor);
+                if(!block.isAir()){
+                    int color=block.getMapColor(mc.level,floor).col;
+                    if(color!=0)layerMap(features.actualLayer()).visit(x,z,0xff000000|color);
+                }
             }
         }
+        if(mc.gui.screen() instanceof MapScreen screen){
+            if(ticks%5==0)screen.prepareView();
+            if(ticks%40==0&&featureReady())screen.request();
+        }else if(ticks%40==0&&featureReady())request(SURFACE,x,z,40);
         if(ticks%200==0)for(var l:layers.values())l.flush();
     }
     static int clamp(int v,int lo,int hi){return Math.max(lo,Math.min(hi,v));}
@@ -142,8 +181,8 @@ public final class LandMinimap implements ClientModInitializer {
     static void notice(String msg){var p=Minecraft.getInstance().player;if(p!=null)p.sendSystemMessage(Component.literal("LandMap: "+msg));}
     private static void draw(GuiGraphicsExtractor g) {
         Minecraft mc=Minecraft.getInstance();
-        if(!active(mc)||map==null||mc.gui.screen() instanceof MapScreen)return;
-        int left=g.guiWidth()-WIDTH-8,top=10;
+        if(!localReady(mc)||map==null||mc.gui.screen()!=null)return;
+        int left=g.guiWidth()-WIDTH-6,top=6;
         if(left<4)return;
         int cx=cell(mc.player.blockPosition().getX()),cz=cell(mc.player.blockPosition().getZ());
         int startX=cx-SIZE/2,startZ=cz-SIZE/2;
@@ -170,14 +209,17 @@ public final class LandMinimap implements ClientModInitializer {
                 g.fill(x-2,z-2,x+3,z+3,0xff131820);g.fill(x-1,z-1,x+2,z+2,color);
             }
         }
-        int midX=left+WIDTH/2+1,midY=top+WIDTH/2+1;
+        int midX=left+WIDTH/2,midY=top+WIDTH/2;
         g.fill(midX-2,midY-2,midX+3,midY+3,0xfff8f9fa);
+        double angle=Math.toRadians(mc.player.getYRot());
+        int tipX=midX+(int)Math.round(-Math.sin(angle)*4),tipY=midY+(int)Math.round(Math.cos(angle)*4);
+        g.fill(tipX-1,tipY-1,tipX+2,tipY+2,0xffffd65c);
         g.text(mc.font,"N",left+WIDTH/2-3,top+2,0xffeeeeee,true);
         for(var m:personal())drawMark(g,m,0xffffcf5b,left,top,midX,midY,mc);
         for(var m:shared())drawMark(g,m,0xff49c8ff,left,top,midX,midY,mc);
         for(var ping:pings()){int x=left+(cell(ping.x())-startX)*PIXEL+1,z=top+(cell(ping.z())-startZ)*PIXEL+1;if(x>=left&&x<left+WIDTH&&z>=top&&z<top+WIDTH)g.fill(x-2,z-2,x+3,z+3,0xffff9c43);}
         int row=0;
-        for(var m:packet.members()){
+        for(var m:members()){
             int rawX=(int)Math.floor((m.x()-mc.player.getX())/CELL*PIXEL)+midX;
             int rawY=(int)Math.floor((m.z()-mc.player.getZ())/CELL*PIXEL)+midY;
             int px=clamp(rawX,left+3,left+WIDTH-4),py=clamp(rawY,top+3,top+WIDTH-4);
@@ -185,19 +227,10 @@ public final class LandMinimap implements ClientModInitializer {
             g.fill(px-1,py-1,px+2,py+2,ALLY);
             int dist=(int)Math.round(Math.hypot(m.x()-mc.player.getX(),m.z()-mc.player.getZ()));
             String label=m.name()+" "+dist+"m"+(rawX!=px||rawY!=py?" >":"");
-            if(row<4)g.text(mc.font,label,left,top+WIDTH+5+row++*10,ALLY,true);
+            row++;
         }
-        g.text(mc.font,layerName(currentLayer),left,top+WIDTH+5+row*10,0xffb9c6ce,true);
-        int sy=12;
-        for(var status:statuses()){
-            if(sy>g.guiHeight()/2)break;
-            String line=status.name()+(status.speaking()?" [MIC]":"")+(status.dead()?" †":"")+(status.sameWorld()?"":" [другой мир]");
-            g.text(mc.font,line,8,sy,0xff48e39a,true);
-            String info=String.format(java.util.Locale.ROOT,"HP %.0f/%.0f · Б %d · Е %d",status.health(),status.max(),status.armor(),status.food());
-            g.text(mc.font,info,8,sy+10,status.health()<=6?0xffff6868:0xffeeeeee,true);
-            sy+=24;
-            if(!status.race().isEmpty()){g.text(mc.font,status.race(),8,sy-2,0xffc39bff,true);sy+=10;}
-        }
+        String caption=active(mc)?"M · "+row+" союзн.":"M · локально";
+        g.text(mc.font,caption,left,top+WIDTH+4,0xffb9c6ce,true);
         WorldWaypoints.draw(g,mc);
     }
     private static void drawMark(GuiGraphicsExtractor g,TeamPayload.Mark m,int color,int left,int top,int midX,int midY,Minecraft mc){

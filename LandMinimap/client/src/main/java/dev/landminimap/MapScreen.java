@@ -8,7 +8,9 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import java.util.*;
 final class MapScreen extends Screen {
-    private int cx,cz,zoom=1,side,left,top,panel,layer=LandMinimap.currentLayer;
+    private int cx,cz,zoom=1,side,left,top,panel,layer=LandMinimap.SURFACE;
+    private int tab,step=19,buttonHeight=17,panelWidth=120;
+    private String storedLabel="Метка";
     private Exploration selectedMap;
     private static final String[] TYPES={"Метка","База","Шахта","Ферма","Спавнер","Опасность","Помощь"};
     private int type,pingType;
@@ -19,42 +21,66 @@ final class MapScreen extends Screen {
     private String status="ЛКМ: метка · ПКМ: удалить";
     MapScreen(){super(Component.literal("Land of Losers · Карта"));var p=Minecraft.getInstance().player;if(p!=null){cx=LandMinimap.cell(p.blockPosition().getX());cz=LandMinimap.cell(p.blockPosition().getZ());}}
     @Override protected void init(){
-        side=Math.max(48,Math.min(256,Math.min(width-156,height-68)));left=8;top=24;panel=left+side+8;
-        button("↑",left+54,2,26,()->pan(0,-1));button("↓",left+80,2,26,()->pan(0,1));
-        button("←",left+28,2,26,()->pan(-1,0));button("→",left+106,2,26,()->pan(1,0));
-        button("−",left+132,2,24,()->zoom=Math.min(2,zoom*2));button("+",left+156,2,24,()->zoom=Math.max(1,zoom/2));
-        button("Я",left+182,2,24,()->{var p=Minecraft.getInstance().player;if(p!=null){cx=LandMinimap.cell(p.blockPosition().getX());cz=LandMinimap.cell(p.blockPosition().getZ());}});
-        label=new EditBox(font,panel,24,Math.max(50,width-panel-8),20,Component.literal("Название метки"));
-        label.setMaxLength(24);label.setValue("Метка");addRenderableWidget(label);
-        button("Личная",panel,46,65,()->{shared=false;status="Личная метка: видна только тебе";});
-        button("Клану",panel+67,46,65,()->{shared=true;status="Командная метка: видна клану";});
-        button("След. союзник",panel,92,132,()->{
-            var team=LandMinimap.members();if(team.isEmpty()){selected=null;return;}
-            int i=-1;for(int j=0;j<team.size();j++)if(team.get(j).id().equals(selected))i=j;
-            selected=team.get((i+1)%team.size()).id();
+        panelWidth=Math.min(126,Math.max(92,width/3));
+        side=Math.max(32,Math.min(224,Math.min(width-panelWidth-20,height-61)));
+        left=7;top=24;panel=left+side+7;
+        panelWidth=Math.max(56,width-panel-6);
+        step=Math.max(15,Math.min(20,(height-30)/7));buttonHeight=step-2;
+        int b=Math.max(17,Math.min(25,(width-18)/7));
+        button("←",left,2,b,()->pan(-1,0));button("↑",left+b+1,2,b,()->pan(0,-1));
+        button("↓",left+2*(b+1),2,b,()->pan(0,1));button("→",left+3*(b+1),2,b,()->pan(1,0));
+        button("−",left+4*(b+1),2,b,()->{zoom=Math.min(2,zoom*2);request();});
+        button("+",left+5*(b+1),2,b,()->{zoom=Math.max(1,zoom/2);request();});
+        button("Я",left+6*(b+1),2,b,()->{var p=Minecraft.getInstance().player;if(p!=null){cx=LandMinimap.cell(p.blockPosition().getX());cz=LandMinimap.cell(p.blockPosition().getZ());}request();});
+        String[] tabs={"Метки","Клан","Слои"};
+        button(tabs[tab]+"  ›",panel,top,panelWidth,()->{
+            if(label!=null)storedLabel=label.getValue();
+            tab=(tab+1)%3;clearWidgets();init();
         });
-        button("Инвентарь",panel,114,132,()->send(ActionPayload.VIEW));
-        button("Разрешить",panel,136,65,()->send(ActionPayload.ALLOW));
-        button("Отозвать",panel+67,136,65,()->send(ActionPayload.REVOKE));
-        button("Точки спавна",panel,158,132,()->{
-            var points=LandMinimap.points();if(points.isEmpty()){status="Нет доступных точек в этом мире";return;}
-            pointIndex=(pointIndex+1)%points.size();var p=points.get(pointIndex);
-            cx=LandMinimap.cell(p.x());cz=LandMinimap.cell(p.z());showOverlays=true;status=p.label()+" · Y "+p.y();
-        });
-        button("Зоны",panel,180,65,()->showOverlays=!showOverlays);
-        button("3D",panel+67,180,65,()->LandMinimap.waypoints=!LandMinimap.waypoints);
-        button("Y−",left,top+side+37,28,()->{layer=layer==LandMinimap.SURFACE?Math.floorDiv(Minecraft.getInstance().player.blockPosition().getY(),16):Math.max(-256,layer-1);request();});
-        button("Y+",left+30,top+side+37,28,()->{layer=layer==LandMinimap.SURFACE?Math.floorDiv(Minecraft.getInstance().player.blockPosition().getY(),16):Math.min(256,layer+1);request();});
-        button("Верх",left+60,top+side+37,40,()->{layer=LandMinimap.SURFACE;request();});
-        button("Разведка",panel,202,132,()->LandMinimap.action(7,ActionPayload.NONE,0,0,LandMinimap.sharing()?"off":"on"));
-        button("Вид метки",panel,224,132,()->{type=(type+1)%TYPES.length;label.setValue(TYPES[type]);});
-        button("Пинг",panel,246,65,()->{String[] types={"Помощь","Опасность","Сюда"};LandMinimap.action(9,ActionPayload.NONE,0,0,types[pingType]);});
-        button("Вид",panel+67,246,65,()->{pingType=(pingType+1)%3;status="Пинг: "+new String[]{"Помощь","Опасность","Сюда"}[pingType];});
+        int y=top+step,w=panelWidth,half=(w-2)/2;
+        label=null;
+        if(tab==0){
+            label=new EditBox(font,panel,y,w,buttonHeight,Component.literal("Название метки"));
+            label.setMaxLength(24);label.setValue(storedLabel);addRenderableWidget(label);
+            button(shared?"Личная":"Клану",panel,y+step,w,()->{shared=!shared;status=shared?"Режим: клан":"Режим: личная";});
+            button("Вид метки",panel,y+step*2,w,()->{type=(type+1)%TYPES.length;label.setValue(TYPES[type]);});
+            button("Точки спавна",panel,y+step*3,w,()->{
+                var points=LandMinimap.points();if(points.isEmpty()){status="Нет доступных точек";return;}
+                pointIndex=(pointIndex+1)%points.size();var p=points.get(pointIndex);
+                cx=LandMinimap.cell(p.x());cz=LandMinimap.cell(p.z());showOverlays=true;status=p.label();request();
+            });
+            button("Зоны",panel,y+step*4,half,()->showOverlays=!showOverlays);
+            button("3D",panel+half+2,y+step*4,half,()->LandMinimap.waypoints=!LandMinimap.waypoints);
+            button("Пинг",panel,y+step*5,half,()->{String[] types={"Помощь","Опасность","Сюда"};LandMinimap.action(9,ActionPayload.NONE,0,0,types[pingType]);});
+            button("Вид",panel+half+2,y+step*5,half,()->{pingType=(pingType+1)%3;status="Пинг: "+new String[]{"Помощь","Опасность","Сюда"}[pingType];});
+        }else if(tab==1){
+            button("Союзник ›",panel,y,w,()->{
+                var team=LandMinimap.members();if(team.isEmpty()){selected=null;return;}
+                int i=-1;for(int j=0;j<team.size();j++)if(team.get(j).id().equals(selected))i=j;
+                selected=team.get((i+1)%team.size()).id();
+            });
+            button("Инвентарь",panel,y+step,w,()->send(ActionPayload.VIEW));
+            button("Разрешить",panel,y+step*2,w,()->send(ActionPayload.ALLOW));
+            button("Отозвать",panel,y+step*3,w,()->send(ActionPayload.REVOKE));
+            button("Разведка",panel,y+step*4,w,()->LandMinimap.action(7,ActionPayload.NONE,0,0,LandMinimap.sharing()?"off":"on"));
+        }else{
+            button("Поверхность",panel,y,w,()->{layer=LandMinimap.SURFACE;request();});
+            button("Мой Y",panel,y+step,w,()->{var p=Minecraft.getInstance().player;if(p!=null)layer=Math.floorDiv(p.blockPosition().getY(),16);request();});
+            button("Y−",panel,y+step*2,half,()->{layer=layer==LandMinimap.SURFACE?Math.floorDiv(Minecraft.getInstance().player.blockPosition().getY(),16):Math.max(-256,layer-1);request();});
+            button("Y+",panel+half+2,y+step*2,half,()->{layer=layer==LandMinimap.SURFACE?Math.floorDiv(Minecraft.getInstance().player.blockPosition().getY(),16):Math.min(256,layer+1);request();});
+        }
         request();
     }
-    private void button(String text,int x,int y,int w,Runnable r){addRenderableWidget(Button.builder(Component.literal(text),b->r.run()).bounds(x,y,w,20).build());}
+    private void button(String text,int x,int y,int w,Runnable r){
+        addRenderableWidget(Button.builder(Component.literal(text),b->r.run()).bounds(x,y,w,buttonHeight).build());
+    }
+    void prepareView(){
+        if(!LandMinimap.localReady(Minecraft.getInstance()))return;
+        selectedMap=LandMinimap.layerMap(layer);
+        selectedMap.prepare(cx,cz,side*zoom/2+1);
+    }
     private void pan(int x,int z){cx=LandMinimap.clamp(cx+x*side*zoom/3,-7500000,7500000);cz=LandMinimap.clamp(cz+z*side*zoom/3,-7500000,7500000);request();}
-    void request(){if(LandMinimap.featureReady())LandMinimap.request(layer,cx,cz,side*zoom/2+2);}
+    void request(){prepareView();if(LandMinimap.featureReady())LandMinimap.request(layer,cx,cz,side*zoom/2+2);}
     private void send(int op){
         var member=LandMinimap.members().stream().filter(m->m.id().equals(selected)).findFirst().orElse(null);
         if(member==null){status="Сначала выбери союзника";return;}
@@ -66,9 +92,10 @@ final class MapScreen extends Screen {
     private boolean inside(int x,int y){return x>=left&&x<left+side&&y>=top&&y<top+side;}
     @Override public boolean mouseClicked(MouseButtonEvent e,boolean twice){
         int x=(int)e.x(),y=(int)e.y();
-        if(!inside(x,y)||!LandMinimap.active(Minecraft.getInstance()))return super.mouseClicked(e,twice);
+        if(!inside(x,y)||!LandMinimap.localReady(Minecraft.getInstance()))return super.mouseClicked(e,twice);
         if(e.button()==0){
-            String name=label.getValue().strip();if(name.isEmpty()||name.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>96||name.codePoints().anyMatch(Character::isISOControl)){status="Некорректное название";return true;}
+            if(tab!=0)return true;
+            String name=(label==null?storedLabel:label.getValue()).strip();if(name.isEmpty()||name.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>96||name.codePoints().anyMatch(Character::isISOControl)){status="Некорректное название";return true;}
             int bx=(startX()+(x-left)*zoom)*4+2,bz=(startZ()+(y-top)*zoom)*4+2;
             int by=layer==LandMinimap.SURFACE?Minecraft.getInstance().player.blockPosition().getY():layer*16+8;
             if(shared){LandMinimap.action(10,new UUID(0,by),bx,bz,name);status="Запрос создания командной метки · Y "+by;}
@@ -87,10 +114,8 @@ final class MapScreen extends Screen {
     @Override public boolean isPauseScreen(){return false;}
     @Override public void extractRenderState(GuiGraphicsExtractor g,int mx,int my,float delta){
         super.extractRenderState(g,mx,my,delta);
-        if(!LandMinimap.active(Minecraft.getInstance())||LandMinimap.map==null){g.text(font,"Мост сервера недоступен",left,top,0xffff7777,true);return;}
+        if(!LandMinimap.localReady(Minecraft.getInstance())||LandMinimap.map==null||selectedMap==null){g.text(font,"Мост сервера недоступен",left,top,0xffff7777,true);return;}
         // Limit the prepared working set: at maximum zoom only the visible square is read.
-        selectedMap=LandMinimap.layerMap(layer);
-        selectedMap.prepare(cx,cz,side*zoom/2+1);
         g.fill(left-1,top-1,left+side+1,top+side+1,0xff58636c);
         g.fill(left,top,left+side,top+side,LandMinimap.FOG);
         for(int y=0;y<side;y++){
@@ -113,19 +138,24 @@ final class MapScreen extends Screen {
         for(var m:LandMinimap.members())mark(g,(int)Math.floor(m.x()),(int)Math.floor(m.z()),m.name(),LandMinimap.ALLY);
         var p=Minecraft.getInstance().player;
         mark(g,p.blockPosition().getX(),p.blockPosition().getZ(),"Я",0xffffffff);
-        g.text(font,shared?"Метка: клану":"Метка: личная",panel,69,shared?0xff49c8ff:0xffffcf5b,true);
         var team=LandMinimap.members();if(selected==null&&!team.isEmpty())selected=team.get(0).id();
-        String nick=team.stream().filter(m->m.id().equals(selected)).map(TeamPayload.Member::name).findFirst().orElse("—");
-        g.text(font,"Союзник: "+nick,panel,81,0xff48e39a,true);
+        if(tab==1){
+            String nick=team.stream().filter(t->t.id().equals(selected)).map(TeamPayload.Member::name).findFirst().orElse("—");
+            var info=LandMinimap.statuses().stream().filter(t->t.id().equals(selected)).findFirst().orElse(null);
+            g.text(font,fit("Союзник: "+nick,panelWidth),panel,top+6*step,0xff48e39a,true);
+            if(info!=null&&top+6*step+11<height)g.text(font,fit("HP "+Math.round(info.health())+"/"+Math.round(info.max()),panelWidth),panel,top+6*step+10,0xffeeeeee,true);
+        }
+        if(tab==2)g.text(font,fit(LandMinimap.layerName(layer),panelWidth),panel,top+4*step,0xffb9c6ce,true);
         if(inside(mx,my))g.text(font,"X "+((startX()+(mx-left)*zoom)*4)+"  Z "+((startZ()+(my-top)*zoom)*4),left,top+side+3,0xffdddddd,true);
         String detail=status;
         if(showOverlays&&inside(mx,my)){
             for(var zone:LandMinimap.zones())if(mx>=px(zone.x1())&&mx<=px(zone.x2())&&my>=py(zone.z1())&&my<=py(zone.z2()))detail=zone.label()+(zone.kind()==3?" · Y "+zone.y1()+".."+zone.y2():"");
             for(var point:LandMinimap.points())if(Math.abs(mx-px(point.x()))<=4&&Math.abs(my-py(point.z()))<=4){detail=point.label()+" · "+point.x()+", "+point.y()+", "+point.z();break;}
         }
-        g.text(font,detail,left,top+side+15,0xffeeeeee,true);
-        g.text(font,LandMinimap.layerName(layer)+" · Разведка "+(LandMinimap.sharing()?"ON":"OFF")+(LandMinimap.truncated()?" · приближай карту":""),left,top+side+27,0xffb4d2c8,true);
+        g.text(font,fit(detail,Math.max(30,width-left-6)),left,top+side+15,0xffeeeeee,true);
+        g.text(font,fit(LandMinimap.layerName(layer)+" · "+(shared?"Клан":"Личная")+" · "+(LandMinimap.sharing()?"Разведка ON":"Разведка OFF"),width-left-6),left,top+side+27,0xffb4d2c8,true);
     }
+    private String fit(String value,int limit){while(value.length()>0&&font.width(value)>limit)value=value.substring(0,value.length()-1);return value;}
     private int sample(int x,int z){
         int a=startX()+x*zoom,b=startZ()+z*zoom;
         for(int dz=0;dz<zoom;dz++)for(int dx=0;dx<zoom;dx++){int c=LandMinimap.color(selectedMap,layer,a+dx,b+dz);if(c!=0)return c;}
