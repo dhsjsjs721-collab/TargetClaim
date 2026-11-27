@@ -125,7 +125,7 @@ final class ClanFeatures implements Listener {
                 if(k.world.equals(world)&&k.layer==area.layer&&Math.abs(k.x-area.x)<=area.radius&&Math.abs(k.z-area.z)<=area.radius)cells.putIfAbsent(k,cell.getValue());
             }
         List<Map.Entry<Cell,Integer>> visible=cells.entrySet().stream().sorted(Comparator.comparingLong(e->{long dx=e.getKey().x-area.x,dz=e.getKey().z-area.z;return dx*dx+dz*dz;})).limit(2000).toList();
-        List<Player> team=g==null?List.of():Bukkit.getOnlinePlayers().stream().filter(t->!t.equals(p)&&g.equals(clan.apply(t.getUniqueId()))).limit(16).toList();
+        List<? extends Player> team=g==null?List.of():Bukkit.getOnlinePlayers().stream().filter(t->!t.equals(p)&&g.equals(clan.apply(t.getUniqueId()))).limit(16).toList();
         List<Ping> markers=g==null?List.of():pings.stream().filter(x->x.clan.equals(g)&&x.world.equals(world)).limit(16).toList();
         try{
             ByteArrayOutputStream b=new ByteArrayOutputStream();
