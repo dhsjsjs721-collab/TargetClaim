@@ -1,7 +1,7 @@
 name: Build UnifiedAuth JAR
 on:
   push:
-    branches: [main]
+    branches: [main, fix/live-server-20261127]
     paths:
       - 'UnifiedAuth/**'
       - '.github/workflows/build-unified-auth.yml'
@@ -36,6 +36,7 @@ jobs:
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
           exit 0
       - name: Publish JAR or error report
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           mkdir -p dist
