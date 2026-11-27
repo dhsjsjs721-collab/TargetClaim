@@ -521,6 +521,25 @@ missReplay.add(new CombatReplay.Frame(3,20,20,0,0,2,1,0,true,false,"READY","WAIT
 check(missReplay.summary().contains("Attack plan without counter increase: 1"));
 check(missReplay.summary().contains("Ready deferrals by recorded plan: {NORMAL=1, WAIT_JUMP=1}"));
 try { missReplay.add(new CombatReplay.Frame(4,20,20,0,0,2,1,0,true,false,"READY","NORMAL","bad","HOLD",0,1)); throw new AssertionError("Invalid counters accepted"); } catch(IllegalArgumentException expectedError) {}
+var historical=new ContextMemory();
+var emptyRow=new ContextMemory.Row(0,0,0,0);
+var firstRow=new ContextMemory.Row(1,1,4,9);
+var secondRow=new ContextMemory.Row(3,3,0,3);
+historical.add(new ContextMemory.Session(firstRow,emptyRow,emptyRow));
+historical.add(new ContextMemory.Session(secondRow,emptyRow,emptyRow));
+check(historical.report().contains("samples=4 RMS stationary=1.0000 linear=1.0000 tracker=1.7321"));
+for(int i=0;i<70;i++) historical.add(new ContextMemory.Session(secondRow,emptyRow,emptyRow));
+check(historical.size()==64);
+check(historical.report().contains("samples=192"));
+try {
+var tmp=java.nio.file.Files.createTempDirectory("lol-memory-test");
+var file=tmp.resolve("memory.csv");
+check(ContextMemory.read(file).size()==0);
+historical.write(file); check(ContextMemory.read(file).report().equals(historical.report()));
+java.nio.file.Files.writeString(file,"LOL-CALIBRATION-1\n1,NaN,0,0,0,0,0,0,0,0,0,0\n");
+try { ContextMemory.read(file); throw new AssertionError("Corrupt memory accepted"); } catch(java.io.IOException expectedError) {}
+java.nio.file.Files.delete(file); java.nio.file.Files.delete(tmp);
+} catch(java.io.IOException ex) { throw new AssertionError(ex); }
 System.out.println("Combat tests passed");
 }
 }

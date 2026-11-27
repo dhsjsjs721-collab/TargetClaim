@@ -55,6 +55,7 @@ mc.gui.hud.setOverlayMessage(Component.literal("Land of Losers: ON | "+name),fal
 private static void checkHotkeySession(Minecraft mc) {
 if(hotkeyActive && ((!settings.aimEnabled() && !settings.triggerEnabled()) || mc.level!=hotkeyWorld || mc.player!=hotkeyPlayer || mc.player==null || !mc.player.isAlive() || mc.player.isSpectator() || mc.player.isCreative() || !PracticeCombat.hasLockedTarget(mc))) stopPractice(mc);
 }
+static Path calibrationFile() { return FabricLoader.getInstance().getConfigDir().resolve("land-of-losers-calibration.csv"); }
 private static Path configFile() { return FabricLoader.getInstance().getConfigDir().resolve("land-of-losers.properties"); }
 static void savePreferences() {
 try { new ClientPreferences(settings.fov(),false).write(configFile()); }
@@ -90,6 +91,7 @@ finally { PracticeCombat.callbackTime(start,TickWatchdog.elapsed(begin,System.na
 }
 public void onInitializeClient() {
 loadPreferences();
+CalibrationHistory.load(calibrationFile());
 PracticeGhost.register();
 var category=KeyMapping.Category.register(Identifier.fromNamespaceAndPath("pvp_practice","practice"));
 var key=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.pvp_practice.open",InputConstants.Type.KEYBOARD,InputConstants.KEY_DOWN,category));

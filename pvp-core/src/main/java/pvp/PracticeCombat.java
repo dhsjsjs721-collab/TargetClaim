@@ -100,7 +100,7 @@ private static double startWeaponDelay;
 private static long manualTick=-1;
 private static Object lastWeapon;
 private static double lastWeaponDelay=Double.NaN;
-static String diagnostics() { return "Current status: "+status+"\n"+(sessionActive?trace.report()+"\n"+replay.summary()+"\n"+ghostMotion.report()+"\n"+approachCalibration.report():previousReport.isEmpty()?trace.report()+"\n"+replay.summary():previousReport); }
+static String diagnostics() { return "Current status: "+status+"\n"+CalibrationHistory.report()+"\n"+(sessionActive?trace.report()+"\n"+replay.summary()+"\n"+ghostMotion.report()+"\n"+approachCalibration.report():previousReport.isEmpty()?trace.report()+"\n"+replay.summary():previousReport); }
 static String replayCsv() { return sessionActive || previousReplay==null?replay.csv():previousReplay.csv(); }
 static void beginPractice(Minecraft mc) { resetWorld(mc); sessionActive=true; status="Practice started"; }
 static void finishPractice() { endSession(); }
@@ -198,7 +198,9 @@ private static boolean restricted(LocalPlayer self) {
 return self.isInWater() || self.isInLava() || self.isPassenger() || self.onClimbable() || self.isMobilityRestricted() || self.hasEffect(MobEffects.BLINDNESS) || self.isFallFlying() || self.getAbilities().flying;
 }
 private static void endSession() {
-if(sessionActive) { previousReport=trace.report()+"\n"+replay.summary()+"\n"+ghostMotion.report()+"\n"+approachCalibration.report(); previousReplay=replay.snapshot(); sessionActive=false; }
+if(sessionActive) { previousReport=trace.report()+"\n"+replay.summary()+"\n"+ghostMotion.report()+"\n"+approachCalibration.report(); previousReplay=replay.snapshot(); sessionActive=false;
+var calibration=approachCalibration.snapshot();
+if(!calibration.empty()) CalibrationHistory.save(PracticeClient.calibrationFile(),calibration); }
 }
 private static void resetWorld(Minecraft mc) {
 endSession(); resetStyle(); recovery.reset();

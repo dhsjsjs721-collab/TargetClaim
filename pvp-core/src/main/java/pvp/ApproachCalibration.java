@@ -42,6 +42,10 @@ int h=H[i]; long due=tick+h;
 pending[i][(int)(due%7)]=new Forecast(due,actual,Math.hypot(dx+vx*h,dz+vz*h),Math.hypot(dx+estimatedX*h,dz+estimatedZ*h));
 }
 }
+public ContextMemory.Session snapshot() {
+return new ContextMemory.Session(row(0),row(1),row(2));
+}
+private ContextMemory.Row row(int i) { return new ContextMemory.Row(count[i],squared[i][0],squared[i][1],squared[i][2]); }
 public long samples(int index) { return count[index]; }
 public double rms(int horizonIndex,int model) { return count[horizonIndex]==0?Double.NaN:Math.sqrt(squared[horizonIndex][model]/count[horizonIndex]); }
 public String report() {
