@@ -1,6 +1,8 @@
 name: LandMinimapBridge
-version: 0.3.0
+version: 0.4.0
 main: dev.landminimap.bridge.LandMinimapBridge
 api-version: '26.3'
 depend: [MinecraftUnified]
 description: Private clan positions for Land Minimap
+
+softdepend: [voicechat]
