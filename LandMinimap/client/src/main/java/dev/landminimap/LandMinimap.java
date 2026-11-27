@@ -1,6 +1,11 @@
 package dev.landminimap;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import com.mojang.blaze3d.platform.InputConstants;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.network.chat.Component;
+import java.nio.file.Path;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -18,24 +23,31 @@ import net.minecraft.world.entity.player.Player;
 import java.util.*;
 
 public final class LandMinimap implements ClientModInitializer {
-    private static final int CELL=4, SIZE=64, PIXEL=2, WIDTH=SIZE*PIXEL;
-    private static final int FOG=0xff15191e, ALLY=0xff48e39a;
+    static final int CELL=4, SIZE=64, PIXEL=2, WIDTH=SIZE*PIXEL;
+    static final int FOG=0xff15191e, ALLY=0xff48e39a;
     private static ClientLevel level;
     private static TeamPayload packet;
     private static Set<UUID> allies=Set.of();
     private static long received;
-    private static Exploration map;
-    private static UUID world,viewer;
+    static Exploration map;
+    static LocalMarks localMarks;
+    private static KeyMapping mapKey;
+    private static UUID world;
+    static UUID viewer;
     private static int ticks;
     @Override public void onInitializeClient() {
         PayloadTypeRegistry.clientboundPlay().register(TeamPayload.TYPE,TeamPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ActionPayload.TYPE,ActionPayload.CODEC);
+        mapKey=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.landminimap.map",InputConstants.Type.KEYBOARD,InputConstants.KEY_M,KeyMapping.Category.register(Identifier.fromNamespaceAndPath("landminimap","controls"))));
         ClientPlayNetworking.registerGlobalReceiver(TeamPayload.TYPE,(data,context)->{
             Minecraft mc=context.client();
             if(mc.level==null || mc.player==null || !data.viewer().equals(mc.player.getUUID()))return;
             if(level!=mc.level || !data.world().equals(world) || !data.viewer().equals(viewer)) {
                 reset();
                 level=mc.level;world=data.world();viewer=data.viewer();
-                map=new Exploration(FabricLoader.getInstance().getGameDir().resolve("land-minimap").resolve(viewer.toString()).resolve(world.toString()));
+                Path dir=FabricLoader.getInstance().getGameDir().resolve("land-minimap").resolve(viewer.toString()).resolve(world.toString());
+                map=new Exploration(dir);
+                localMarks=new LocalMarks(dir.resolve("personal.bin"),viewer);
             }
             packet=data;
             Set<UUID> ids=new HashSet<>();for(var member:data.members())ids.add(member.id());
@@ -46,7 +58,7 @@ public final class LandMinimap implements ClientModInitializer {
         HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT,
                 Identifier.fromNamespaceAndPath("landminimap","minimap"),(graphics,delta)->draw(graphics));
     }
-    private static boolean active(Minecraft mc) {
+    static boolean active(Minecraft mc) {
         return mc.player!=null && mc.level!=null && mc.level==level && packet!=null
                 && System.nanoTime()-received<3_000_000_000L && viewer.equals(mc.player.getUUID());
     }
@@ -56,16 +68,17 @@ public final class LandMinimap implements ClientModInitializer {
     }
     private static void reset() {
         if(map!=null)map.flush();
-        packet=null;allies=Set.of();map=null;level=null;world=null;viewer=null;received=0;ticks=0;
+        packet=null;allies=Set.of();map=null;localMarks=null;level=null;world=null;viewer=null;received=0;ticks=0;
     }
-    private static int cell(int coordinate){return Math.floorDiv(coordinate,CELL);}
+    static int cell(int coordinate){return Math.floorDiv(coordinate,CELL);}
     private static void tick(Minecraft mc) {
         if(level!=null && mc.level!=level){reset();return;}
+        while(mapKey.consumeClick())if(active(mc)&&mc.gui.screen()==null)mc.gui.setScreen(new MapScreen());
         if(!active(mc))return;
         if(++ticks%5!=0)return;
         BlockPos pos=mc.player.blockPosition();
         int x=cell(pos.getX()),z=cell(pos.getZ());
-        map.prepare(x,z,SIZE/2+1);
+        if(!(mc.gui.screen() instanceof MapScreen))map.prepare(x,z,SIZE/2+1);
         // Only the cell physically occupied by the local player is recorded. No chunk scans.
         if(!mc.player.isSpectator()){
             BlockPos floor=pos.below();
@@ -77,10 +90,18 @@ public final class LandMinimap implements ClientModInitializer {
         }
         if(ticks%200==0)map.flush();
     }
-    private static int clamp(int v,int lo,int hi){return Math.max(lo,Math.min(hi,v));}
+    static int clamp(int v,int lo,int hi){return Math.max(lo,Math.min(hi,v));}
+    static List<TeamPayload.Member> members(){return active(Minecraft.getInstance())?packet.members():List.of();}
+    static List<TeamPayload.Mark> shared(){return active(Minecraft.getInstance())?packet.marks():List.of();}
+    static List<TeamPayload.Mark> personal(){return localMarks==null?List.of():localMarks.all();}
+    static void action(int op,UUID id,int x,int z,String label){
+        if(active(Minecraft.getInstance())&&ClientPlayNetworking.canSend(ActionPayload.TYPE))ClientPlayNetworking.send(new ActionPayload(op,id,x,z,label));
+        else notice("Серверный мост недоступен.");
+    }
+    static void notice(String msg){var p=Minecraft.getInstance().player;if(p!=null)p.sendSystemMessage(Component.literal("LandMap: "+msg));}
     private static void draw(GuiGraphicsExtractor g) {
         Minecraft mc=Minecraft.getInstance();
-        if(!active(mc)||map==null)return;
+        if(!active(mc)||map==null||mc.gui.screen() instanceof MapScreen)return;
         int left=g.guiWidth()-WIDTH-8,top=10;
         if(left<4)return;
         int cx=cell(mc.player.blockPosition().getX()),cz=cell(mc.player.blockPosition().getZ());
@@ -99,6 +120,8 @@ public final class LandMinimap implements ClientModInitializer {
         int midX=left+WIDTH/2+1,midY=top+WIDTH/2+1;
         g.fill(midX-2,midY-2,midX+3,midY+3,0xfff8f9fa);
         g.text(mc.font,"N",left+WIDTH/2-3,top+2,0xffeeeeee,true);
+        for(var m:personal())drawMark(g,m,0xffffcf5b,left,top,midX,midY,mc);
+        for(var m:shared())drawMark(g,m,0xff49c8ff,left,top,midX,midY,mc);
         int row=0;
         for(var m:packet.members()){
             int rawX=(int)Math.floor((m.x()-mc.player.getX())/CELL*PIXEL)+midX;
@@ -110,5 +133,10 @@ public final class LandMinimap implements ClientModInitializer {
             String label=m.name()+" "+dist+"m"+(rawX!=px||rawY!=py?" >":"");
             if(row<4)g.text(mc.font,label,left,top+WIDTH+5+row++*10,ALLY,true);
         }
+    }
+    private static void drawMark(GuiGraphicsExtractor g,TeamPayload.Mark m,int color,int left,int top,int midX,int midY,Minecraft mc){
+        int x=clamp((int)Math.floor((m.x()-mc.player.getX())/CELL*PIXEL)+midX,left+3,left+WIDTH-4);
+        int y=clamp((int)Math.floor((m.z()-mc.player.getZ())/CELL*PIXEL)+midY,top+3,top+WIDTH-4);
+        g.fill(x-2,y-2,x+3,y+3,0xff141a1d);g.fill(x-1,y-1,x+2,y+2,color);
     }
 }

@@ -30,7 +30,7 @@ final class Exploration {
             } catch(IOException e) { Arrays.fill(r.colors,0); }
         }
         regions.put(key,r);
-        if(regions.size()>32) {
+        if(regions.size()>100) {
             var entry=regions.entrySet().iterator().next();
             if(save(entry.getKey(),entry.getValue()))regions.remove(entry.getKey());
         }
