@@ -38,6 +38,12 @@ def swap(code,old,new,label,required=True):
 def convert(code,namespace,name,path):
     plugin_class=name+"Plugin"
     if name=="SwampSky":
+        # Count loaded giants globally and use horizontal distance for the local cap.
+        code=swap(code,"if(marked(f,giantKey))return;\nmark(f,giantKey);","if(marked(f,giantKey))return;\nif(frogs.size()>=Math.max(0,Math.min(64,getConfig().getInt(\"swamp-world-giant-cap\",12))))return;\nmark(f,giantKey);","global giant frog cap")
+        code=swap(code,'random.nextDouble()<getConfig().getDouble("giant-chance",.24)','random.nextDouble()<Math.max(0,Math.min(.15,getConfig().getDouble("giant-chance",.15)))',"giant frog conversion chance")
+        code=swap(code,"for(Entity e:w.getNearbyEntities(center,72,36,72)){\nif(e instanceof Frog && marked(e,giantKey))nearbyFrogs++;","for(UUID id:new ArrayList<>(frogs)){\nEntity e=Bukkit.getEntity(id);\nif(e instanceof Frog && e.isValid() && e.getWorld().equals(w) && Math.abs(e.getLocation().getX()-center.getX())<=72 && Math.abs(e.getLocation().getZ()-center.getZ())<=72)nearbyFrogs++;","horizontal giant frog count")
+        code=swap(code,'int targetFrogs=Math.max(2,Math.min(3,getConfig().getInt("swamp-giant-frog-target",3)));','int targetFrogs=Math.max(0,Math.min(1,getConfig().getInt("swamp-giant-frog-target",1)));',"local giant frog cap")
+        code=swap(code,"if(nearbyFrogs<targetFrogs){",'if(nearbyFrogs<targetFrogs && frogs.size()<Math.max(0,Math.min(64,getConfig().getInt("swamp-world-giant-cap",12)))){',"avoid unnecessary frog spawns")
         code=swap(code,"private void recipes(){","private void recipes(){\nShapedRecipe hide=new ShapedRecipe(new NamespacedKey(\"swampsky\",\"frog_hide\"),item(\"hide\",1));hide.shape(\"LSL\",\"SRS\",\"LSL\");hide.setIngredient(\'L\',Material.LEATHER);hide.setIngredient(\'S\',Material.SLIME_BALL);hide.setIngredient(\'R\',Material.RABBIT_HIDE);Bukkit.addRecipe(hide);","frog hide craft")
     if name=="TargetClaim":
         code=swap(code,'meta.setDisplayName("§d§l✦ Ядро привата ✦");','meta.setDisplayName("§d§l✦ Ядро привата ✦");meta.setItemModel(new NamespacedKey("targetclaim","claim_core"));',"core model")
