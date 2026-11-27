@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "landminimap",
+  "version": "0.1.0",
+  "name": "Land Minimap",
+  "description": "Private clan minimap with visited-only terrain",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.landminimap.LandMinimap"
+    ]
+  },
+  "mixins": [
+    "landminimap.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.20.1",
+    "minecraft": "26.3",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}

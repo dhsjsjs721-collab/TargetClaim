@@ -1,0 +1,28 @@
+name: Build Land Minimap (Fabric + Paper)
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/land-minimap-fabric-26-3]
+    paths: ['LandMinimap/**', '.github/workflows/build-land-minimap.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - run: gradle -p LandMinimap :client:build :bridge:build --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LandMinimap-26.3
+          path: |
+            LandMinimap/client/build/libs/*.jar
+            LandMinimap/bridge/build/libs/*.jar
+          if-no-files-found: error
