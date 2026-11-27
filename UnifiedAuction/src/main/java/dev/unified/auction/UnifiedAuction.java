@@ -22,8 +22,13 @@ import java.util.*;
 public final class UnifiedAuction extends JavaPlugin implements Listener,CommandExecutor,TabCompleter {
 private static final int MAX_BID=256, MAX_QUEUE=12, MAX_MAIL=128;
 private record Lot(String name,boolean secret,int start,ItemStack chest){}
-private record Menu(UUID owner) implements InventoryHolder{
-public Inventory getInventory(){throw new UnsupportedOperationException();}
+private static final class Menu implements InventoryHolder{
+final UUID owner;
+Inventory inv;
+Lot quoteLot;
+int quote;
+Menu(UUID owner){this.owner=owner;}
+public Inventory getInventory(){return inv;}
 }
 private final List<Lot> queue=new ArrayList<>();
 private final Map<UUID,List<ItemStack>> mail=new HashMap<>();
@@ -36,11 +41,19 @@ private Path file,journal;
 private static final String P="§6[Аукцион] §f";
 @Override public void onEnable(){
 getDataFolder().mkdirs();file=getDataFolder().toPath().resolve("auction.yml");journal=getDataFolder().toPath().resolve("pending.yml");
-try{load();if(Files.exists(journal)){frozen=true;getLogger().severe("Unresolved inventory transaction: inspect pending.yml and player data before restarting. Auction frozen.");}}
+try{load();verifyChest();if(Files.exists(journal)){frozen=true;getLogger().severe("Unresolved inventory transaction: inspect pending.yml and player data before restarting. Auction frozen.");}}
 catch(Exception e){freeze(e);}
 Objects.requireNonNull(getCommand("auction")).setExecutor(this);getCommand("auction").setTabCompleter(this);
 Bukkit.getPluginManager().registerEvents(this,this);
 Bukkit.getScheduler().runTaskTimer(this,this::tick,20,20);
+}
+private void verifyChest()throws Exception{
+ItemStack sample=chest("Selftest",List.of(new ItemStack(Material.IRON_INGOT,7),book(Enchantment.MENDING,1)));
+YamlConfiguration y=new YamlConfiguration();y.set("sample",sample);
+YamlConfiguration restored=new YamlConfiguration();restored.loadFromString(y.saveToString());
+ItemStack copy=restored.getItemStack("sample");
+if(copy==null||contents(copy).size()!=2||contents(copy).getFirst().getAmount()!=7||!(contents(copy).get(1).getItemMeta() instanceof EnchantmentStorageMeta m)||!m.hasStoredEnchant(Enchantment.MENDING))throw new IOException("Filled chest selftest failed");
+getLogger().info("SELFTEST: filled chest and enchanted book serialization OK");
 }
 private void freeze(Exception e){frozen=true;getLogger().severe("Auction frozen to prevent loss/duplication: "+e);}
 private void atomic(Path target,String body)throws IOException{
@@ -202,13 +215,35 @@ if(active()&&minimum()<=MAX_BID){inv.setItem(20,named(Material.EMERALD,"Став
 inv.setItem(4,named(Material.PAPER,"Ваши алмазы: "+diamonds(p),frozen?"Торги заморожены":"Ставка сразу резервируется","Перебитая ставка возвращается в почту"));
 inv.setItem(22,named(Material.ENDER_CHEST,"Почта: "+mail.getOrDefault(p.getUniqueId(),List.of()).size(),"ЛКМ — забрать первый предмет / возврат"));
 }
-private void menu(Player p){Inventory inv=Bukkit.createInventory(new Menu(p.getUniqueId()),27,Component.text("Аукцион • Land of Losers"));render(inv,p);p.openInventory(inv);}
-private void refreshMenus(){for(Player p:Bukkit.getOnlinePlayers()){Inventory inv=p.getOpenInventory().getTopInventory();if(inv.getHolder() instanceof Menu m&&m.owner.equals(p.getUniqueId()))render(inv,p);}}
+private void menu(Player p){Menu m=new Menu(p.getUniqueId());m.inv=Bukkit.createInventory(m,27,Component.text("Аукцион • Land of Losers"));render(m.inv,p);p.openInventory(m.inv);}
+private void confirm(Menu m,Player p,int amount){
+if(!active()||frozen||amount>MAX_BID)return;
+m.quoteLot=queue.getFirst();m.quote=amount;renderConfirm(m,p);
+}
+private void renderConfirm(Menu m,Player p){
+Inventory inv=m.inv;inv.clear();
+if(frozen||!active()||queue.getFirst()!=m.quoteLot||m.quote<minimum()){
+m.quote=0;m.quoteLot=null;render(inv,p);p.sendMessage(P+"Ставка изменилась; выберите новую сумму.");return;}
+int cost=m.owner.equals(leader)?m.quote-price:m.quote;
+inv.setItem(13,named(Material.PAPER,"Подтвердить ставку "+m.quote+" алм.","Будет списано сейчас: "+cost+" алм.","Баланс: "+diamonds(p)));
+inv.setItem(11,named(Material.LIME_DYE,"Подтвердить "+m.quote+" алм."));
+inv.setItem(15,named(Material.RED_DYE,"Отмена"));
+}
+private void refreshMenus(){for(Player p:Bukkit.getOnlinePlayers()){Inventory inv=p.getOpenInventory().getTopInventory();if(inv.getHolder() instanceof Menu m&&m.owner.equals(p.getUniqueId())){if(m.quote>0)renderConfirm(m,p);else render(inv,p);}}}
 @EventHandler(priority=EventPriority.HIGHEST)public void click(InventoryClickEvent e){
 if(!(e.getView().getTopInventory().getHolder() instanceof Menu m))return;
 e.setCancelled(true);if(!(e.getWhoClicked() instanceof Player p)||!m.owner.equals(p.getUniqueId())||e.getRawSlot()<0||e.getRawSlot()>=27||e.getClick()!=ClickType.LEFT)return;
+if(m.quote>0){
+int amount=m.quote;Lot lot=m.quoteLot;
+if(e.getRawSlot()==15){m.quote=0;m.quoteLot=null;render(m.inv,p);return;}
+if(e.getRawSlot()!=11)return;
+m.quote=0;m.quoteLot=null;
+if(active()&&!frozen&&queue.getFirst()==lot&&amount>=minimum())bid(p,amount);
+else p.sendMessage(P+"Ставка изменилась. Попробуйте снова.");
+refreshMenus();return;
+}
 if(e.getRawSlot()==22){claim(p);return;}if(!active()||frozen)return;
-int min=minimum();if(e.getRawSlot()==20)bid(p,min);else if(e.getRawSlot()==24)bid(p,min+4);
+int min=minimum();if(e.getRawSlot()==20)confirm(m,p,min);else if(e.getRawSlot()==24)confirm(m,p,min+4);
 }
 @EventHandler(priority=EventPriority.HIGHEST)public void drag(InventoryDragEvent e){if(e.getView().getTopInventory().getHolder() instanceof Menu)e.setCancelled(true);}
 @Override public void onDisable(){for(Player p:Bukkit.getOnlinePlayers())if(p.getOpenInventory().getTopInventory().getHolder() instanceof Menu)p.closeInventory();}
