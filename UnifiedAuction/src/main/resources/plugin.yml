@@ -1,0 +1,16 @@
+name: UnifiedAuction
+version: 1.0.0
+main: dev.unified.auction.UnifiedAuction
+api-version: '26.3'
+load: POSTWORLD
+softdepend: [MinecraftUnified, UnifiedAuth]
+commands:
+  auction:
+    description: Chest auctions and escrow mailbox
+    usage: /auction
+    permission: unifiedauction.use
+permissions:
+  unifiedauction.use:
+    default: true
+  unifiedauction.admin:
+    default: op

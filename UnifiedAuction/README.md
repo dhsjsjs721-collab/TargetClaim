@@ -1,0 +1,6 @@
+# UnifiedAuction 1.0.0
+Minecraft Paper/Purpur 26.3 · Java 25. Server-only. Requires updated MinecraftUnified CommandPolicy permitting /auction on this server.
+
+Players: /auction GUI, /auction bid N, /auction claim. Diamond escrow, refund to persistent mailbox when outbid, winning chest to mailbox, no delivery onto ground. A 15-second anti-sniping extension and 15-second pause between lots. Admin: /auction random [30–300 seconds] selects 3 different random chest presets; third is hidden; /auction cancel returns current escrow; /auction add <price> <public|secret> copies an admin-held filled chest into queue; /auction start [seconds]. Do not run alongside a manual auction.
+
+State stored in auction.yml, atomic replacement. Before inventory-changing operation, pending.yml contains prior player inventory and state, then player save and state commit. Uncertain crash freezes all auctions on next start; reconcile player data and auction.yml with pending.yml manually before clearing marker. No automatic replay. Back up plugin data and player data. Do not remove journal casually. No guarantee of atomic cross-file transaction. Test chest placement, GUI, escrow, refund, restart and cancel on a staging server before use.

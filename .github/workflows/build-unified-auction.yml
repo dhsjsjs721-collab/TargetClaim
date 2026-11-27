@@ -1,0 +1,35 @@
+name: Build UnifiedAuction JAR
+on:
+  push:
+    branches: [feature/unified-auction]
+    paths:
+      - 'UnifiedAuction/**'
+      - '.github/workflows/build-unified-auction.yml'
+  pull_request:
+    paths:
+      - 'UnifiedAuction/**'
+      - '.github/workflows/build-unified-auction.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: UnifiedAuction
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+      - run: gradle clean build --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UnifiedAuction-JAR
+          path: UnifiedAuction/build/libs/UnifiedAuction-1.0.0.jar
+          if-no-files-found: error
