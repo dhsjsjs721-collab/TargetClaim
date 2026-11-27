@@ -64,3 +64,6 @@ tbody tr:hover{background:#bb8af00b}
 @media(max-width:400px){.wordmark{font-size:.78rem}.wiki-head-inner{gap:8px}.searchbox input{font-size:.78rem}.wiki-hero{padding-inline:15px}.meta span{font-size:.69rem}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.section-card{transition:none}}
 }
+
+/* Recipe groups and real item textures */
+.recipe-section{margin-top:32px}.recipe-section[hidden]{display:none}.recipe-section>h2{font-size:1.4rem;margin:0 0 8px;scroll-margin-top:96px}.recipe-section>.intro{margin-top:0;margin-bottom:16px}.recipe-section+.recipe-section{margin-top:42px}.slot img.item-art{width:30px;height:30px;image-rendering:pixelated;object-fit:contain}.ingredient-icon{width:23px;height:23px;image-rendering:pixelated;object-fit:contain;flex-shrink:0}.recipe .item-art{image-rendering:pixelated}.recipe .materials li{min-height:24px}
