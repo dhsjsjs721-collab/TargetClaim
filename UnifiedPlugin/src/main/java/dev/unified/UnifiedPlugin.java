@@ -134,6 +134,8 @@ new CommandPolicy(this).enable();
 clanGlow=new ClanGlow(this);clanGlow.enable();
 testWorld=new TestWorld(this);testWorld.enable();PluginCommand test=getCommand("test");if(test!=null){test.setExecutor((sender,cmd,label,args)->testWorld.command(sender,args));test.setTabCompleter((sender,cmd,alias,args)->sender.isOp()&&args.length==1?List.of("exit","refill","reset","survival","creative").stream().filter(x->x.startsWith(args[0])).toList():List.of());}
 if(!CommandPolicy.selftest())throw new IllegalStateException("Command policy self-test failed");getLogger().info("SELFTEST command policy OK");
+new CaveAndTips(this).enable();
+new DragonTotem(this).enable();
 rememberCustomRecipes();
 Bukkit.getScheduler().runTaskTimer(this,this::restoreMissingRecipes,100L,100L);
 getLogger().info("MinecraftUnified 1.1.22 started modules "+enabledModules.size()+"/"+modules.size()+
