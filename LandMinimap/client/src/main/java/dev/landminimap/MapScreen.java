@@ -9,7 +9,8 @@ import net.minecraft.network.chat.Component;
 import java.util.*;
 final class MapScreen extends Screen {
     private int cx,cz,zoom=1,side,left,top,panel;
-    private boolean shared;
+    private boolean shared,showOverlays=true;
+    private int pointIndex=-1;
     private UUID selected;
     private EditBox label;
     private String status="ЛКМ: метка · ПКМ: удалить";
@@ -32,7 +33,12 @@ final class MapScreen extends Screen {
         button("Инвентарь",panel,114,132,()->send(ActionPayload.VIEW));
         button("Разрешить",panel,136,65,()->send(ActionPayload.ALLOW));
         button("Отозвать",panel+67,136,65,()->send(ActionPayload.REVOKE));
-        button("Закрыть",panel,158,132,this::onClose);
+        button("Точки спавна",panel,158,132,()->{
+            var points=LandMinimap.points();if(points.isEmpty()){status="Нет доступных точек в этом мире";return;}
+            pointIndex=(pointIndex+1)%points.size();var p=points.get(pointIndex);
+            cx=LandMinimap.cell(p.x());cz=LandMinimap.cell(p.z());showOverlays=true;status=p.label()+" · Y "+p.y();
+        });
+        button("Зоны вкл/выкл",panel,180,132,()->showOverlays=!showOverlays);
     }
     private void button(String text,int x,int y,int w,Runnable r){addRenderableWidget(Button.builder(Component.literal(text),b->r.run()).bounds(x,y,w,20).build());}
     private void pan(int x,int z){cx=LandMinimap.clamp(cx+x*side*zoom/3,-7500000,7500000);cz=LandMinimap.clamp(cz+z*side*zoom/3,-7500000,7500000);}
@@ -77,6 +83,15 @@ final class MapScreen extends Screen {
             while(x<side){int color=sample(x,y),end=x+1;while(end<side&&sample(end,y)==color)end++;
                 if(color!=0)g.fill(left+x,top+y,left+end,top+y+1,color);x=end;}
         }
+        if(showOverlays){
+            for(var zone:LandMinimap.zones()){
+                int x1=px(zone.x1()),z1=py(zone.z1()),x2=px(zone.x2()),z2=py(zone.z2());
+                int color=OverlayPayload.zoneColor(zone.kind());
+                ZoneDraw.outline(g,left,top,side,x1,z1,x2,z2,color);
+                if(inside(x1,z1)&&x1+font.width(zone.label())<left+side&&z1+10<top+side)g.text(font,zone.label(),x1+1,z1+1,color,true);
+            }
+            for(var point:LandMinimap.points())mark(g,point.x(),point.z(),point.label(),OverlayPayload.pointColor(point.kind()));
+        }
         for(var m:LandMinimap.personal())mark(g,m.x(),m.z(),m.label(),0xffffcf5b);
         for(var m:LandMinimap.shared())mark(g,m.x(),m.z(),m.label(),0xff49c8ff);
         for(var m:LandMinimap.members())mark(g,(int)Math.floor(m.x()),(int)Math.floor(m.z()),m.name(),LandMinimap.ALLY);
@@ -87,7 +102,12 @@ final class MapScreen extends Screen {
         String nick=team.stream().filter(m->m.id().equals(selected)).map(TeamPayload.Member::name).findFirst().orElse("—");
         g.text(font,"Союзник: "+nick,panel,81,0xff48e39a,true);
         if(inside(mx,my))g.text(font,"X "+((startX()+(mx-left)*zoom)*4)+"  Z "+((startZ()+(my-top)*zoom)*4),left,top+side+3,0xffdddddd,true);
-        g.text(font,status,left,top+side+15,0xffeeeeee,true);
+        String detail=status;
+        if(showOverlays&&inside(mx,my)){
+            for(var zone:LandMinimap.zones())if(mx>=px(zone.x1())&&mx<=px(zone.x2())&&my>=py(zone.z1())&&my<=py(zone.z2()))detail=zone.label()+(zone.kind()==3?" · Y "+zone.y1()+".."+zone.y2():"");
+            for(var point:LandMinimap.points())if(Math.abs(mx-px(point.x()))<=4&&Math.abs(my-py(point.z()))<=4){detail=point.label()+" · "+point.x()+", "+point.y()+", "+point.z();break;}
+        }
+        g.text(font,detail,left,top+side+15,0xffeeeeee,true);
     }
     private int sample(int x,int z){
         int a=startX()+x*zoom,b=startZ()+z*zoom;

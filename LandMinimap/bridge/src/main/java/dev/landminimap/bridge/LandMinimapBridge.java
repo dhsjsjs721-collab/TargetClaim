@@ -22,6 +22,8 @@ public final class LandMinimapBridge extends JavaPlugin implements Listener {
     public static final String CHANNEL="landminimap:team", ACTION="landminimap:action";
     private Plugin clans;
     private Method areClanmates,claimModule,clanId;
+    private MapOverlays overlays;
+    private int overlayTick;
     private record Marker(UUID id,UUID owner,UUID clan,UUID world,int x,int z,String label){}
     private record Access(UUID owner,UUID viewer){}
     private record Permit(UUID clan,long expires){}
@@ -51,6 +53,8 @@ public final class LandMinimapBridge extends JavaPlugin implements Listener {
         loadMarkers();
         Bukkit.getPluginManager().registerEvents(this,this);
         getServer().getMessenger().registerOutgoingPluginChannel(this,CHANNEL);
+        getServer().getMessenger().registerOutgoingPluginChannel(this,MapOverlays.CHANNEL);
+        overlays=new MapOverlays((JavaPlugin)clans,this,claimModule,this::clan);
         getServer().getMessenger().registerIncomingPluginChannel(this,ACTION,(channel,player,bytes)->{
             if(bytes.length>128||bytes.length<26)return;
             byte[] copy=bytes.clone();
@@ -158,6 +162,7 @@ public final class LandMinimapBridge extends JavaPlugin implements Listener {
         requests.keySet().removeIf(a->a.owner.equals(id)||a.viewer.equals(id));snapshots.remove(id);
     }
     private void broadcast(){
+        boolean sendOverlays=++overlayTick%4==0;
         long now=System.currentTimeMillis();
         requests.entrySet().removeIf(e->e.getValue().expires<now||!e.getValue().clan.equals(clan(e.getKey().owner))||!e.getValue().clan.equals(clan(e.getKey().viewer)));
         for(Access a:new ArrayList<>(permissions.keySet()))if(!allowed(a,now)){permissions.remove(a);closeAccess(a);}
@@ -182,6 +187,7 @@ public final class LandMinimapBridge extends JavaPlugin implements Listener {
                     for(Marker m:visible){uuid(out,m.id);uuid(out,m.owner);out.writeInt(m.x);out.writeInt(m.z);label(out,m.label);}
                 }
                 viewer.sendPluginMessage(this,CHANNEL,bytes.toByteArray());
+                if(sendOverlays)overlays.send(viewer);
             }catch(IOException|RuntimeException e){getLogger().warning("Team update failed: "+e.getClass().getSimpleName());}
         }
     }

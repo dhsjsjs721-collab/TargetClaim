@@ -19,3 +19,10 @@ Exploration is saved locally, separately by player UUID and world UUID, in land-
 - Select an ally and click Инвентарь. They receive a 60-second request; they must select you and click Разрешить to grant 10 minutes of access. Отозвать revokes immediately. No consent survives a reconnect or clan change. A read-only 54-slot snapshot shows storage, armor, offhand, not ender chests; all inventory clicks and drags are canceled server-side. Both sides must use the mod to approve.
 - Protocol v2 requires updating both JARs together (new client can read old v1 positions, but no new features without new bridge).
 - Build and runtime verification are separate. Test inventory shift-click, hotbar swaps, creative actions, death, disconnect and permission revocation before deployment.
+
+## 0.3.0: world overlays
+Both JARs should be updated to 0.3.0. An independent, versioned overlays channel preserves v2 team-protocol compatibility.
+- Own saved beds and anchors (up to six each), current spawn, world spawn, clan spawn, and own last death are shown in the current dimension. "(?)" means the saved block is in an unloaded chunk and has not been verified; unloaded chunks are not scanned for the saved-point list.
+- Public peace-zone (green), world border (red), and accessible claims (purple) use actual server coordinates. Claim height is displayed on hover; claim membership is checked on every snapshot. Enemy claims and teammates' owner-only claims are not transmitted. Unknown claim layouts fail closed.
+- "Точки спавна" cycles through available points and centers the map; "Зоны вкл/выкл" toggles overlays on the big map. Hover on the map to see point/zone details. Fog-of-war remains intact.
+- No gameplay changes, teleportation, chunk terrain scan, or private points of other players. Requires runtime testing on your exact MinecraftUnified build.

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "landminimap",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "name": "Land Minimap",
   "description": "Private clan minimap with visited-only terrain",
   "environment": "client",

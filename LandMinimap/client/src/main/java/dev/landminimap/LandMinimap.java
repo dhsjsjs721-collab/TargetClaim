@@ -27,6 +27,8 @@ public final class LandMinimap implements ClientModInitializer {
     static final int FOG=0xff15191e, ALLY=0xff48e39a;
     private static ClientLevel level;
     private static TeamPayload packet;
+    private static OverlayPayload overlay;
+    private static long overlayReceived;
     private static Set<UUID> allies=Set.of();
     private static long received;
     static Exploration map;
@@ -37,6 +39,10 @@ public final class LandMinimap implements ClientModInitializer {
     private static int ticks;
     @Override public void onInitializeClient() {
         PayloadTypeRegistry.clientboundPlay().register(TeamPayload.TYPE,TeamPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(OverlayPayload.TYPE,OverlayPayload.CODEC);
+        ClientPlayNetworking.registerGlobalReceiver(OverlayPayload.TYPE,(data,context)->{
+            if(active(context.client())&&data.viewer().equals(viewer)&&data.world().equals(world)){overlay=data;overlayReceived=System.nanoTime();}
+        });
         PayloadTypeRegistry.serverboundPlay().register(ActionPayload.TYPE,ActionPayload.CODEC);
         mapKey=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.landminimap.map",InputConstants.Type.KEYBOARD,InputConstants.KEY_M,KeyMapping.Category.register(Identifier.fromNamespaceAndPath("landminimap","controls"))));
         ClientPlayNetworking.registerGlobalReceiver(TeamPayload.TYPE,(data,context)->{
@@ -68,7 +74,7 @@ public final class LandMinimap implements ClientModInitializer {
     }
     private static void reset() {
         if(map!=null)map.flush();
-        packet=null;allies=Set.of();map=null;localMarks=null;level=null;world=null;viewer=null;received=0;ticks=0;
+        packet=null;overlay=null;overlayReceived=0;allies=Set.of();map=null;localMarks=null;level=null;world=null;viewer=null;received=0;ticks=0;
     }
     static int cell(int coordinate){return Math.floorDiv(coordinate,CELL);}
     private static void tick(Minecraft mc) {
@@ -91,6 +97,9 @@ public final class LandMinimap implements ClientModInitializer {
         if(ticks%200==0)map.flush();
     }
     static int clamp(int v,int lo,int hi){return Math.max(lo,Math.min(hi,v));}
+    static boolean overlaysReady(){return active(Minecraft.getInstance())&&overlay!=null&&System.nanoTime()-overlayReceived<6_000_000_000L;}
+    static List<OverlayPayload.Point> points(){return overlaysReady()?overlay.points():List.of();}
+    static List<OverlayPayload.Zone> zones(){return overlaysReady()?overlay.zones():List.of();}
     static List<TeamPayload.Member> members(){return active(Minecraft.getInstance())?packet.members():List.of();}
     static List<TeamPayload.Mark> shared(){return active(Minecraft.getInstance())?packet.marks():List.of();}
     static List<TeamPayload.Mark> personal(){return localMarks==null?List.of():localMarks.all();}
@@ -115,6 +124,18 @@ public final class LandMinimap implements ClientModInitializer {
                 int end=x+1;while(end<SIZE&&map.color(startX+end,startZ+row)==color)end++;
                 if(color!=0)g.fill(left+x*PIXEL,top+row*PIXEL,left+end*PIXEL,top+(row+1)*PIXEL,color);
                 x=end;
+            }
+        }
+        for(var zone:zones()){
+            int x1=left+(cell(zone.x1())-startX)*PIXEL,z1=top+(cell(zone.z1())-startZ)*PIXEL;
+            int x2=left+(cell(zone.x2())-startX)*PIXEL+PIXEL-1,z2=top+(cell(zone.z2())-startZ)*PIXEL+PIXEL-1;
+            ZoneDraw.outline(g,left,top,WIDTH,x1,z1,x2,z2,OverlayPayload.zoneColor(zone.kind()));
+        }
+        for(var point:points()){
+            int x=left+(cell(point.x())-startX)*PIXEL+1,z=top+(cell(point.z())-startZ)*PIXEL+1;
+            if(x>=left+2&&x<left+WIDTH-2&&z>=top+2&&z<top+WIDTH-2){
+                int color=OverlayPayload.pointColor(point.kind());
+                g.fill(x-2,z-2,x+3,z+3,0xff131820);g.fill(x-1,z-1,x+2,z+2,color);
             }
         }
         int midX=left+WIDTH/2+1,midY=top+WIDTH/2+1;
