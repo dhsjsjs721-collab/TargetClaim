@@ -8,7 +8,7 @@ import java.util.*;
 
 final class CommandPolicy implements Listener {
 private final UnifiedPlugin host;
-private static final Set<String> PUBLIC_ROOTS=Set.of("u","clan","msg","r","skin","disc","ua","voicechat");
+private static final Set<String> PUBLIC_ROOTS=Set.of("u","clan","msg","r","skin","disc","ua","voicechat","auction");
 private static final Set<String> MODULES=Set.of("unified","p","team","unifiedmsg","unifiedreply","skin","disc","trap","talismanforge","enchantmentforge","swampsky","imagemap");
 private static final Set<String> SAFE_CLAIM=Set.of("","list","info","border","borders","upgrade","remove","cancel","create","help","recipe");
 private static final Set<String> SAFE_CLAN=Set.of("","create","colors","invite","accept","deny","leave","kick","disband","pvp","info","menu","color");
@@ -18,6 +18,7 @@ static String norm(String s){String v=s.toLowerCase(Locale.ROOT);return v.starts
 static boolean safe(String root,String[] args){
 root=norm(root);String a=args.length==0?"":args[0].toLowerCase(Locale.ROOT);String b=args.length<2?"":args[1].toLowerCase(Locale.ROOT);
 if(Set.of("skin","disc","msg","tell","w","pm","unifiedmsg","r","reply","unifiedreply","ua","voicechat").contains(root))return !root.equals("ua")||Set.of("","remember","status").contains(a);
+if(root.equals("auction")||root.equals("unifiedauction:auction"))return Set.of("","bid","claim","status","help").contains(a);
 if(Set.of("clan","clans","team").contains(root))return SAFE_CLAN.contains(a);
 if(Set.of("p","claim","privat").contains(root))return SAFE_CLAIM.contains(a)||a.matches("[1-9][0-9]*");
 if(Set.of("talismanforge","tf","talismans").contains(root))return SAFE_RELIC.contains(a);
