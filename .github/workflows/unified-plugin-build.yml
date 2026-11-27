@@ -2,7 +2,7 @@ name: Build single unified Minecraft plugin
 on:
   workflow_dispatch:
   push:
-    branches: [feature/unified-server-plugin, fix/unified-gameplay-20261127]
+    branches: [feature/unified-server-plugin, fix/unified-gameplay-20261127, feature/cave-dragon-totem-20261128]
     paths:
       - 'UnifiedPlugin/**'
       - 'resourcepacks/**'

@@ -9,6 +9,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.*;
 import org.bukkit.event.*;
 import org.bukkit.event.entity.*;
+import org.bukkit.event.block.CrafterCraftEvent;
 import org.bukkit.event.inventory.*;
 import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.inventory.*;
@@ -52,6 +53,7 @@ m.getPersistentDataContainer().set(serialKey,PersistentDataType.STRING,id);stack
 }
 private boolean valid(ItemStack i){return available&&serial!=null&&i!=null&&i.getType()==Material.ECHO_SHARD&&i.getAmount()==1&&i.hasItemMeta()&&serial.equals(i.getItemMeta().getPersistentDataContainer().get(serialKey,PersistentDataType.STRING));}
 private boolean isRecipe(Recipe r){return r instanceof Keyed k&&k.getKey().equals(key);}
+@EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void autoCraft(CrafterCraftEvent e){if(isRecipe(e.getRecipe()))e.setCancelled(true);}
 @EventHandler public void prepare(PrepareItemCraftEvent e){if(isRecipe(e.getRecipe())&&(!available||serial!=null))e.getInventory().setResult(null);}
 @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true)
 public void craft(CraftItemEvent e){
