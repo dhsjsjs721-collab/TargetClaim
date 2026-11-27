@@ -26,6 +26,8 @@ import java.util.Map;
 public final class UnifiedPlugin extends JavaPlugin implements CommandExecutor,TabCompleter,Listener {
 private final List<ModuleBridge> enabledModules=new ArrayList<>();
 private final Map<String,String> failedModules=new LinkedHashMap<>();
+private final Map<org.bukkit.NamespacedKey,org.bukkit.inventory.Recipe> customRecipes=new LinkedHashMap<>();
+private static final java.util.Set<String> RECIPE_NAMESPACES=java.util.Set.of("minecraftunified","targetclaim","talismanforge","swampsky","enchantmentforge");
 private TrapItems trapItems;
 private RetiredShields retiredShields;
 private DeepslateCrafts deepslateCrafts;
@@ -132,8 +134,28 @@ new CommandPolicy(this).enable();
 clanGlow=new ClanGlow(this);clanGlow.enable();
 testWorld=new TestWorld(this);testWorld.enable();PluginCommand test=getCommand("test");if(test!=null){test.setExecutor((sender,cmd,label,args)->testWorld.command(sender,args));test.setTabCompleter((sender,cmd,alias,args)->sender.isOp()&&args.length==1?List.of("exit","refill","reset","survival","creative").stream().filter(x->x.startsWith(args[0])).toList():List.of());}
 if(!CommandPolicy.selftest())throw new IllegalStateException("Command policy self-test failed");getLogger().info("SELFTEST command policy OK");
+rememberCustomRecipes();
+Bukkit.getScheduler().runTaskTimer(this,this::restoreMissingRecipes,100L,100L);
 getLogger().info("MinecraftUnified 1.1.22 started modules "+enabledModules.size()+"/"+modules.size()+
 (failedModules.isEmpty()?" (all ready)":" (see /u status)"));
+}
+private void rememberCustomRecipes(){
+customRecipes.clear();
+var iterator=Bukkit.recipeIterator();
+while(iterator.hasNext()){
+var recipe=iterator.next();
+if(recipe instanceof org.bukkit.Keyed keyed && RECIPE_NAMESPACES.contains(keyed.getKey().getNamespace()))customRecipes.put(keyed.getKey(),recipe);
+}
+getLogger().info("Saved "+customRecipes.size()+" custom recipe definitions for reload recovery.");
+}
+private void restoreMissingRecipes(){
+int restored=0;
+for(var entry:customRecipes.entrySet()){
+try{
+if(Bukkit.getRecipe(entry.getKey())==null && Bukkit.addRecipe(entry.getValue(),true))restored++;
+}catch(RuntimeException ex){getLogger().warning("Could not restore recipe "+entry.getKey()+": "+ex.getMessage());}
+}
+if(restored>0)getLogger().info("Restored "+restored+" missing custom recipes after resource reload.");
 }
 @EventHandler public void resourcePackStatus(org.bukkit.event.player.PlayerResourcePackStatusEvent e){getLogger().info("Resource pack status: "+e.getPlayer().getName()+" -> "+e.getStatus());}
 public boolean seasonLocked(org.bukkit.entity.Player p){return season!=null&&season.locked(p);}

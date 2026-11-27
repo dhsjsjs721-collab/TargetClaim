@@ -43,6 +43,8 @@ MapCursorCollection cursors=new MapCursorCollection();for(Player q:Bukkit.getOnl
 Location chosen=season.chosen(p);if(chosen!=null&&chosen.getWorld()==world)mark(cursors,chosen,v,MapCursor.Type.RED_MARKER,"Старт клана");canvas.setCursors(cursors);
 }});
 Bukkit.getPluginManager().registerEvents(this,host);loadImage();host.saveConfig();terrain.start();
+// Refresh contextual map markers for the actual holder, never broadcast another clan\u0027s cursor data.
+Bukkit.getScheduler().runTaskTimer(host,()->{for(Player p:Bukkit.getOnlinePlayers())if(atlas(p.getInventory().getItemInMainHand())||atlas(p.getInventory().getItemInOffHand()))p.sendMap(atlas);},40L,40L);
 for(Player p:Bukkit.getOnlinePlayers())give(p);
 }
 private MapView get(String name){int id=host.getConfig().getInt("scout-maps."+name,-1);MapView map=id<0?null:Bukkit.getMap(id);if(map==null||map.getWorld()!=world){map=Bukkit.createMap(world);host.getConfig().set("scout-maps."+name,map.getId());}return map;}

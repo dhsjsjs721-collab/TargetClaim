@@ -2,7 +2,7 @@ name: Build single unified Minecraft plugin
 on:
   workflow_dispatch:
   push:
-    branches: [feature/unified-server-plugin]
+    branches: [feature/unified-server-plugin, fix/unified-gameplay-20261127]
     paths:
       - 'UnifiedPlugin/**'
       - 'resourcepacks/**'
