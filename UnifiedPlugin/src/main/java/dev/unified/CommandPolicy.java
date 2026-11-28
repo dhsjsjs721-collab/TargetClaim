@@ -29,6 +29,7 @@ if(root.equals("trap"))return Set.of("","help").contains(a);
 if(!Set.of("u","unified").contains(root))return false;
 return switch(a){
 case "","help","guide","recipes","skin","disc","video","dragon" -> true;
+case "telegram" -> Set.of("","unlink").contains(b);
 case "claim","claims","p","private" -> SAFE_CLAIM.contains(b)||b.matches("[1-9][0-9]*");
 case "team","teams","clan","clans" -> SAFE_CLAN.contains(b);
 case "talisman","talismans","tf" -> SAFE_RELIC.contains(b);
