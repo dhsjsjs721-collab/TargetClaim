@@ -84,6 +84,8 @@ private final Map<UUID,Session> sessions=new ConcurrentHashMap<>();
 private final Map<String,Window> ips=new ConcurrentHashMap<>();
 private final Map<String,Window> failuresByAccountIp=new ConcurrentHashMap<>();
 private final java.util.Set<UUID> passwordAuthenticated=ConcurrentHashMap.newKeySet();
+public boolean isPasswordAuthenticated(UUID uuid){return ready && getConfig().getBoolean("authentication.enabled",true) && passwordAuthenticated.contains(uuid);}
+
 private final Map<UUID,Boolean> verifiedJoins=new ConcurrentHashMap<>();
 private ThreadPoolExecutor executor;
 private AccountStore legacy;
