@@ -32,11 +32,14 @@ private final BlockingQueue<Message> outgoing=new ArrayBlockingQueue<>(256);
 private final SecureRandom rng=new SecureRandom();
 private final HttpClient http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).followRedirects(HttpClient.Redirect.NEVER).build();
 private volatile boolean running;
+private boolean loaded;
+private record Confirmation(String code,String command,long expiry){}
+private final Map<Long,Confirmation> confirms=new HashMap<>();
 private volatile String username="";
 private Thread worker;
 private String token;
 private long owner,offset;
-private static final String HELP="Land of Losers\n/start — привязка\n/link КОД — регистрация\n/me — профиль\n/clan — участники клана\n/claim — свои приваты\n/server — статус сервера\n/recipes — крафты\n/unlink — отвязать аккаунт\nОбычное сообщение отправляется в клановый чат.";
+private static final String HELP="Land of Losers\n/start — привязка\n/link КОД — регистрация\n/me — профиль\n/clan — участники клана\n/claim — свои приваты\n/server — статус сервера\n/recipes — крафты\n/unlink — отвязать аккаунт\n/id — свой Telegram ID\nОбычное сообщение отправляется в клановый чат.";
 LandTelegram(UnifiedPlugin host){this.host=host;file=new File(host.getDataFolder(),"telegram-links.yml");}
 private String env(String key){
 String value=System.getenv(key);
@@ -50,12 +53,12 @@ if(!token.matches("[0-9]{5,20}:[A-Za-z0-9_-]{20,100}")){host.getLogger().info("T
 try{owner=Long.parseLong(env("LAND_TELEGRAM_ADMIN_ID"));if(owner<=0)owner=0;}catch(NumberFormatException ignored){owner=0;}
 try{if(file.isFile()){YamlConfiguration y=new YamlConfiguration();y.load(file);offset=y.getLong("offset",0);var section=y.getConfigurationSection("links");if(section!=null)for(String id:section.getKeys(false)){long chat=Long.parseLong(id);if(chat<=0)throw new IllegalArgumentException("Invalid chat ID");String p="links."+id+".";links.put(chat,new Link(UUID.fromString(y.getString(p+"uuid")),y.getString(p+"name","?")));}}}
 catch(Exception e){host.getLogger().severe("Telegram link registry invalid; bot disabled to preserve accounts.");return;}
-running=true;Bukkit.getPluginManager().registerEvents(this,host);
+loaded=true;running=true;Bukkit.getPluginManager().registerEvents(this,host);
 worker=new Thread(this::loop,"LandTelegram");worker.setDaemon(true);worker.start();
 Bukkit.getScheduler().runTaskTimer(host,this::save,1200L,1200L);
 host.getLogger().info("Telegram worker started.");
 }
-void disable(){running=false;if(worker!=null)worker.interrupt();if(token!=null&&!token.isBlank())save();}
+void disable(){running=false;if(worker!=null)worker.interrupt();if(loaded)save();}
 private boolean save(){
 try{YamlConfiguration y=new YamlConfiguration();y.set("offset",offset);for(var e:links.entrySet()){String p="links."+e.getKey()+".";y.set(p+"uuid",e.getValue().player().toString());y.set(p+"name",e.getValue().name());}
 Path tmp=file.toPath().resolveSibling(file.getName()+".tmp");y.save(tmp.toFile());try{Files.move(tmp,file.toPath(),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}catch(AtomicMoveNotSupportedException e){Files.move(tmp,file.toPath(),StandardCopyOption.REPLACE_EXISTING);}return true;
@@ -122,7 +125,7 @@ if(e.getKey()==except)continue;UUID other=e.getValue().player();
 if((self&&other.equals(player))||(group!=null&&!other.equals(player)&&group.equals(clan(other))))send(e.getKey(),message);
 }
 }
-void clanMessage(UUID player,String name,String text){fan(player,"[КЛАН] "+name+": "+text,0,false);}
+void clanMessage(UUID player,String name,String text){fan(player,"[КЛАН] "+name+": "+text,0,true);}
 private void handle(long chat,String text){
 long now=System.currentTimeMillis();Long last=rate.put(chat,now);if(rate.size()>1024)rate.remove(rate.keySet().iterator().next());if(last!=null&&now-last<850)return;
 String clean=text.strip();if(clean.isEmpty())return;
@@ -145,6 +148,18 @@ case "/me" -> {if(l==null){send(chat,"Сначала /link КОД.");return;}Pla
 case "/claim" -> {if(l==null){send(chat,"Сначала привяжи аккаунт.");return;}var module=host.claimModule();send(chat,module==null?"Модуль приватов недоступен.":module.telegramClaims(l.player()));}
 case "/clan" -> {if(l==null){send(chat,"Сначала привяжи аккаунт.");return;}var module=host.claimModule();send(chat,module==null?"Модуль кланов недоступен.":module.telegramClan(l.player()));}
 case "/recipes" -> send(chat,"Обычный тотем: 8 золотых блоков + изумруд.\nВсе рецепты: /u recipes в Minecraft.");
+case "/id" -> send(chat,"Твой Telegram ID: "+chat);
+case "/admin" -> {if(admin)send(chat,"/players — онлайн\n/command <команда> — подготовить\n/confirm <код> — подтвердить\nРазрешены ограниченные административные команды.");else send(chat,"Нет доступа.");}
+case "/command" -> {
+if(!admin){send(chat,"Нет доступа.");return;}
+if(arg.isEmpty()||arg.length()>240||arg.chars().anyMatch(Character::isISOControl)){send(chat,"Недопустимая команда.");return;}
+String command=arg.startsWith("/")?arg.substring(1):arg;
+String name=command.split(" ",2)[0].toLowerCase(Locale.ROOT);
+if(!Set.of("list","minecraft:list","difficulty","minecraft:difficulty","say","minecraft:say","kick","minecraft:kick","ban","minecraft:ban","pardon","minecraft:pardon","save-all","minecraft:save-all","u","uesp","umachines","udefend","uprotect","ua").contains(name)){send(chat,"Команда не разрешена удалённо.");return;}
+if(Set.of("u","uesp","umachines","udefend","uprotect","ua").contains(name)&&!command.matches("(?i)(u|uesp|umachines|udefend|uprotect|ua)( status)?")){send(chat,"Разрешена только проверка статуса.");return;}
+byte[] bytes=new byte[16];rng.nextBytes(bytes);String code=HexFormat.of().formatHex(bytes);confirms.put(chat,new Confirmation(code,command,now+60000));
+send(chat,"Подтверди: "+command+"\n/confirm "+code);}
+case "/confirm" -> {if(!admin)return;Confirmation c=confirms.get(chat);if(c==null||c.expiry()<now||!c.code().equals(arg)){send(chat,"Подтверждение недействительно.");return;}confirms.remove(chat);try{boolean ok=Bukkit.dispatchCommand(Bukkit.getConsoleSender(),c.command());send(chat,ok?"Команда передана серверу; результат смотри в консоли.":"Команда не принята.");}catch(RuntimeException ex){send(chat,"Ошибка выполнения.");}}
 case "/players" -> {if(admin)send(chat,"Онлайн: "+String.join(", ",Bukkit.getOnlinePlayers().stream().map(Player::getName).toList()));else send(chat,"Нет доступа.");}
 default -> {
 if(clean.startsWith("/")){send(chat,HELP);return;}
