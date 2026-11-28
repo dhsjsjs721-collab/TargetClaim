@@ -152,6 +152,8 @@ cooldown.put(caster.getUniqueId(),now+COOLDOWN_MS);caster.getPersistentDataConta
 caster.setCooldown(held,1200);
 send(caster,"§aКлетка 7×7 создана на 15 секунд. КД 60 секунд.");
 caster.getWorld().playSound(caster.getLocation(),Sound.BLOCK_ANVIL_PLACE,.9f,.8f);
+caster.getWorld().playSound(caster.getLocation(),Sound.BLOCK_AMETHYST_BLOCK_CHIME,1f,.6f);
+caster.getWorld().spawnParticle(org.bukkit.Particle.REVERSE_PORTAL,caster.getLocation().add(0,1,0),80,2,1,2,.08);
 }
 private boolean prepare(Player caster){
 if(plugin.isPeace(caster.getLocation()))return false;
@@ -238,11 +240,21 @@ private void sweep(){
 boolean changed=false;
 long now=System.currentTimeMillis();
 for(Trap trap:new ArrayList<>(traps.values())){
-if(now<trap.until)continue;
+if(now<trap.until){visual(trap,now);continue;}
 restore(trap);
 changed=true;
 }
 if(changed)save();
+}
+private void visual(Trap trap,long now){
+World w=Bukkit.getWorld(trap.world);if(w==null||trap.original.isEmpty())return;
+int count=0;
+for(BlockKey k:trap.original.keySet()){
+if(count>=12)break;
+if(!w.isChunkLoaded(k.x>>4,k.z>>4)||Math.floorMod(k.x+k.y+k.z+(int)(now/500),7)!=0)continue;
+Location l=new Location(w,k.x+.5,k.y+.5,k.z+.5);
+w.spawnParticle(org.bukkit.Particle.REVERSE_PORTAL,l,2,.15,.15,.15,.02);count++;
+}
 }
 private void restore(Trap trap){
 World w=Bukkit.getWorld(trap.world);

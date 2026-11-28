@@ -80,7 +80,7 @@ final class MythicTalismans implements Listener {
     private long ticks;
     
     private static final long RECHARGE=30*60*1000L;
-    private static final long MARK_LIFE=24*60*60*1000L;
+    private static final long MARK_LIFE=72*60*60*1000L;
     MythicTalismans(TalismanForgePlugin plugin){
         this.plugin=plugin;file=new File(plugin.getDataFolder(),"mythic-artifacts.yml");
         typeKey=key("mythic_kind");serialKey=key("mythic_serial");healthKey=key("koschei_health");rainKey=key("anubis_rain");

@@ -29,6 +29,9 @@ private final Map<String,String> failedModules=new LinkedHashMap<>();
 private final Map<org.bukkit.NamespacedKey,org.bukkit.inventory.Recipe> customRecipes=new LinkedHashMap<>();
 private static final java.util.Set<String> RECIPE_NAMESPACES=java.util.Set.of("minecraftunified","targetclaim","talismanforge","swampsky","enchantmentforge");
 private TrapItems trapItems;
+private LandTelegram telegram;
+public void telegramRaid(java.util.UUID owner,String label,java.util.UUID actor,String action,org.bukkit.Location loc){if(telegram!=null)telegram.raid(owner,label,actor,action,loc);}
+public void telegramClanMessage(java.util.UUID player,String name,String text){if(telegram!=null)telegram.clanMessage(player,name,text);}
 private RetiredShields retiredShields;
 private DeepslateCrafts deepslateCrafts;
 private PeaceZone peace;
@@ -134,6 +137,9 @@ new CommandPolicy(this).enable();
 clanGlow=new ClanGlow(this);clanGlow.enable();
 testWorld=new TestWorld(this);testWorld.enable();PluginCommand test=getCommand("test");if(test!=null){test.setExecutor((sender,cmd,label,args)->testWorld.command(sender,args));test.setTabCompleter((sender,cmd,alias,args)->sender.isOp()&&args.length==1?List.of("exit","refill","reset","survival","creative").stream().filter(x->x.startsWith(args[0])).toList():List.of());}
 if(!CommandPolicy.selftest())throw new IllegalStateException("Command policy self-test failed");getLogger().info("SELFTEST command policy OK");
+new CaveAndTips(this).enable();
+new DragonTotem(this).enable();
+telegram=new LandTelegram(this);telegram.enable();
 rememberCustomRecipes();
 Bukkit.getScheduler().runTaskTimer(this,this::restoreMissingRecipes,100L,100L);
 getLogger().info("MinecraftUnified 1.1.22 started modules "+enabledModules.size()+"/"+modules.size()+
@@ -308,6 +314,7 @@ if(action.equals("skin"))return media==null?unavailable(sender):media.skin(sende
 if(action.equals("disc"))return media==null?unavailable(sender):media.disc(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("shop"))return shops==null?unavailable(sender):shops.command(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("give"))return giveShortcut(sender,args);
+if(action.equals("telegram"))return telegram==null?unavailable(sender):telegram.command(sender,Arrays.copyOfRange(args,1,args.length));
 if(action.equals("dragon")){return dragons==null?unavailable(sender):dragons.status(sender);}
 if(action.equals("recipes")){if(sender instanceof org.bukkit.entity.Player p&&recipeGuide!=null)recipeGuide.open(p);else recipes(sender);return true;}
 if(action.equals("guide")){claimGuide(sender);recipes(sender);return true;}
@@ -346,7 +353,7 @@ if(command.getName().equals("unifiedmsg")){var claims=claimModule();return claim
 if(command.getName().equals("unifiedreply"))return List.of();
 if(args.length<=1){
 String prefix=args.length==0?"":args[0].toLowerCase(Locale.ROOT);
-return List.of("help","guide","recipes","give","vfx","status","claim","team","clan","talisman","enchant","wildlife","spawn","frog","goblin","trader","map","trap","mining","shop","skin","disc","video","dragon")
+return List.of("help","guide","recipes","give","vfx","status","claim","team","clan","talisman","enchant","wildlife","spawn","frog","goblin","trader","map","trap","mining","shop","skin","disc","video","dragon","telegram")
 .stream().filter(x->x.startsWith(prefix)).toList();
 }
 String action=args[0].toLowerCase(Locale.ROOT);
@@ -379,6 +386,7 @@ return sub.tabComplete(sender,target,rest);
 }catch(Exception ex){return List.of();}
 }
 @Override public void onDisable(){
+if(telegram!=null)telegram.disable();
 if(clanGlow!=null)clanGlow.disable();
 if(season!=null)season.disable();
 for(var viewer:Bukkit.getOnlinePlayers())for(var target:Bukkit.getOnlinePlayers())if(viewer.canSee(target)&&!viewer.isListed(target))try{viewer.listPlayer(target);}catch(IllegalStateException ignored){}
