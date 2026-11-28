@@ -61,6 +61,7 @@ volatile boolean passwordVerified;
 volatile boolean artReady;
 volatile String preparedPassword;
 boolean knownNetwork;
+boolean trustedPinOnly;
 boolean rememberSubmitted;
 int failures;
 long lastAction;
@@ -83,6 +84,8 @@ private final Map<UUID,Session> sessions=new ConcurrentHashMap<>();
 private final Map<String,Window> ips=new ConcurrentHashMap<>();
 private final Map<String,Window> failuresByAccountIp=new ConcurrentHashMap<>();
 private final java.util.Set<UUID> passwordAuthenticated=ConcurrentHashMap.newKeySet();
+public boolean isPasswordAuthenticated(UUID uuid){return ready && getConfig().getBoolean("authentication.enabled",true) && passwordAuthenticated.contains(uuid);}
+
 private final Map<UUID,Boolean> verifiedJoins=new ConcurrentHashMap<>();
 private ThreadPoolExecutor executor;
 private AccountStore legacy;
@@ -207,7 +210,7 @@ connection.disconnect(branded("Сессия авторизации уже сущ
 }
 InetSocketAddress address=connection.getClientAddress();
 String ip=address==null||address.getAddress()==null?null:address.getAddress().getHostAddress();
-// Remembered IP is cosmetic network recognition only; both credentials are mandatory.
+// A trusted network can skip the password only with explicit server policy.
 boolean knownNetwork=accounts.exists(name) && rememberEnabled && ip!=null &&
 trust.isTrusted(name,uuid,ip,System.currentTimeMillis());
 if(isLocked(name,ip)){
@@ -219,15 +222,19 @@ if(sessions.size()>=maxPending){
 denied++;
 connection.disconnect(branded("Очередь входа заполнена",DANGER));return;
 }
-Stage initial=accounts.exists(name)?Stage.LOGIN_PASSWORD:legacy.exists(name)?Stage.LEGACY_PIN:Stage.CREATE_PASSWORD;
+boolean pinOnly=knownNetwork && getConfig().getBoolean("remember-ip.pin-only-on-trusted-network",false) && (Bukkit.getOnlineMode() || getConfig().getBoolean("remember-ip.allow-offline-pin-only",false));
+Stage initial=accounts.exists(name)?(pinOnly?Stage.LOGIN_PIN:Stage.LOGIN_PASSWORD):legacy.exists(name)?Stage.LEGACY_PIN:Stage.CREATE_PASSWORD;
 Session s=new Session(uuid,name,connection,ip,initial);
 s.knownNetwork=knownNetwork;
+s.trustedPinOnly=pinOnly;
 s.remember=knownNetwork;
 if(sessions.putIfAbsent(uuid,s)!=null){
 connection.disconnect(branded("Сессия авторизации уже активна",DANGER));return;
 }
 try{
-s.artReady=prepareResourcePack(s);
+// Paper sends the configured server pack itself. Sending it again during
+// configuration can cause an unexpected server_resource_pack task finish.
+s.artReady=false;
 if(!s.connection.isConnected())return;
 s.result.completeOnTimeout(false,timeoutSeconds,TimeUnit.SECONDS);
 render(s,null);
@@ -329,12 +336,13 @@ body.add(DialogBody.plainMessage(Component.text("Пароль виден на э
 buttons.add(button("Далее →","submit-password",MINT,96,"Перейти к PIN-коду"));
 }else{
 int length=stage==Stage.LEGACY_PIN?legacyPinLength:4;
-
+if(s.trustedPinOnly)body.add(DialogBody.plainMessage(Component.text("Доверенная сеть. Введите PIN.",MINT)));
 body.add(DialogBody.plainMessage(accent((stage==Stage.LEGACY_PIN?"Старый PIN: ":create?"Новый PIN: ":"PIN: ")+"● ".repeat(s.digits.length())+"○ ".repeat(Math.max(0,length-s.digits.length())),GOLD)));
 for(int i=1;i<=9;i++)buttons.add(button(Integer.toString(i),"digit"+i,ICE,32,"Цифра "+i));
 buttons.add(button("⌫","back",ROSE,32,"Удалить цифру"));
 buttons.add(button("0","digit0",ICE,32,"Цифра 0"));
 buttons.add(button("✓","submit-pin",MINT,32,"Подтвердить PIN"));
+if(s.trustedPinOnly)buttons.add(button("Пароль","full-login",ICE,96,"Вход с паролем"));
 }
 base.body(body);
 if(!inputs.isEmpty())base.inputs(inputs);
@@ -384,6 +392,12 @@ return true;
 }else runCrypto(s,stage,()->accounts.verifyPassword(s.name,password),false);
 return;
 }
+if(action.equals("full-login") && s.trustedPinOnly && stage==Stage.LOGIN_PIN){
+s.trustedPinOnly=false;
+s.digits.setLength(0);
+s.stage=Stage.LOGIN_PASSWORD;
+renderLater(s,null);return;
+}
 int length=stage==Stage.LEGACY_PIN?legacyPinLength:4;
 if(action.startsWith("digit")&&action.length()==6){
 char digit=action.charAt(5);
@@ -401,7 +415,7 @@ s.digits.setLength(0);
 if(stage==Stage.LEGACY_PIN){
 runCrypto(s,stage,()->legacy.authenticate(s.name,pin),false);return;
 }
-if(!s.passwordVerified){s.result.complete(false);return;}
+if(!s.passwordVerified && !(stage==Stage.LOGIN_PIN && s.trustedPinOnly && rememberEnabled && s.ip!=null && trust.isTrusted(s.name,s.uuid,s.ip,System.currentTimeMillis()))){s.result.complete(false);return;}
 if(stage==Stage.CREATE_PIN){
 String prepared=s.preparedPassword;
 if(prepared==null){s.result.complete(false);return;}
@@ -477,7 +491,8 @@ s.result.complete(true);
 case LOGIN_PIN -> {
 failuresByAccountIp.remove(lockKey(s.name,s.ip));
 successes++;
-passwordAuthenticated.add(s.uuid);
+if(s.passwordVerified)passwordAuthenticated.add(s.uuid);
+else if(s.trustedPinOnly)trustedLogins++;
 verifiedJoins.put(s.uuid,false);
 s.erase();
 s.result.complete(true);
@@ -546,7 +561,7 @@ if(ip==null){player.sendMessage("Cannot obtain IP; PIN/password required.");retu
 String action=args.length>1?args[1].toLowerCase(Locale.ROOT):"status";
 if(action.equals("status")){
 long until=trust.trustedUntil(name,uuid,ip,System.currentTimeMillis());
-player.sendMessage(until==0?"Этот IP не запомнен.":"Сеть запомнена ещё на "+Math.max(0,(until-System.currentTimeMillis()+86399999)/86400000)+" дн. "+"Пароль и PIN обязательны.");
+player.sendMessage(until==0?"Этот IP не запомнен.":"Сеть запомнена ещё на "+Math.max(0,(until-System.currentTimeMillis()+86399999)/86400000)+" дн. "+"Режим входа зависит от политики сервера.");
 }else if(action.equals("on") || action.equals("off") || action.equals("forget")){
 try{
 executor.execute(()->{
@@ -559,7 +574,7 @@ return;
 trust.trust(name,uuid,ip,System.currentTimeMillis());
 }
 else trust.forget(name,uuid);
-Bukkit.getScheduler().runTask(this,()->player.sendMessage(action.equals("on")?"IP запомнен. Пароль и PIN обязательны.":"Запоминание IP отключено."));
+Bukkit.getScheduler().runTask(this,()->player.sendMessage(action.equals("on")?"IP запомнен. Режим входа зависит от политики сервера.":"Запоминание IP отключено."));
 }catch(IOException failure){
 getLogger().warning("Trust database update failed: "+failure.getMessage());
 Bukkit.getScheduler().runTask(this,()->player.sendMessage("Could not save this preference."));
@@ -570,7 +585,7 @@ Bukkit.getScheduler().runTask(this,()->player.sendMessage("Could not save this p
 return true;
 }
 if(sender.hasPermission("unifiedauth.admin")){
-sender.sendMessage("UnifiedAuth 1.6.1: v2Accounts="+(accounts==null?0:accounts.count())+" legacy="+(legacy==null?0:legacy.count())+" pending="+sessions.size()+" successes="+successes+" created="+registered+" migrated="+migrations+" trustedLogins="+trustedLogins+" rateDenied="+rateDenied+" rememberEnabled="+rememberEnabled+" passwordSkip=false");
+sender.sendMessage("UnifiedAuth 1.6.1: v2Accounts="+(accounts==null?0:accounts.count())+" legacy="+(legacy==null?0:legacy.count())+" pending="+sessions.size()+" successes="+successes+" created="+registered+" migrated="+migrations+" trustedLogins="+trustedLogins+" rateDenied="+rateDenied+" rememberEnabled="+rememberEnabled+" passwordSkip="+getConfig().getBoolean("remember-ip.pin-only-on-trusted-network",false)+" allowOfflinePinOnly="+getConfig().getBoolean("remember-ip.allow-offline-pin-only",false));
 }else sender.sendMessage("Usage: /ua remember [on|off|status]");
 return true;
 }

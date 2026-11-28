@@ -13,10 +13,13 @@ antibot:
   max-new-connections-per-ip-per-minute: 24
   maximum-tracked-addresses: 4000
 
-# Network recognition only. Every login requires password AND PIN.
+# Optional PIN-only login after a full login explicitly trusts this network.
+# IP is not a device ID. Offline servers should leave the unsafe override off.
 remember-ip:
   enabled: true
   expire-after-days: 7
+  pin-only-on-trusted-network: false
+  allow-offline-pin-only: false
 welcome:
   enabled: true
   text: "Ты лузер. Всё, пока."
